@@ -1,3 +1,10 @@
+[![PyPI](https://img.shields.io/pypi/v/bblocks_data_importers.svg)](https://pypi.org/project/bblocks_data_importers/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/bblocks_data_importers.svg)](https://pypi.org/project/bblocks_data_importers/)
+[![Documentation Status](https://readthedocs.org/projects/bblocks_data_importers/badge/?version=latest)](https://bblocks_data_importers.readthedocs.io/en/latest/?badge=latest)
+[![codecov](https://codecov.io/gh/ONEcampaign/bblocks_data_importers/branch/main/graph/badge.svg?token=YN8S1719NH)](https://codecov.io/gh/ONEcampaign/bblocks_data_importers)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+
 # bblocks_data_importers
 
 A package to import data
