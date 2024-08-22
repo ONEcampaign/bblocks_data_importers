@@ -2,7 +2,7 @@
 name = "bblocks_data_importers"
 version = "0.0.1"
 description = "A package to import data"
-authors = ["ONE Campaign"]
+authors = ["The ONE Campaign", "Luca Picci", "Jorge Rivera"]
 license = "MIT"
 readme = "README.md"
 
