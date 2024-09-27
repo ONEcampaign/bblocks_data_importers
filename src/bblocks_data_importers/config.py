@@ -44,4 +44,3 @@ def set_raw_data_path(path):
     """
 
     Paths.raw_data = Path(path).resolve()
-

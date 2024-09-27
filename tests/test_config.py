@@ -12,6 +12,3 @@ def test_set_raw_data_path():
     """Test the set_raw_data_path function."""
     set_raw_data_path("new_path")
     assert Paths.raw_data.name == "new_path"
-
-
-
