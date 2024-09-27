@@ -4,7 +4,6 @@ Including:
 - Path configuration
 - Logger configuration
 
-TODO: raw data path settings
 TODO: cache settings
 TODO: error settings
 
