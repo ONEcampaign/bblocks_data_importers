@@ -33,14 +33,14 @@ class Paths:
     """Configuration for paths"""
 
     project = Path(__file__).resolve().parent.parent
-    raw_data = project / "src" / "bblocks_data_importers" / ".raw_data"
+    data = project / "src" / "bblocks_data_importers" / ".data"
 
 
-def set_raw_data_path(path):
+def set_data_path(path):
     """Set the path to the folder containing the raw data or where raw data will be stored.
 
     Args:
         path: Path to the raw data folder
     """
 
-    Paths.raw_data = Path(path).resolve()
+    Paths.data = Path(path).resolve()
