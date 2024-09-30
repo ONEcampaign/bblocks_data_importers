@@ -140,3 +140,6 @@ dmypy.json
 
 # MacOS
 .DS_Store
+
+# ignore files in .data folder
+data/*
