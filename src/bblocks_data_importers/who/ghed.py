@@ -95,38 +95,59 @@ def get_data() -> pd.DataFrame:
 
 
 class GHEDImporter(DataImporter):
-    """Importer for the GHED database from WHO"""
+    """Importer for the GHED database
 
-    def __init__(self):
+    This objects provides access to the WHO Global Health Expenditure Database (GHED) data.
+    More information about the dataset can be found at https://apps.who.int/nha/database/Home/Index/en
+
+    To get the data use the get_data method.
+    If the data has never been loaded, it will be downloaded and cached (saved to disk).
+    Future calls to get_data will use the cached data. New objects will also use the cached data if it is available.
+    To get the data without using the cache, set use_cache to False when calling get_data.
+
+    Optionally disable caching for the object by setting caching to False on instantiation. This will
+    prevent the data from being saved to disk and the cache will not be used.
+    """
+
+    def __init__(self, caching: bool = True):
 
         self._data_file_path = Paths.data / "ghed_data.feather"
         self._data: pd.DataFrame | None = None
+        self._caching: bool = caching
 
     def _load_data(self, use_cache: bool = True) -> None:
         """Load the data to the object
 
         If the data exists in disk and check_disk is True, load it.
         Otherwise, download the data and save it to disk and load it to the object.
+        If use_cache is False or if caching is set to False on instantiation,
+        do not use the cached data
+        if the caching feature has been entirely disabled, the data will not be saved to disk
+
 
         Args:
             use_cache: If True, use the cached data if it exists in disk
         """
 
-        if self._data_file_path.exists() and use_cache:
+        if self._data_file_path.exists() and use_cache and self._caching:
             logger.info("Loading data from disk")
             self._data = pd.read_feather(self._data_file_path)
 
         else:
             logger.info("Downloading data")
             self._data = get_data()
-            self._data.to_feather(self._data_file_path)
-            logger.info("Data saved to disk")
+            # if the caching feature is enabled, save the data to disk
+            if self._caching:
+                self._data.to_feather(self._data_file_path)
+                logger.info("Data saved to disk")
 
     def get_data(self, metadata: bool = False, use_cache: bool = True) -> pd.DataFrame:
         """Get GHED data
 
         If the data has never been loaded, it will be downloaded and saved to disk.
         If the data has been loaded before, it will be loaded from disk.
+        To get the data without using the cache, set use_cache to False. This will
+        force the data to be downloaded from the GHED database.
 
         Args:
             metadata: If True, return the data including metadata
