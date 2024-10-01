@@ -100,19 +100,19 @@ class GHEDImporter(DataImporter):
     def __init__(self):
 
         self._data_file_path = Paths.data / "ghed_data.feather"
-        self._data = None
+        self._data: pd.DataFrame | None = None
 
-    def _load_data(self, check_disk = True) -> None:
+    def _load_data(self, use_cache: bool = True) -> None:
         """Load the data to the object
 
         If the data exists in disk and check_disk is True, load it.
         Otherwise, download the data and save it to disk and load it to the object.
 
         Args:
-            check_disk: If True, check if the data is in disk
+            use_cache: If True, use the cached data if it exists in disk
         """
 
-        if self._data_file_path.exists() and check_disk:
+        if self._data_file_path.exists() and use_cache:
             logger.info("Loading data from disk")
             self._data = pd.read_feather(self._data_file_path)
 
@@ -122,7 +122,7 @@ class GHEDImporter(DataImporter):
             self._data.to_feather(self._data_file_path)
             logger.info("Data saved to disk")
 
-    def get_data(self, metadata=False) -> pd.DataFrame:
+    def get_data(self, metadata: bool = False, use_cache: bool = True) -> pd.DataFrame:
         """Get GHED data
 
         If the data has never been loaded, it will be downloaded and saved to disk.
@@ -131,13 +131,14 @@ class GHEDImporter(DataImporter):
         Args:
             metadata: If True, return the data including metadata
                         Default is False
+            use_cache: If True, use the cached data if it exists
 
         Returns:
             GHED data as a pandas DataFrame
         """
 
         if self._data is None:
-            self._load_data()
+            self._load_data(use_cache)
 
         if not metadata:
             return self._data.loc[:, ['country_name', 'country_code',
