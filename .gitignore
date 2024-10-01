@@ -142,4 +142,4 @@ dmypy.json
 .DS_Store
 
 # ignore files in .data folder
-data/*
+src/bblocks_data_importers/.data/*

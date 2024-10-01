@@ -6,6 +6,9 @@ import requests
 import io
 import numpy as np
 
+from bblocks_data_importers.config import logger, Paths
+from bblocks_data_importers.protocols import DataImporter
+
 
 URL = "https://apps.who.int/nha/database/Home/IndicatorsDownload/en"
 
@@ -89,4 +92,57 @@ def get_data() -> pd.DataFrame:
           )
 
     return df
+
+
+class GHEDImporter(DataImporter):
+    """Importer for the GHED database from WHO"""
+
+    def __init__(self):
+
+        self._data_file_path = Paths.data / "ghed_data.feather"
+        self._data = None
+
+    def _load_data(self, check_disk = True) -> None:
+        """Load the data to the object
+
+        If the data exists in disk and check_disk is True, load it.
+        Otherwise, download the data and save it to disk and load it to the object.
+
+        Args:
+            check_disk: If True, check if the data is in disk
+        """
+
+        if self._data_file_path.exists() and check_disk:
+            logger.info("Loading data from disk")
+            self._data = pd.read_feather(self._data_file_path)
+
+        else:
+            logger.info("Downloading data")
+            self._data = get_data()
+            self._data.to_feather(self._data_file_path)
+            logger.info("Data saved to disk")
+
+    def get_data(self, metadata=False) -> pd.DataFrame:
+        """Get GHED data
+
+        If the data has never been loaded, it will be downloaded and saved to disk.
+        If the data has been loaded before, it will be loaded from disk.
+
+        Args:
+            metadata: If True, return the data including metadata
+                        Default is False
+
+        Returns:
+            GHED data as a pandas DataFrame
+        """
+
+        if self._data is None:
+            self._load_data()
+
+        if not metadata:
+            return self._data.loc[:, ['country_name', 'country_code',
+                                      'indicator_code', 'indicator_name', 'year',
+                                      'value']]
+
+        return self._data
 

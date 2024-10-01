@@ -33,7 +33,7 @@ class Paths:
     """Configuration for paths"""
 
     project = Path(__file__).resolve().parent.parent
-    data = project / "src" / "bblocks_data_importers" / ".data"
+    data = project / "bblocks_data_importers" / ".data"
 
 
 def set_data_path(path):
