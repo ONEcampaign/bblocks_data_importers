@@ -5,6 +5,7 @@ import pandas as pd
 import requests
 import io
 import numpy as np
+from requests.exceptions import RequestException
 
 from bblocks_data_importers.config import logger, Paths
 from bblocks_data_importers.protocols import DataImporter
@@ -17,10 +18,12 @@ def extract_data() -> io.BytesIO:
     """Extract GHED dataset"""
 
     try:
-        return io.BytesIO(requests.get(URL).content)
+        response = requests.get(URL)
+        response.raise_for_status()  # Raises an error for HTTP codes 4xx/5xx
+        return io.BytesIO(response.content)
 
-    except ConnectionError:
-        raise ConnectionError("Could not connect to WHO GHED database")
+    except RequestException as e:
+        raise ConnectionError(f"Error connecting to GHED database: {e}")
 
 
 def _clean_metadata(df: pd.DataFrame) -> pd.DataFrame:
