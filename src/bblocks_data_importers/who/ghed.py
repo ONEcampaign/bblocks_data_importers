@@ -44,6 +44,8 @@ class GHED(DataImporter):
         self._data: pd.DataFrame | None = None
         self._metadata: pd.DataFrame | None = None
 
+        # TODO: Add functionality to use a local file instead of downloading the data
+
     @staticmethod
     def _extract_raw_data() -> io.BytesIO:
         """Extract the raw data from the GHED database"""
@@ -123,6 +125,8 @@ class GHED(DataImporter):
 
     def get_data(self) -> pd.DataFrame:
         """Get the data from the GHED database
+
+        # TODO: Add functionality to filter the data by country, indicator, year, etc.
 
         Returns:
             A DataFrame with the data from the GHED database
