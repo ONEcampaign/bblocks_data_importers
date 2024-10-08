@@ -36,6 +36,11 @@ class Paths:
     data = project / "bblocks_data_importers" / ".data"
 
 
+class DataFormatError(Exception):
+    """Custom exception for errors related to data formatting."""
+    pass
+
+
 def set_data_path(path):
     """Set the path to the folder containing the raw data or where raw data will be stored.
 
