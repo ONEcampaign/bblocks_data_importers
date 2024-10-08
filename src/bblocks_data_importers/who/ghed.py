@@ -69,21 +69,26 @@ class GHED(DataImporter):
         """
 
         try:
-            data_df = (pd.read_excel(raw_data, sheet_name="Data")
-                       .drop(columns=['region', 'income'])
-                       .melt(id_vars=['country', 'code', 'year'], var_name="indicator_code")
-                       .rename(columns={'country': 'country_name', 'code': 'iso3_code'})
-                       )
+            data_df = (
+                pd.read_excel(raw_data, sheet_name="Data")
+                .drop(columns=["region", "income"])
+                .melt(id_vars=["country", "code", "year"], var_name="indicator_code")
+                .rename(columns={"country": "country_name", "code": "iso3_code"})
+            )
 
-            codes_df = (pd.read_excel(raw_data, sheet_name="Codebook")
-                        .rename(columns={'variable code': 'indicator_code',
-                                         'variable name': 'indicator_name',
-                                         })
-                        .loc[:, ['indicator_code', 'indicator_name', 'unit', 'currency']]
-                        .replace("-", np.nan)
-                        )
+            codes_df = (
+                pd.read_excel(raw_data, sheet_name="Codebook")
+                .rename(
+                    columns={
+                        "variable code": "indicator_code",
+                        "variable name": "indicator_name",
+                    }
+                )
+                .loc[:, ["indicator_code", "indicator_name", "unit", "currency"]]
+                .replace("-", np.nan)
+            )
 
-            return pd.merge(data_df, codes_df, on='indicator_code', how='left')
+            return pd.merge(data_df, codes_df, on="indicator_code", how="left")
 
         except (ValueError, KeyError) as e:
             raise DataFormatError(f"Error formatting data: {e}")
@@ -96,22 +101,24 @@ class GHED(DataImporter):
             raw_data: Raw data extracted from the GHED database. Use the `_extract_raw_data` method to get this data
         """
 
-        cols = {"country": "country_name",
-                "code": "iso3_code",
-                "variable name": "indicator_name",
-                "variable code": "indicator_code",
-                "Sources": "sources",
-                "Comments": "comments",
-                "Data type": "data_type",
-                "Methods of estimation": "methods_of_estimation",
-                "Country footnote": "country_footnote"
-                }
+        cols = {
+            "country": "country_name",
+            "code": "iso3_code",
+            "variable name": "indicator_name",
+            "variable code": "indicator_code",
+            "Sources": "sources",
+            "Comments": "comments",
+            "Data type": "data_type",
+            "Methods of estimation": "methods_of_estimation",
+            "Country footnote": "country_footnote",
+        }
 
         try:
-            return (pd.read_excel(raw_data, sheet_name="Metadata")
-                    .rename(columns=cols)
-                    .loc[:, cols.values()]
-                    )
+            return (
+                pd.read_excel(raw_data, sheet_name="Metadata")
+                .rename(columns=cols)
+                .loc[:, cols.values()]
+            )
 
         except (ValueError, KeyError) as e:
             raise DataFormatError(f"Error formatting metadata: {e}")
@@ -170,7 +177,9 @@ class GHED(DataImporter):
 
         # Check if the directory exists
         if not os.path.exists(path):
-            raise FileNotFoundError(f"The directory {path} does not exist. Please provide a valid directory.")
+            raise FileNotFoundError(
+                f"The directory {path} does not exist. Please provide a valid directory."
+            )
 
         if self._raw_data is None:
             self._load_data()

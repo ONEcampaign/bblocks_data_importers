@@ -38,6 +38,7 @@ class Paths:
 
 class DataFormatError(Exception):
     """Custom exception for errors related to data formatting."""
+
     pass
 
 

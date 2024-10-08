@@ -14,7 +14,7 @@ from requests.exceptions import RequestException
 mock_excel_data = b"mocked_excel_file_content"
 
 
-@patch('your_module_name.requests.get')  # Mock the requests.get call
+@patch("your_module_name.requests.get")  # Mock the requests.get call
 def test_extract_data_success(mock_get):
     """Test successful extraction of data from the GHED database."""
     # Arrange
@@ -29,16 +29,19 @@ def test_extract_data_success(mock_get):
     assert result.getvalue() == mock_excel_data  # Ensure content matches the mock data
 
 
-@patch('your_module_name.requests.get')  # Mock the requests.get call
+@patch("your_module_name.requests.get")  # Mock the requests.get call
 def test_extract_data_failure(mock_get):
     """Test handling of connection failure when extracting data."""
     # Arrange
-    mock_get.side_effect = RequestException("Connection error")  # Simulate a connection error
+    mock_get.side_effect = RequestException(
+        "Connection error"
+    )  # Simulate a connection error
 
     # Act & Assert
-    with pytest.raises(ConnectionError, match="Error connecting to GHED database: Connection error"):
+    with pytest.raises(
+        ConnectionError, match="Error connecting to GHED database: Connection error"
+    ):
         ghed.extract_data()
-
 
 
 def mock_ghed_data():
@@ -50,7 +53,7 @@ def mock_ghed_data():
         "income group": ["High", "Low"],
         "year": [2020, 2020],
         "indicator_1": [100, 200],
-        "indicator_2": [300, np.nan]
+        "indicator_2": [300, np.nan],
     }
     data_df = pd.DataFrame(data)
 
@@ -77,8 +80,4 @@ def mock_ghed_data():
     }
     metadata_df = pd.DataFrame(metadata)
 
-    return {
-        "Data": data_df,
-        "Codebook": codebook_df,
-        "Metadata": metadata_df
-    }
+    return {"Data": data_df, "Codebook": codebook_df, "Metadata": metadata_df}
