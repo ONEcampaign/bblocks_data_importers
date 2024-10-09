@@ -36,10 +36,12 @@ class Paths:
     data = project / "bblocks_data_importers" / ".data"
 
 
-class DataFormatError(Exception):
-    """Custom exception for errors related to data formatting."""
+class DataExtractionError(Exception):
+    """Raised when data extraction fails."""
 
-    pass
+
+class DataFormattingError(Exception):
+    """Raised when data formatting fails."""
 
 
 def set_data_path(path):

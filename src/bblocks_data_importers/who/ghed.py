@@ -3,11 +3,11 @@
 import pandas as pd
 import requests
 import io
-import os
 import numpy as np
 from requests.exceptions import RequestException
+from pathlib import Path
 
-from bblocks_data_importers.config import logger, DataFormatError
+from bblocks_data_importers.config import logger, DataExtractionError, DataFormattingError
 from bblocks_data_importers.protocols import DataImporter
 
 URL: str = "https://apps.who.int/nha/database/Home/IndicatorsDownload/en"
@@ -31,7 +31,7 @@ class GHED(DataImporter):
     >>> metadata = ghed.get_metadata()
 
     Download the raw data to disk:
-    >>> ghed.download_data(path = "some_path")
+    >>> ghed.download_raw_data(path = "some_path")
 
 
     This object caches the data as objects attributes to avoid multiple requests to the database.
@@ -39,16 +39,25 @@ class GHED(DataImporter):
     >>> ghed.clear_cache()
     """
 
-    def __init__(self):
+    def __init__(self, data_file: str | None = None):
         self._raw_data: io.BytesIO | None = None
         self._data: pd.DataFrame | None = None
         self._metadata: pd.DataFrame | None = None
 
-        # TODO: Add functionality to use a local file instead of downloading the data
+        self._data_file = Path(data_file) if data_file else None
+
+        # if the data file is passed and the filed does not exist, raise an error
+        if self._data_file and not self._data_file.exists():
+            raise FileNotFoundError(f"The file path `{self._data_file}` does not exist. Please provide a valid file "
+                                    f"path.")
 
     @staticmethod
     def _extract_raw_data() -> io.BytesIO:
-        """Extract the raw data from the GHED database"""
+        """Extract the raw data from the GHED database
+
+        Returns:
+            A BytesIO object containing the raw data from the GHED database
+        """
 
         logger.info("Extracting data from GHED database")
 
@@ -58,7 +67,24 @@ class GHED(DataImporter):
             return io.BytesIO(response.content)
 
         except RequestException as e:
-            raise ConnectionError(f"Error extracting data: {e}")
+            raise DataExtractionError(f"Error extracting data: {e}")
+
+    @staticmethod
+    def _read_local_data(path: Path) -> io.BytesIO:
+        """Read the data from a local file
+
+        Args:
+            path: Path to the file to read
+
+        Returns:
+            A BytesIO object containing the data from the file
+        """
+
+        try:
+            with path.open("rb") as f:
+                return io.BytesIO(f.read())
+        except Exception as e:
+            raise DataExtractionError(f"Error reading data from file {path}: {e}") from e
 
     @staticmethod
     def _format_raw_data(raw_data: io.BytesIO) -> pd.DataFrame:
@@ -66,6 +92,9 @@ class GHED(DataImporter):
 
         Args:
             raw_data: Raw data extracted from the GHED database. Use the `_extract_raw_data` method to get this data
+
+        Returns:
+            A DataFrame with the formatted data
         """
 
         try:
@@ -91,7 +120,7 @@ class GHED(DataImporter):
             return pd.merge(data_df, codes_df, on="indicator_code", how="left")
 
         except (ValueError, KeyError) as e:
-            raise DataFormatError(f"Error formatting data: {e}")
+            raise DataFormattingError(f"Error formatting data: {e}")
 
     @staticmethod
     def _format_metadata(raw_data: io.BytesIO) -> pd.DataFrame:
@@ -99,6 +128,9 @@ class GHED(DataImporter):
 
         Args:
             raw_data: Raw data extracted from the GHED database. Use the `_extract_raw_data` method to get this data
+
+        Returns:
+            A DataFrame with the formatted metadata
         """
 
         cols = {
@@ -121,12 +153,17 @@ class GHED(DataImporter):
             )
 
         except (ValueError, KeyError) as e:
-            raise DataFormatError(f"Error formatting metadata: {e}")
+            raise DataFormattingError(f"Error formatting metadata: {e}")
 
-    def _load_data(self):
+    def _load_data(self) -> None:
         """Load the data from the GHED database to the object"""
 
-        self._raw_data = self._extract_raw_data()
+        if self._data_file:
+            logger.info(f"Loading data from local file")
+            self._raw_data = self._read_local_data(self._data_file)
+        else:
+            self._raw_data = self._extract_raw_data()
+
         self._data = self._format_raw_data(self._raw_data)
         self._metadata = self._format_metadata(self._raw_data)
 
@@ -165,7 +202,7 @@ class GHED(DataImporter):
         self._metadata = None
         logger.info("Cache cleared")
 
-    def download_data(self, path: str, file_name="ghed") -> None:
+    def download_raw_data(self, path: str, file_name="ghed", overwrite=False) -> None:
         """Download the raw data to disk.
 
         This method saves the raw data to disk in the specified path as an Excel file.
@@ -173,18 +210,23 @@ class GHED(DataImporter):
         Args:
             path: Path to the directory where the data will be saved
             file_name: Name of the file to save the data
+            overwrite: Whether to overwrite the file if it already exists. Default is False
         """
 
-        # Check if the directory exists
-        if not os.path.exists(path):
+        directory = Path(path)
+        if not directory.exists():
             raise FileNotFoundError(
-                f"The directory {path} does not exist. Please provide a valid directory."
+                f"The directory `{directory}` does not exist. Please provide a valid directory."
+            )
+        file_path = directory / f"{file_name}.xlsx"
+        if file_path.exists() and not overwrite:
+            raise FileExistsError(
+                f"The file `{file_path}` already exists. Set overwrite=True to overwrite."
             )
 
         if self._raw_data is None:
             self._load_data()
 
-        # TODO: Handle file already exists
-
-        with open(path + f"/{file_name}.xlsx", "wb") as file:
+        with open(file_path, "wb") as file:
             file.write(self._raw_data.getvalue())
+        logger.info(f"Data saved to `{file_path}`")
