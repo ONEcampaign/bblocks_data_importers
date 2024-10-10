@@ -3,9 +3,9 @@
 Including:
 - Path configuration
 - Logger configuration
+- Custom exceptions
 
 TODO: cache settings
-TODO: error settings
 
 """
 
