@@ -7,7 +7,11 @@ import numpy as np
 from requests.exceptions import RequestException
 from pathlib import Path
 
-from bblocks_data_importers.config import logger, DataExtractionError, DataFormattingError
+from bblocks_data_importers.config import (
+    logger,
+    DataExtractionError,
+    DataFormattingError,
+)
 from bblocks_data_importers.protocols import DataImporter
 
 URL: str = "https://apps.who.int/nha/database/Home/IndicatorsDownload/en"
@@ -37,12 +41,12 @@ class GHED(DataImporter):
     This object caches the data as objects attributes to avoid multiple requests to the database.
     You can clear the cached data using the `clear_cache method`
     >>> ghed.clear_cache()
-    
-    
+
+
     Optionally you can pass a path to a local file containing the data to avoid downloading the data from the WHO.
     >>> ghed = GHED(data_file="path_to_file")
     If you do this, the importer will read the data from the file instead of downloading it from the WHO.
-    
+
     """
 
     def __init__(self, data_file: str | None = None):
@@ -54,8 +58,10 @@ class GHED(DataImporter):
 
         # if the data file is passed and the filed does not exist, raise an error
         if self._data_file and not self._data_file.exists():
-            raise FileNotFoundError(f"The file path `{self._data_file}` does not exist. Please provide a valid file "
-                                    f"path.")
+            raise FileNotFoundError(
+                f"The file path `{self._data_file}` does not exist. Please provide a valid file "
+                f"path."
+            )
 
     @staticmethod
     def _extract_raw_data() -> io.BytesIO:
@@ -88,7 +94,9 @@ class GHED(DataImporter):
             with path.open("rb") as f:
                 return io.BytesIO(f.read())
         except Exception as e:
-            raise DataExtractionError(f"Error reading data from file {path}: {e}") from e
+            raise DataExtractionError(
+                f"Error reading data from file {path}: {e}"
+            ) from e
 
     @staticmethod
     def _format_data(raw_data: io.BytesIO) -> pd.DataFrame:

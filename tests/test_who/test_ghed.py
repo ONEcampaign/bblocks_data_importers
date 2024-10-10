@@ -29,7 +29,7 @@ def mock_successful_response():
     """Fixture for a successful response mock"""
     mock_response = mock.Mock()
     mock_response.status_code = 200
-    mock_response.content = b'some binary content'
+    mock_response.content = b"some binary content"
     return mock_response
 
 
@@ -38,7 +38,9 @@ def mock_http_error_response():
     """Fixture for an HTTP error response (non-200 status code)"""
     mock_response = mock.Mock()
     mock_response.status_code = 404
-    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Client Error")
+    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+        "404 Client Error"
+    )
     return mock_response
 
 
@@ -56,7 +58,7 @@ def test_init_without_data_file():
 @mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
 def test_init_with_valid_data_file(mock_exists):
     """Test initialization with a valid data file
-     Passing a valid file path, so it should not raise an exception
+    Passing a valid file path, so it should not raise an exception
     """
     ghed = GHED(data_file="some_valid_path.xlsx")
     assert isinstance(ghed._data_file, Path)
@@ -90,7 +92,7 @@ def test_extract_raw_data_success(mock_get, mock_successful_response):
 
     # Check that the result is a BytesIO object with the correct content
     assert isinstance(result, io.BytesIO)
-    assert result.getvalue() == b'some binary content'
+    assert result.getvalue() == b"some binary content"
     mock_get.assert_called_once_with(URL)
 
 
@@ -128,14 +130,16 @@ def test_format_metadata_success(mock_raw_data):
     """Test the _format_metadata method for successful formatting"""
 
     result = GHED._format_metadata(mock_raw_data)
-    expected_metadata = pd.read_feather("tests/test_data/formatted_metadata_ghed.feather").replace({None: np.nan})
+    expected_metadata = pd.read_feather(
+        "tests/test_data/formatted_metadata_ghed.feather"
+    ).replace({None: np.nan})
     pd.testing.assert_frame_equal(result, expected_metadata)
 
 
 def test_format_metadata_malformed_data():
     """Test the _format_metadata method raises a DataFormattingError when the data is malformed"""
     # Create some malformed data (e.g., random binary data that cannot be read as Excel)
-    malformed_data = b'invalid raw content'
+    malformed_data = b"invalid raw content"
 
     # Call the method and ensure it raises a DataFormattingError
     with pytest.raises(DataFormattingError):
@@ -149,7 +153,7 @@ def test_format_metadata_missing_columns(mock_raw_data):
     raw_df = pd.read_excel(mock_raw_data, sheet_name="Metadata")
     raw_df.drop(columns=["variable code"], inplace=True)
     modified_raw_data = io.BytesIO()
-    with pd.ExcelWriter(modified_raw_data, engine='xlsxwriter') as writer:
+    with pd.ExcelWriter(modified_raw_data, engine="xlsxwriter") as writer:
         raw_df.to_excel(writer, sheet_name="Metadata")
     modified_raw_data.seek(0)  # Reset the pointer to the start of the BytesIO object
 
@@ -162,7 +166,9 @@ def test_format_data_success(mock_raw_data):
     """Test the _format_data method for successful formatting"""
 
     result = GHED._format_data(mock_raw_data)
-    expected_data = pd.read_feather("tests/test_data/formatted_data_ghed.feather").replace({None: np.nan})
+    expected_data = pd.read_feather(
+        "tests/test_data/formatted_data_ghed.feather"
+    ).replace({None: np.nan})
     result = result.replace({None: np.nan})
 
     pd.testing.assert_frame_equal(result, expected_data)
@@ -170,7 +176,7 @@ def test_format_data_success(mock_raw_data):
 
 def test_format_data_malformed_data():
     """Test the _format_data method raises a DataFormattingError when the data is malformed"""
-    malformed_data = b'invalid raw content'
+    malformed_data = b"invalid raw content"
 
     with pytest.raises(DataFormattingError):
         GHED._format_data(io.BytesIO(malformed_data))
@@ -183,7 +189,7 @@ def test_format_data_missing_columns(mock_raw_data):
     raw_df = pd.read_excel(mock_raw_data, sheet_name="Data")
     raw_df.drop(columns=["country"], inplace=True)
     modified_raw_data = io.BytesIO()
-    with pd.ExcelWriter(modified_raw_data, engine='xlsxwriter') as writer:
+    with pd.ExcelWriter(modified_raw_data, engine="xlsxwriter") as writer:
         raw_df.to_excel(writer, sheet_name="Data")
     modified_raw_data.seek(0)  # Reset the pointer to the start of the BytesIO object
 
@@ -222,10 +228,14 @@ def test_read_local_data_read_error(mock_open):
 @mock.patch("bblocks_data_importers.who.ghed.GHED._extract_raw_data")
 @mock.patch("bblocks_data_importers.who.ghed.GHED._format_data")
 @mock.patch("bblocks_data_importers.who.ghed.GHED._format_metadata")
-def test_load_data_no_local_file(mock_format_metadata, mock_format_data, mock_extract_raw_data):
+def test_load_data_no_local_file(
+    mock_format_metadata, mock_format_data, mock_extract_raw_data
+):
     """Test that _extract_raw_data is called when no local file is provided"""
 
-    mock_extract_raw_data.return_value = io.BytesIO(b'some raw data') # Mock the return value for _extract_raw_data
+    mock_extract_raw_data.return_value = io.BytesIO(
+        b"some raw data"
+    )  # Mock the return value for _extract_raw_data
     ghed = GHED()
     ghed._load_data()
 
@@ -240,10 +250,12 @@ def test_load_data_no_local_file(mock_format_metadata, mock_format_data, mock_ex
 @mock.patch("bblocks_data_importers.who.ghed.GHED._read_local_data")
 @mock.patch("bblocks_data_importers.who.ghed.GHED._format_data")
 @mock.patch("bblocks_data_importers.who.ghed.GHED._format_metadata")
-def test_load_data_with_local_file(mock_format_metadata, mock_format_data, mock_read_local_data):
+def test_load_data_with_local_file(
+    mock_format_metadata, mock_format_data, mock_read_local_data
+):
     """Test that _read_local_data is called when a local file is provided"""
     # Mock the return value for _read_local_data
-    mock_read_local_data.return_value = io.BytesIO(b'some raw data')
+    mock_read_local_data.return_value = io.BytesIO(b"some raw data")
 
     # Initialize GHED with a local file
     ghed = GHED(data_file=TEST_FILE_PATH)
@@ -263,7 +275,7 @@ def test_clear_cache():
     """Test that clear_cache sets _raw_data, _data, and _metadata to None"""
 
     ghed = GHED()
-    ghed._raw_data = io.BytesIO(b'some raw data')
+    ghed._raw_data = io.BytesIO(b"some raw data")
     ghed._data = pd.DataFrame({"column": [1, 2, 3]})
     ghed._metadata = pd.DataFrame({"column": ["meta1", "meta2", "meta3"]})
 
@@ -287,12 +299,16 @@ def test_export_raw_data_success(mock_file_open, mock_path_exists):
     """Test that export_raw_data successfully saves the raw data to disk"""
 
     ghed = GHED()
-    ghed._raw_data = io.BytesIO(b'some raw data')
-    ghed.export_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=True)
+    ghed._raw_data = io.BytesIO(b"some raw data")
+    ghed.export_raw_data(
+        path="some_valid_directory", file_name="ghed_test", overwrite=True
+    )
 
     # test
-    mock_file_open.assert_called_once_with(Path("some_valid_directory") / "ghed_test.xlsx", "wb")
-    mock_file_open().write.assert_called_once_with(b'some raw data')
+    mock_file_open.assert_called_once_with(
+        Path("some_valid_directory") / "ghed_test.xlsx", "wb"
+    )
+    mock_file_open().write.assert_called_once_with(b"some raw data")
 
 
 @mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
@@ -301,12 +317,14 @@ def test_export_raw_data_file_exists_no_overwrite(mock_file_open, mock_path_exis
     """Test that export_raw_data raises a FileExistsError if the file exists and overwrite is False"""
 
     ghed = GHED()
-    ghed._raw_data = io.BytesIO(b'some raw data')
+    ghed._raw_data = io.BytesIO(b"some raw data")
     mock_path_exists.return_value = True
 
     # Test that a FileExistsError is raised when overwrite is False
     with pytest.raises(FileExistsError):
-        ghed.export_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=False)
+        ghed.export_raw_data(
+            path="some_valid_directory", file_name="ghed_test", overwrite=False
+        )
 
     # Ensure that the file was not opened for writing
     mock_file_open.assert_not_called()
@@ -317,7 +335,7 @@ def test_export_raw_data_directory_not_found(mock_path_exists):
     """Test that export_raw_data raises a FileNotFoundError if the directory does not exist"""
 
     ghed = GHED()
-    ghed._raw_data = io.BytesIO(b'some raw data')
+    ghed._raw_data = io.BytesIO(b"some raw data")
     mock_path_exists.return_value = False
 
     # Test that a FileNotFoundError is raised
@@ -331,16 +349,22 @@ def test_export_raw_data_directory_not_found(mock_path_exists):
 @mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
 @mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
 @mock.patch("bblocks_data_importers.who.ghed.open", new_callable=mock.mock_open)
-def test_export_raw_data_calls_load_data_if_raw_data_none(mock_file_open, mock_path_exists, mock_load_data, mock_raw_data):
+def test_export_raw_data_calls_load_data_if_raw_data_none(
+    mock_file_open, mock_path_exists, mock_load_data, mock_raw_data
+):
     """Test that _load_data is called if _raw_data is None in export_raw_data"""
 
     ghed = GHED()
-    mock_load_data.side_effect = lambda: setattr(ghed, '_raw_data', mock_raw_data)
-    ghed.export_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=True)
+    mock_load_data.side_effect = lambda: setattr(ghed, "_raw_data", mock_raw_data)
+    ghed.export_raw_data(
+        path="some_valid_directory", file_name="ghed_test", overwrite=True
+    )
 
     # test
     mock_load_data.assert_called_once()
-    mock_file_open.assert_called_once_with(Path("some_valid_directory") / "ghed_test.xlsx", "wb")
+    mock_file_open.assert_called_once_with(
+        Path("some_valid_directory") / "ghed_test.xlsx", "wb"
+    )
     mock_file_open().write.assert_called_once_with(mock_raw_data.getvalue())
 
 
@@ -349,19 +373,24 @@ def test_get_data_calls_load_data_if_data_none(mock_load_data):
     """Test that get_data calls _load_data if _data is None and returns a DataFrame"""
 
     ghed = GHED()
-    mock_load_data.side_effect = lambda: setattr(ghed, '_data', pd.DataFrame({"column": [1, 2, 3]}))
+    mock_load_data.side_effect = lambda: setattr(
+        ghed, "_data", pd.DataFrame({"column": [1, 2, 3]})
+    )
     result = ghed.get_data()
 
     # test
     mock_load_data.assert_called_once()
     assert isinstance(result, pd.DataFrame)
 
+
 @mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
 def test_get_data_does_not_call_load_data_if_data_exists(mock_load_data):
     """Test that get_data does not call _load_data if _data is already populated"""
 
     ghed = GHED()
-    ghed._data = pd.DataFrame({"column": [1, 2, 3]})  # Simulate that data is already loaded
+    ghed._data = pd.DataFrame(
+        {"column": [1, 2, 3]}
+    )  # Simulate that data is already loaded
     result = ghed.get_data()
 
     mock_load_data.assert_not_called()
@@ -374,7 +403,9 @@ def test_get_metadata_calls_load_data_if_metadata_none(mock_load_data):
     """Test that get_metadata calls _load_data if _metadata is None and returns a DataFrame"""
 
     ghed = GHED()
-    mock_load_data.side_effect = lambda: setattr(ghed, '_metadata', pd.DataFrame({"column": ["meta1", "meta2"]}))
+    mock_load_data.side_effect = lambda: setattr(
+        ghed, "_metadata", pd.DataFrame({"column": ["meta1", "meta2"]})
+    )
     result = ghed.get_metadata()
 
     # test
@@ -386,11 +417,12 @@ def test_get_metadata_calls_load_data_if_metadata_none(mock_load_data):
 def test_get_metadata_does_not_call_load_data_if_metadata_exists(mock_load_data):
     """Test that get_metadata does not call _load_data if _metadata is already populated"""
     ghed = GHED()
-    ghed._metadata = pd.DataFrame({"column": ["meta1", "meta2"]})  # Simulate that metadata is already loaded
+    ghed._metadata = pd.DataFrame(
+        {"column": ["meta1", "meta2"]}
+    )  # Simulate that metadata is already loaded
     result = ghed.get_metadata()
 
     # test
     mock_load_data.assert_not_called()
     assert isinstance(result, pd.DataFrame)
     assert result.equals(ghed._metadata)  # Ensure it's the same metadata
-
