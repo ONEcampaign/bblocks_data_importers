@@ -3,9 +3,9 @@
 Including:
 - Path configuration
 - Logger configuration
+- Custom exceptions
 
 TODO: cache settings
-TODO: error settings
 
 """
 
@@ -33,7 +33,15 @@ class Paths:
     """Configuration for paths"""
 
     project = Path(__file__).resolve().parent.parent
-    data = project / "src" / "bblocks_data_importers" / ".data"
+    data = project / "bblocks_data_importers" / ".data"
+
+
+class DataExtractionError(Exception):
+    """Raised when data extraction fails."""
+
+
+class DataFormattingError(Exception):
+    """Raised when data formatting fails."""
 
 
 def set_data_path(path):
