@@ -1,4 +1,30 @@
-"""Importer for the GHED database from WHO"""
+"""Importer for the GHED database from WHO
+
+The Global Health Expenditure Database (GHED) provides comparable data on health expenditure
+across various countries and years. See more details and access the raw data at: https://apps.who.int/nha/database
+
+This importer provides functionality to easily get data and metadata from the GHED database.
+
+Usage:
+
+First instantiate an importer object:
+>>> ghed = GHED()
+
+get the data and metadata:
+>>> data = ghed.get_data()
+>>> metadata = ghed.get_metadata()
+
+Export the raw data to disk:
+>>> ghed.export_raw_data(path = "some_path")
+
+Clear the cached data:
+>>> ghed.clear_cache()
+This will force the importer to download the data again the next time you call `get_data` or `get_metadata`.
+
+Optionally you can pass a path to a local file containing the data to avoid downloading the data from the WHO.
+>>> ghed = GHED(data_file="path_to_file")
+If you do this, the importer will read the data from the file instead of downloading it from the WHO.
+"""
 
 import pandas as pd
 import requests
@@ -34,19 +60,17 @@ class GHED(DataImporter):
     >>> data = ghed.get_data()
     >>> metadata = ghed.get_metadata()
 
-    Download the raw data to disk:
+    Export the raw data to disk:
     >>> ghed.export_raw_data(path = "some_path")
 
-
-    This object caches the data as objects attributes to avoid multiple requests to the database.
-    You can clear the cached data using the `clear_cache method`
+    You can clear the cached data using the `clear_cache method`. Once the cache is cleared, next time you call
+    `get_data` or `get_metadata`, the importer will download the data again.
     >>> ghed.clear_cache()
 
 
     Optionally you can pass a path to a local file containing the data to avoid downloading the data from the WHO.
     >>> ghed = GHED(data_file="path_to_file")
     If you do this, the importer will read the data from the file instead of downloading it from the WHO.
-
     """
 
     def __init__(self, data_file: str | None = None):
@@ -100,10 +124,10 @@ class GHED(DataImporter):
 
     @staticmethod
     def _format_data(raw_data: io.BytesIO) -> pd.DataFrame:
-        """Format the raw data from the GHED database
+        """Format the raw data
 
         Args:
-            raw_data: Raw data extracted from the GHED database. Use the `_extract_raw_data` method to get this data
+            raw_data: Raw data extracted from the GHED database or local file
 
         Returns:
             A DataFrame with the formatted data
@@ -136,10 +160,10 @@ class GHED(DataImporter):
 
     @staticmethod
     def _format_metadata(raw_data: io.BytesIO) -> pd.DataFrame:
-        """Format the metadata from the GHED database
+        """Format the metadata
 
         Args:
-            raw_data: Raw data extracted from the GHED database. Use the `_extract_raw_data` method to get this data
+            raw_data: Raw data extracted from the GHED database or local file
 
         Returns:
             A DataFrame with the formatted metadata
@@ -168,10 +192,10 @@ class GHED(DataImporter):
             raise DataFormattingError(f"Error formatting metadata: {e}")
 
     def _load_data(self) -> None:
-        """Load the data from the GHED database to the object"""
+        """Load the data from the GHED database or the local file to the object"""
 
         if self._data_file:
-            logger.info(f"Importing data from local file")
+            logger.info(f"Importing data from local file: {self._data_file}")
             self._raw_data = self._read_local_data(self._data_file)
         else:
             logger.info("Importing data from GHED database")
@@ -182,12 +206,12 @@ class GHED(DataImporter):
         logger.info("Data imported successfully")
 
     def get_data(self) -> pd.DataFrame:
-        """Get the data from the GHED database
+        """Get the GHED data
 
         # TODO: Add functionality to filter the data by country, indicator, year, etc.
 
         Returns:
-            A DataFrame with the data from the GHED database
+            A DataFrame with the formatted GHED data
         """
 
         if self._data is None:
@@ -196,10 +220,10 @@ class GHED(DataImporter):
         return self._data
 
     def get_metadata(self) -> pd.DataFrame:
-        """Get the metadata for the GHED database
+        """Get the GHED metadata
 
         Returns:
-            A DataFrame with the metadata for the GHED database including sources, footnotes, comments, etc.
+            A DataFrame with the GHED metadata including sources, footnotes, comments, etc.
             for each indicator-country pair
         """
 
