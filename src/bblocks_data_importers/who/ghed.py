@@ -31,12 +31,18 @@ class GHED(DataImporter):
     >>> metadata = ghed.get_metadata()
 
     Download the raw data to disk:
-    >>> ghed.download_raw_data(path = "some_path")
+    >>> ghed.export_raw_data(path = "some_path")
 
 
     This object caches the data as objects attributes to avoid multiple requests to the database.
     You can clear the cached data using the `clear_cache method`
     >>> ghed.clear_cache()
+    
+    
+    Optionally you can pass a path to a local file containing the data to avoid downloading the data from the WHO.
+    >>> ghed = GHED(data_file="path_to_file")
+    If you do this, the importer will read the data from the file instead of downloading it from the WHO.
+    
     """
 
     def __init__(self, data_file: str | None = None):
@@ -58,8 +64,6 @@ class GHED(DataImporter):
         Returns:
             A BytesIO object containing the raw data from the GHED database
         """
-
-        logger.info("Extracting data from GHED database")
 
         try:
             response = requests.get(URL)
@@ -159,13 +163,15 @@ class GHED(DataImporter):
         """Load the data from the GHED database to the object"""
 
         if self._data_file:
-            logger.info(f"Loading data from local file")
+            logger.info(f"Importing data from local file")
             self._raw_data = self._read_local_data(self._data_file)
         else:
+            logger.info("Importing data from GHED database")
             self._raw_data = self._extract_raw_data()
 
         self._data = self._format_data(self._raw_data)
         self._metadata = self._format_metadata(self._raw_data)
+        logger.info("Data imported successfully")
 
     def get_data(self) -> pd.DataFrame:
         """Get the data from the GHED database
@@ -202,8 +208,8 @@ class GHED(DataImporter):
         self._metadata = None
         logger.info("Cache cleared")
 
-    def download_raw_data(self, path: str, file_name="ghed", overwrite=False) -> None:
-        """Download the raw data to disk.
+    def export_raw_data(self, path: str, file_name="ghed", overwrite=False) -> None:
+        """Export the raw data to disk.
 
         This method saves the raw data to disk in the specified path as an Excel file.
 
@@ -216,12 +222,12 @@ class GHED(DataImporter):
         directory = Path(path)
         if not directory.exists():
             raise FileNotFoundError(
-                f"The directory `{directory}` does not exist. Please provide a valid directory."
+                f"The directory does not exist. Please provide a valid path."
             )
         file_path = directory / f"{file_name}.xlsx"
         if file_path.exists() and not overwrite:
             raise FileExistsError(
-                f"The file `{file_path}` already exists. Set overwrite=True to overwrite."
+                f"The file already exists. Set overwrite=True to overwrite."
             )
 
         if self._raw_data is None:
@@ -229,4 +235,4 @@ class GHED(DataImporter):
 
         with open(file_path, "wb") as file:
             file.write(self._raw_data.getvalue())
-        logger.info(f"Data saved to `{file_path}`")
+        logger.info(f"Data exported to {file_path}")

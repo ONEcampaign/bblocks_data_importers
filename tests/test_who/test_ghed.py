@@ -303,7 +303,7 @@ def test_download_raw_data_success(mock_file_open, mock_path_exists):
     ghed._raw_data = io.BytesIO(b'some raw data')
 
     # Call download_raw_data with a valid path and file name
-    ghed.download_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=True)
+    ghed.export_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=True)
 
     # Ensure that the file is opened for writing in binary mode
     mock_file_open.assert_called_once_with(Path("some_valid_directory") / "ghed_test.xlsx", "wb")
@@ -325,7 +325,7 @@ def test_download_raw_data_file_exists_no_overwrite(mock_file_open, mock_path_ex
 
     # Test that a FileExistsError is raised when overwrite is False
     with pytest.raises(FileExistsError):
-        ghed.download_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=False)
+        ghed.export_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=False)
 
     # Ensure that the file was not opened for writing
     mock_file_open.assert_not_called()
@@ -343,7 +343,7 @@ def test_download_raw_data_directory_not_found(mock_path_exists):
 
     # Test that a FileNotFoundError is raised
     with pytest.raises(FileNotFoundError):
-        ghed.download_raw_data(path="non_existent_directory", file_name="ghed_test")
+        ghed.export_raw_data(path="non_existent_directory", file_name="ghed_test")
 
     # Ensure that the file was not opened for writing
     mock_path_exists.assert_called_once_with()
@@ -361,7 +361,7 @@ def test_download_raw_data_calls_load_data_if_raw_data_none(mock_file_open, mock
     mock_load_data.side_effect = lambda: setattr(ghed, '_raw_data', mock_raw_data)
 
     # Call download_raw_data while _raw_data is initially None
-    ghed.download_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=True)
+    ghed.export_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=True)
 
     # Ensure that _load_data is called because _raw_data was None
     mock_load_data.assert_called_once()
