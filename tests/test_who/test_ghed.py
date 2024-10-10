@@ -129,21 +129,26 @@ def test_extract_raw_data_http_error(mock_get, mock_http_error_response):
 def test_format_metadata_success(mock_raw_data):
     """Test the _format_metadata method for successful formatting"""
 
-    result = GHED._format_metadata(mock_raw_data)
+    ghed = GHED()
+    ghed._raw_data = mock_raw_data
+    result = ghed._format_metadata()
+
     expected_metadata = pd.read_feather(
-        "tests/test_data/formatted_metadata_ghed.feather"
-    ).replace({None: np.nan})
+        "tests/test_data/formatted_metadata_ghed.feather", dtype_backend="pyarrow"
+    )
     pd.testing.assert_frame_equal(result, expected_metadata)
 
 
 def test_format_metadata_malformed_data():
     """Test the _format_metadata method raises a DataFormattingError when the data is malformed"""
     # Create some malformed data (e.g., random binary data that cannot be read as Excel)
-    malformed_data = b"invalid raw content"
+
+    ghed = GHED()
+    ghed._raw_data = io.BytesIO(b"invalid raw content")
 
     # Call the method and ensure it raises a DataFormattingError
     with pytest.raises(DataFormattingError):
-        GHED._format_metadata(io.BytesIO(malformed_data))
+        result = ghed._format_metadata()
 
 
 def test_format_metadata_missing_columns(mock_raw_data):
@@ -153,33 +158,39 @@ def test_format_metadata_missing_columns(mock_raw_data):
     raw_df = pd.read_excel(mock_raw_data, sheet_name="Metadata")
     raw_df.drop(columns=["variable code"], inplace=True)
     modified_raw_data = io.BytesIO()
+
     with pd.ExcelWriter(modified_raw_data, engine="xlsxwriter") as writer:
         raw_df.to_excel(writer, sheet_name="Metadata")
     modified_raw_data.seek(0)  # Reset the pointer to the start of the BytesIO object
 
+    ghed = GHED()
+    ghed._raw_data = modified_raw_data
+
     # test
     with pytest.raises(DataFormattingError):
-        GHED._format_metadata(modified_raw_data)
+        ghed._format_metadata()
 
 
 def test_format_data_success(mock_raw_data):
     """Test the _format_data method for successful formatting"""
 
-    result = GHED._format_data(mock_raw_data)
+    ghed = GHED()
+    ghed._raw_data = mock_raw_data
+    result = ghed._format_data()
     expected_data = pd.read_feather(
-        "tests/test_data/formatted_data_ghed.feather"
-    ).replace({None: np.nan})
-    result = result.replace({None: np.nan})
+        "tests/test_data/formatted_data_ghed.feather", dtype_backend="pyarrow"
+    )
 
     pd.testing.assert_frame_equal(result, expected_data)
 
 
 def test_format_data_malformed_data():
     """Test the _format_data method raises a DataFormattingError when the data is malformed"""
-    malformed_data = b"invalid raw content"
+    ghed = GHED()
+    ghed._raw_data = io.BytesIO(b"invalid raw content")
 
     with pytest.raises(DataFormattingError):
-        GHED._format_data(io.BytesIO(malformed_data))
+        ghed._format_data()
 
 
 def test_format_data_missing_columns(mock_raw_data):
@@ -193,9 +204,68 @@ def test_format_data_missing_columns(mock_raw_data):
         raw_df.to_excel(writer, sheet_name="Data")
     modified_raw_data.seek(0)  # Reset the pointer to the start of the BytesIO object
 
+    ghed = GHED()
+    ghed._raw_data = modified_raw_data
+
     # test
     with pytest.raises(DataFormattingError):
-        GHED._format_data(modified_raw_data)
+        result = ghed._format_data()
+
+
+def test_format_data_missing_codes(mock_raw_data):
+    """Test the _format_data method raises a DataFormattingError when the data contains invalid code tab"""
+
+    # Load the entire Excel file to remove the "Codebook" sheet
+    with pd.ExcelFile(mock_raw_data) as xls:
+        sheet_names = xls.sheet_names  # Get all sheet names
+
+        # Remove the "Codebook" sheet from the list of sheets
+        sheet_names.remove("Codebook")
+        modified_raw_data = io.BytesIO()
+
+        # Write back only the remaining sheets, excluding "Codebook"
+        with pd.ExcelWriter(modified_raw_data, engine="xlsxwriter") as writer:
+            for sheet in sheet_names:
+                df = pd.read_excel(xls, sheet_name=sheet)
+                df.to_excel(writer, sheet_name=sheet)
+
+    ghed = GHED()
+    ghed._raw_data = modified_raw_data
+
+    # test
+    with pytest.raises(DataFormattingError):
+        result = ghed._format_data()
+
+
+def test_format_data_merging_error(mock_raw_data):
+    """Test the _format_data method raises a DataFormattingError when the data cannot be merged"""
+
+    def test_format_data_codebook_missing_variable_code(mock_raw_data):
+        """Test the _format_data method raises a DataFormattingError when 'variable code' column is missing from the Codebook"""
+
+    # Read the "Data" sheet normally
+    data_df = pd.read_excel(mock_raw_data, sheet_name="Data")
+
+    # Read the "Codebook" sheet and drop the "variable code" column to simulate it being missing
+    codebook_df = pd.read_excel(mock_raw_data, sheet_name="Codebook")
+    codebook_df.drop(columns=["variable code"], inplace=True)
+
+    # Write both modified DataFrame objects to a new BytesIO object
+    modified_raw_data = io.BytesIO()
+    with pd.ExcelWriter(modified_raw_data, engine="xlsxwriter") as writer:
+        data_df.to_excel(writer, sheet_name="Data", index=False)
+        codebook_df.to_excel(writer, sheet_name="Codebook", index=False)
+
+    # Reset the pointer to the start of the BytesIO object
+    modified_raw_data.seek(0)
+
+    # Initialize the GHED object and set the modified raw data
+    ghed = GHED()
+    ghed._raw_data = modified_raw_data
+
+    # Test
+    with pytest.raises(DataFormattingError):
+        result = ghed._format_data()
 
 
 def test_read_local_data_success(mock_raw_data):
