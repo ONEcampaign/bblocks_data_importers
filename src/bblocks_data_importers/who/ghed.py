@@ -39,6 +39,7 @@ from bblocks_data_importers.config import (
     DataFormattingError,
 )
 from bblocks_data_importers.protocols import DataImporter
+from bblocks_data_importers.utilities import ensure_pyarrow_dtypes
 
 URL: str = "https://apps.who.int/nha/database/Home/IndicatorsDownload/en"
 
@@ -122,48 +123,64 @@ class GHED(DataImporter):
                 f"Error reading data from file {path}: {e}"
             ) from e
 
-    @staticmethod
-    def _format_data(raw_data: io.BytesIO) -> pd.DataFrame:
-        """Format the raw data
+    def __format_main_data(self) -> pd.DataFrame:
+        """
+        Format the main data from the GHED database
 
-        Args:
-            raw_data: Raw data extracted from the GHED database or local file
+        Returns:
+            A DataFrame with the formatted data
+        """
+        return (
+            pd.read_excel(self._raw_data, sheet_name="Data", dtype_backend="pyarrow")
+            .drop(columns=["region", "income"])
+            .melt(id_vars=["country", "code", "year"], var_name="indicator_code")
+            .rename(columns={"country": "country_name", "code": "iso3_code"})
+            .pipe(ensure_pyarrow_dtypes)
+        )
+
+    def __format_codes(self) -> pd.DataFrame:
+        """
+        Format the codes from the GHED database
+
+        Returns:
+            A DataFrame with the formatted codes
+        """
+        return (
+            pd.read_excel(
+                self._raw_data, sheet_name="Codebook", dtype_backend="pyarrow"
+            )
+            .rename(
+                columns={
+                    "variable code": "indicator_code",
+                    "variable name": "indicator_name",
+                }
+            )
+            .loc[:, ["indicator_code", "indicator_name", "unit", "currency"]]
+            .replace("-", np.nan)
+            .pipe(ensure_pyarrow_dtypes)
+        )
+
+    def _format_data(self) -> pd.DataFrame:
+        """Format the raw data
 
         Returns:
             A DataFrame with the formatted data
         """
 
         try:
-            data_df = (
-                pd.read_excel(raw_data, sheet_name="Data")
-                .drop(columns=["region", "income"])
-                .melt(id_vars=["country", "code", "year"], var_name="indicator_code")
-                .rename(columns={"country": "country_name", "code": "iso3_code"})
-            )
-
-            codes_df = (
-                pd.read_excel(raw_data, sheet_name="Codebook")
-                .rename(
-                    columns={
-                        "variable code": "indicator_code",
-                        "variable name": "indicator_name",
-                    }
-                )
-                .loc[:, ["indicator_code", "indicator_name", "unit", "currency"]]
-                .replace("-", np.nan)
-            )
-
-            return pd.merge(data_df, codes_df, on="indicator_code", how="left")
-
+            data_df = self.__format_main_data()
         except (ValueError, KeyError) as e:
             raise DataFormattingError(f"Error formatting data: {e}")
 
-    @staticmethod
-    def _format_metadata(raw_data: io.BytesIO) -> pd.DataFrame:
-        """Format the metadata
+        try:
+            codes_df = self.__format_codes()
+        except (ValueError, KeyError) as e:
+            raise DataFormattingError(f"Error formatting data: {e}")
 
-        Args:
-            raw_data: Raw data extracted from the GHED database or local file
+        return pd.merge(data_df, codes_df, on="indicator_code", how="left")
+
+    def _format_metadata(self) -> pd.DataFrame:
+        """Format the metadata
 
         Returns:
             A DataFrame with the formatted metadata
@@ -183,9 +200,12 @@ class GHED(DataImporter):
 
         try:
             return (
-                pd.read_excel(raw_data, sheet_name="Metadata")
+                pd.read_excel(
+                    self._raw_data, sheet_name="Metadata", dtype_backend="pyarrow"
+                )
                 .rename(columns=cols)
                 .loc[:, cols.values()]
+                .pipe(ensure_pyarrow_dtypes)
             )
 
         except (ValueError, KeyError) as e:
@@ -201,8 +221,8 @@ class GHED(DataImporter):
             logger.info("Importing data from GHED database")
             self._raw_data = self._extract_raw_data()
 
-        self._data = self._format_data(self._raw_data)
-        self._metadata = self._format_metadata(self._raw_data)
+        self._data = self._format_data()
+        self._metadata = self._format_metadata()
         logger.info("Data imported successfully")
 
     def get_data(self) -> pd.DataFrame:
