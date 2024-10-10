@@ -12,11 +12,14 @@ def convert_dtypes(df: pd.DataFrame, backend: Literal["pyarrow", "numpy_nullable
     Returns:
         A DataFrame with the pyarrow dtypes
     """
-    try:
-        return df.convert_dtypes(dtype_backend=backend)
-    except TypeError as e:
-        raise TypeError(f"Data conversion error: {e}")
-    except ValueError as e:
-        raise ValueError(f"Data conversion error: {e}")
+
+    supported_backends = {"pyarrow", "numpy_nullable"}
+
+    # Check if the backend is valid
+    if backend not in supported_backends:
+        raise ValueError(f"Unsupported backend '{backend}'. Supported backends are {supported_backends}.")
+
+    # Convert dtypes using the specified backend
+    return df.convert_dtypes(dtype_backend=backend)
 
 
