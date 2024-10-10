@@ -39,7 +39,7 @@ from bblocks_data_importers.config import (
     DataFormattingError,
 )
 from bblocks_data_importers.protocols import DataImporter
-from bblocks_data_importers.utilities import ensure_pyarrow_dtypes
+from bblocks_data_importers.utilities import convert_pyarrow_dtypes
 
 URL: str = "https://apps.who.int/nha/database/Home/IndicatorsDownload/en"
 
@@ -135,7 +135,7 @@ class GHED(DataImporter):
             .drop(columns=["region", "income"])
             .melt(id_vars=["country", "code", "year"], var_name="indicator_code")
             .rename(columns={"country": "country_name", "code": "iso3_code"})
-            .pipe(ensure_pyarrow_dtypes)
+            .pipe(convert_pyarrow_dtypes)
         )
 
     def __format_codes(self) -> pd.DataFrame:
@@ -157,7 +157,7 @@ class GHED(DataImporter):
             )
             .loc[:, ["indicator_code", "indicator_name", "unit", "currency"]]
             .replace("-", np.nan)
-            .pipe(ensure_pyarrow_dtypes)
+            .pipe(convert_pyarrow_dtypes)
         )
 
     def _format_data(self) -> pd.DataFrame:
@@ -205,7 +205,7 @@ class GHED(DataImporter):
                 )
                 .rename(columns=cols)
                 .loc[:, cols.values()]
-                .pipe(ensure_pyarrow_dtypes)
+                .pipe(convert_pyarrow_dtypes)
             )
 
         except (ValueError, KeyError) as e:
