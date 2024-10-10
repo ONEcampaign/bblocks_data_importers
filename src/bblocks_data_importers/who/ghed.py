@@ -87,7 +87,7 @@ class GHED(DataImporter):
             raise DataExtractionError(f"Error reading data from file {path}: {e}") from e
 
     @staticmethod
-    def _format_raw_data(raw_data: io.BytesIO) -> pd.DataFrame:
+    def _format_data(raw_data: io.BytesIO) -> pd.DataFrame:
         """Format the raw data from the GHED database
 
         Args:
@@ -164,7 +164,7 @@ class GHED(DataImporter):
         else:
             self._raw_data = self._extract_raw_data()
 
-        self._data = self._format_raw_data(self._raw_data)
+        self._data = self._format_data(self._raw_data)
         self._metadata = self._format_metadata(self._raw_data)
 
     def get_data(self) -> pd.DataFrame:
@@ -189,7 +189,7 @@ class GHED(DataImporter):
             for each indicator-country pair
         """
 
-        if self._data is None:
+        if self._metadata is None:
             self._load_data()
 
         return self._metadata
