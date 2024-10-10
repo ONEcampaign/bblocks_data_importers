@@ -2,7 +2,6 @@
 
 from bblocks_data_importers.who.ghed import GHED, URL
 from bblocks_data_importers.config import DataExtractionError, DataFormattingError
-from bblocks_data_importers.config import Paths
 
 import pytest
 from unittest import mock
@@ -11,11 +10,9 @@ import io
 import requests
 import pandas as pd
 import numpy as np
-import os
 
 
 TEST_FILE_PATH = "tests/test_data/test_ghed.XLSX"
-FORMATTED_METADATA = pd.read_feather("tests/test_data/formatted_metadata_ghed.feather")
 
 
 @pytest.fixture
@@ -43,10 +40,6 @@ def mock_http_error_response():
     mock_response.status_code = 404
     mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Client Error")
     return mock_response
-
-
-
-
 
 
 def test_init_without_data_file():
@@ -84,8 +77,6 @@ def test_init_with_invalid_data_file(mock_exists):
     mock_exists.assert_called_once()
 
 
-
-# Test case 1: Test successful data extraction
 @mock.patch("bblocks_data_importers.who.ghed.requests.get")
 def test_extract_raw_data_success(mock_get, mock_successful_response):
     """Test successful data extraction
@@ -233,13 +224,9 @@ def test_read_local_data_read_error(mock_open):
 @mock.patch("bblocks_data_importers.who.ghed.GHED._format_metadata")
 def test_load_data_no_local_file(mock_format_metadata, mock_format_data, mock_extract_raw_data):
     """Test that _extract_raw_data is called when no local file is provided"""
-    # Mock the return value for _extract_raw_data
-    mock_extract_raw_data.return_value = io.BytesIO(b'some raw data')
 
-    # Initialize GHED without a local file
+    mock_extract_raw_data.return_value = io.BytesIO(b'some raw data') # Mock the return value for _extract_raw_data
     ghed = GHED()
-
-    # Call the method to load data
     ghed._load_data()
 
     # Ensure that _extract_raw_data is called
@@ -274,7 +261,7 @@ def test_load_data_with_local_file(mock_format_metadata, mock_format_data, mock_
 
 def test_clear_cache():
     """Test that clear_cache sets _raw_data, _data, and _metadata to None"""
-    # Initialize GHED and set mock values for the cache attributes
+
     ghed = GHED()
     ghed._raw_data = io.BytesIO(b'some raw data')
     ghed._data = pd.DataFrame({"column": [1, 2, 3]})
@@ -296,31 +283,25 @@ def test_clear_cache():
 
 @mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
 @mock.patch("bblocks_data_importers.who.ghed.open", new_callable=mock.mock_open)
-def test_download_raw_data_success(mock_file_open, mock_path_exists):
-    """Test that download_raw_data successfully saves the raw data to disk"""
-    # Initialize GHED and set mock raw data
+def test_export_raw_data_success(mock_file_open, mock_path_exists):
+    """Test that export_raw_data successfully saves the raw data to disk"""
+
     ghed = GHED()
     ghed._raw_data = io.BytesIO(b'some raw data')
-
-    # Call download_raw_data with a valid path and file name
     ghed.export_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=True)
 
-    # Ensure that the file is opened for writing in binary mode
+    # test
     mock_file_open.assert_called_once_with(Path("some_valid_directory") / "ghed_test.xlsx", "wb")
-
-    # Ensure that data was written to the file
     mock_file_open().write.assert_called_once_with(b'some raw data')
 
 
 @mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
 @mock.patch("bblocks_data_importers.who.ghed.open", new_callable=mock.mock_open)
-def test_download_raw_data_file_exists_no_overwrite(mock_file_open, mock_path_exists):
-    """Test that download_raw_data raises a FileExistsError if the file exists and overwrite is False"""
-    # Initialize GHED and set mock raw data
+def test_export_raw_data_file_exists_no_overwrite(mock_file_open, mock_path_exists):
+    """Test that export_raw_data raises a FileExistsError if the file exists and overwrite is False"""
+
     ghed = GHED()
     ghed._raw_data = io.BytesIO(b'some raw data')
-
-    # Simulate the file already existing (mock_path_exists is set to True)
     mock_path_exists.return_value = True
 
     # Test that a FileExistsError is raised when overwrite is False
@@ -332,13 +313,11 @@ def test_download_raw_data_file_exists_no_overwrite(mock_file_open, mock_path_ex
 
 
 @mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=False)
-def test_download_raw_data_directory_not_found(mock_path_exists):
-    """Test that download_raw_data raises a FileNotFoundError if the directory does not exist"""
-    # Initialize GHED and set mock raw data
+def test_export_raw_data_directory_not_found(mock_path_exists):
+    """Test that export_raw_data raises a FileNotFoundError if the directory does not exist"""
+
     ghed = GHED()
     ghed._raw_data = io.BytesIO(b'some raw data')
-
-    # Simulate the directory not existing (mock_path_exists is set to False)
     mock_path_exists.return_value = False
 
     # Test that a FileNotFoundError is raised
@@ -352,59 +331,40 @@ def test_download_raw_data_directory_not_found(mock_path_exists):
 @mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
 @mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
 @mock.patch("bblocks_data_importers.who.ghed.open", new_callable=mock.mock_open)
-def test_download_raw_data_calls_load_data_if_raw_data_none(mock_file_open, mock_path_exists, mock_load_data, mock_raw_data):
-    """Test that _load_data is called if _raw_data is None in download_raw_data"""
-    # Initialize GHED with no raw data
+def test_export_raw_data_calls_load_data_if_raw_data_none(mock_file_open, mock_path_exists, mock_load_data, mock_raw_data):
+    """Test that _load_data is called if _raw_data is None in export_raw_data"""
+
     ghed = GHED()
-
-    # Simulate that _load_data sets _raw_data to mock_raw_data after being called
     mock_load_data.side_effect = lambda: setattr(ghed, '_raw_data', mock_raw_data)
-
-    # Call download_raw_data while _raw_data is initially None
     ghed.export_raw_data(path="some_valid_directory", file_name="ghed_test", overwrite=True)
 
-    # Ensure that _load_data is called because _raw_data was None
+    # test
     mock_load_data.assert_called_once()
-
-    # Ensure that the file is opened for writing
     mock_file_open.assert_called_once_with(Path("some_valid_directory") / "ghed_test.xlsx", "wb")
-
-    # Ensure that the raw data is written to the file
     mock_file_open().write.assert_called_once_with(mock_raw_data.getvalue())
 
 
 @mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
 def test_get_data_calls_load_data_if_data_none(mock_load_data):
     """Test that get_data calls _load_data if _data is None and returns a DataFrame"""
-    # Initialize GHED (default _data is None)
+
     ghed = GHED()
-
-    # Simulate _load_data setting _data after being called
     mock_load_data.side_effect = lambda: setattr(ghed, '_data', pd.DataFrame({"column": [1, 2, 3]}))
-
-    # Call get_data (since _data is None, it should call _load_data)
     result = ghed.get_data()
 
-    # Ensure that _load_data is called because _data was None
+    # test
     mock_load_data.assert_called_once()
-
-    # Ensure that the result is a DataFrame
     assert isinstance(result, pd.DataFrame)
 
 @mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
 def test_get_data_does_not_call_load_data_if_data_exists(mock_load_data):
     """Test that get_data does not call _load_data if _data is already populated"""
-    # Initialize GHED with pre-populated data
+
     ghed = GHED()
     ghed._data = pd.DataFrame({"column": [1, 2, 3]})  # Simulate that data is already loaded
-
-    # Call get_data
     result = ghed.get_data()
 
-    # Ensure that _load_data is not called because _data is already populated
     mock_load_data.assert_not_called()
-
-    # Ensure that the result is the pre-loaded DataFrame
     assert isinstance(result, pd.DataFrame)
     assert result.equals(ghed._data)  # Ensure it's the same data
 
@@ -412,36 +372,25 @@ def test_get_data_does_not_call_load_data_if_data_exists(mock_load_data):
 @mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
 def test_get_metadata_calls_load_data_if_metadata_none(mock_load_data):
     """Test that get_metadata calls _load_data if _metadata is None and returns a DataFrame"""
-    # Initialize GHED (default _metadata is None)
+
     ghed = GHED()
-
-    # Simulate _load_data setting _metadata after being called
     mock_load_data.side_effect = lambda: setattr(ghed, '_metadata', pd.DataFrame({"column": ["meta1", "meta2"]}))
-
-    # Call get_metadata (since _metadata is None, it should call _load_data)
     result = ghed.get_metadata()
 
-    # Ensure that _load_data is called because _metadata was None
+    # test
     mock_load_data.assert_called_once()
-
-    # Ensure that the result is a DataFrame
     assert isinstance(result, pd.DataFrame)
 
 
 @mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
 def test_get_metadata_does_not_call_load_data_if_metadata_exists(mock_load_data):
     """Test that get_metadata does not call _load_data if _metadata is already populated"""
-    # Initialize GHED with pre-populated metadata
     ghed = GHED()
     ghed._metadata = pd.DataFrame({"column": ["meta1", "meta2"]})  # Simulate that metadata is already loaded
-
-    # Call get_metadata
     result = ghed.get_metadata()
 
-    # Ensure that _load_data is not called because _metadata is already populated
+    # test
     mock_load_data.assert_not_called()
-
-    # Ensure that the result is the pre-loaded DataFrame
     assert isinstance(result, pd.DataFrame)
     assert result.equals(ghed._metadata)  # Ensure it's the same metadata
 
