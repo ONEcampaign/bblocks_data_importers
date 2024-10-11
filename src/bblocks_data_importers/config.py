@@ -61,6 +61,7 @@ weo_version = Literal["latest"] | tuple[Literal["April", "October"], int]
 
 # Field and column names
 
+
 class Fields:
 
     # value fields
@@ -82,4 +83,3 @@ class Fields:
     indicator_name = "indicator_name"
     unit = "unit"
     currency = "currency"
-

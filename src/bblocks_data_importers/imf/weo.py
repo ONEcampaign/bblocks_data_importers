@@ -63,20 +63,22 @@ class WEO(DataImporter):
     def _format_data(df: pd.DataFrame):
         """Format WEO data"""
 
-        return (df
-                .pipe(convert_dtypes)
-                .rename(columns={"OBS_VALUE": Fields.value,
-                                 "TIME_PERIOD": Fields.year,
-                                 "REF_AREA_CODE": Fields.entity_code,
-                                 "REF_AREA_LABEL": Fields.entity_name,
-                                 "CONCEPT_CODE": Fields.indicator_code,
-                                 "CONCEPT_LABEL": Fields.indicator_name,
-                                 "UNIT_LABEL": Fields.unit,
-                                 "LASTACTUALDATE": "estimates_start_year",
-                                 })
-                # convert other columns to lowercase
-                .rename(columns={col: col.lower() for col in df.columns})
-                )
+        return (
+            df.pipe(convert_dtypes).rename(
+                columns={
+                    "OBS_VALUE": Fields.value,
+                    "TIME_PERIOD": Fields.year,
+                    "REF_AREA_CODE": Fields.entity_code,
+                    "REF_AREA_LABEL": Fields.entity_name,
+                    "CONCEPT_CODE": Fields.indicator_code,
+                    "CONCEPT_LABEL": Fields.indicator_name,
+                    "UNIT_LABEL": Fields.unit,
+                    "LASTACTUALDATE": "estimates_start_year",
+                }
+            )
+            # convert other columns to lowercase
+            .rename(columns={col: col.lower() for col in df.columns})
+        )
 
     def _load_data(self, version=None) -> None:
         """Load WEO data to the object for a specific version
@@ -85,7 +87,9 @@ class WEO(DataImporter):
             version: version of the WEO data to load. If None, the latest version is loaded
         """
 
-        self._data[weo.fetch_data.last_version_fetched] = weo.fetch_data(version).pipe(self._format_data)
+        self._data[weo.fetch_data.last_version_fetched] = weo.fetch_data(version).pipe(
+            self._format_data
+        )
 
         # if the latest version is loaded, save the version to _latest_version
         if version is None:
