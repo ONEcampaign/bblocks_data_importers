@@ -1,6 +1,28 @@
-"""Importer for the WEO database from IMF"""
+"""Importer for the WEO database from IMF
 
-from typing import Literal
+The World Economic Outlook (WEO) database provides data on the global economy and its prospects
+for countries and regions, over time, and includes estimates and forecasts for the years ahead.
+The report and data is published twice a year in April and October.
+
+More information and access to the raw data can be found at: https://www.imf.org/en/Publications/WEO
+
+
+This importer provides functionality to easily access the latest WEO data (or data from a specific version).
+
+Usage:
+
+First instantiate an importer object:
+>>> weo = WEO()
+
+get the latest data:
+>>> data = weo.get_data()
+
+To get the data for a specific version, pass the version as an argument:
+>>> data = weo.get_data(version=("April", 2023))
+
+The data is cached to avoid downloading it multiple times. To clear the cache, call:
+>>> weo.clear_cache()
+"""
 
 import pandas as pd
 from imf_reader import weo
@@ -11,7 +33,27 @@ from bblocks_data_importers.config import logger, weo_version, Fields
 
 
 class WEO(DataImporter):
-    """Importer for the WEO database from IMF"""
+    """Importer for the WEO database
+
+    The World Economic Outlook (WEO) database provides data on the global economy and its prospects
+    for countries and regions, over time, and includes estimates and forecasts.
+    The report and data is published twice a year in April and October.
+    See more details at: https://www.imf.org/en/Publications/WEO
+
+    Usage:
+
+    First instantiate an importer object:
+    >>> weo = WEO()
+
+    get the latest data:
+    >>> data = weo.get_data()
+
+    To get the data for a specific version, pass the version as an argument:
+    >>> data = weo.get_data(version=("April", 2023))
+
+    The data is cached to avoid downloading it multiple times. To clear the cache, call:
+    >>> weo.clear_cache()
+    """
 
     def __init__(self):
         self._data: dict = {}
