@@ -276,6 +276,17 @@ files = [
 pycparser = "*"
 
 [[package]]
+name = "chardet"
+version = "5.2.0"
+description = "Universal encoding detector for Python 3"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "chardet-5.2.0-py3-none-any.whl", hash = "sha256:e1cf59446890a00105fe7b7912492ea04b6e6f06d4b742b2c788469e34c82970"},
+    {file = "chardet-5.2.0.tar.gz", hash = "sha256:1b3b6ff479a8c414bc3fa2c0852995695c4a026dcd6d0633b2dd092ca39c1cf7"},
+]
+
+[[package]]
 name = "charset-normalizer"
 version = "3.3.2"
 description = "The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet."
@@ -701,6 +712,23 @@ files = [
     {file = "imagesize-1.4.1-py2.py3-none-any.whl", hash = "sha256:0d8d18d08f840c19d0ee7ca1fd82490fdc3729b7ac93f49870406ddde8ef8d8b"},
     {file = "imagesize-1.4.1.tar.gz", hash = "sha256:69150444affb9cb0d5cc5a92b3676f0b2fb7cd9ae39e947a5e11a36b4497cd4a"},
 ]
+
+[[package]]
+name = "imf-reader"
+version = "1.1.0"
+description = "A package to access imf data"
+optional = false
+python-versions = "<4.0,>=3.10"
+files = [
+    {file = "imf_reader-1.1.0-py3-none-any.whl", hash = "sha256:36f34397803d0da1e56473e9258dcc9d8747ba9be6400561a259983bbef93cc5"},
+    {file = "imf_reader-1.1.0.tar.gz", hash = "sha256:e22737d4457dd7168eaf49ffb2afd1db390e012d3488c257f94d20f9ce179600"},
+]
+
+[package.dependencies]
+beautifulsoup4 = ">=4.12.3,<5.0.0"
+chardet = ">=5.2.0,<6.0.0"
+pandas = ">=2.2.2,<3.0.0"
+requests = ">=2.32.1,<3.0.0"
 
 [[package]]
 name = "importlib-metadata"
@@ -2484,4 +2512,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "1a785be851b065e1b3b33c641b77d430160b861197d5df24f6922d8c66823e93"
+content-hash = "24da145ad9a5df0be4d9c40c9bb467122e9558b011286dafcdf29ad982c4192e"
