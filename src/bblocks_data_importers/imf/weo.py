@@ -30,6 +30,7 @@ from imf_reader import weo
 from bblocks_data_importers.protocols import DataImporter
 from bblocks_data_importers.utilities import convert_dtypes
 from bblocks_data_importers.config import logger, weo_version, Fields
+from bblocks_data_importers.data_validators import DataFrameValidator
 
 
 class WEO(DataImporter):
@@ -89,7 +90,7 @@ class WEO(DataImporter):
 
         df = weo.fetch_data(version) # fetch the data
         df = self._format_data(df) # format the data
-        # TODO: validate the data
+        DataFrameValidator().validate(df, required_cols=[Fields.value, Fields.year, Fields.entity_code, Fields.indicator_code]) # validate the data
         self._data[weo.fetch_data.last_version_fetched] = df
 
         # if the latest version is loaded, save the version to _latest_version
