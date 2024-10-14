@@ -87,9 +87,10 @@ class WEO(DataImporter):
             version: version of the WEO data to load. If None, the latest version is loaded
         """
 
-        self._data[weo.fetch_data.last_version_fetched] = weo.fetch_data(version).pipe(
-            self._format_data
-        )
+        df = weo.fetch_data(version) # fetch the data
+        df = self._format_data(df) # format the data
+        # TODO: validate the data
+        self._data[weo.fetch_data.last_version_fetched] = df
 
         # if the latest version is loaded, save the version to _latest_version
         if version is None:
