@@ -11,6 +11,7 @@ TODO: cache settings
 
 import logging
 from pathlib import Path
+from typing import Literal
 
 # Configure Logging
 logger = logging.getLogger(__name__)
@@ -52,3 +53,33 @@ def set_data_path(path):
     """
 
     Paths.data = Path(path).resolve()
+
+
+# Types
+weo_version = Literal["latest"] | tuple[Literal["April", "October"], int]
+
+
+# Field and column names
+
+
+class Fields:
+
+    # value fields
+    value = "value"
+
+    # country, region and other entity names
+    country_name = "country_name"
+    region_name = "region_name"
+    entity_name = "entity_name"
+
+    # country, region and other entity codes
+    iso2_code = "iso2_code"
+    iso3_code = "iso3_code"
+    entity_code = "entity_code"
+
+    # other fields
+    year = "year"
+    indicator_code = "indicator_code"
+    indicator_name = "indicator_name"
+    unit = "unit"
+    currency = "currency"
