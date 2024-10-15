@@ -37,9 +37,11 @@ from bblocks_data_importers.config import (
     logger,
     DataExtractionError,
     DataFormattingError,
+    Fields,
 )
 from bblocks_data_importers.protocols import DataImporter
 from bblocks_data_importers.utilities import convert_dtypes
+from bblocks_data_importers.data_validators import DataFrameValidator
 
 URL: str = "https://apps.who.int/nha/database/Home/IndicatorsDownload/en"
 
@@ -134,7 +136,7 @@ class GHED(DataImporter):
             pd.read_excel(self._raw_data, sheet_name="Data", dtype_backend="pyarrow")
             .drop(columns=["region", "income"])
             .melt(id_vars=["country", "code", "year"], var_name="indicator_code")
-            .rename(columns={"country": "country_name", "code": "iso3_code"})
+            .rename(columns={"country": Fields.country_name, "code": Fields.iso3_code})
             .pipe(convert_dtypes)
         )
 
@@ -151,11 +153,11 @@ class GHED(DataImporter):
             )
             .rename(
                 columns={
-                    "variable code": "indicator_code",
-                    "variable name": "indicator_name",
+                    "variable code": Fields.indicator_code,
+                    "variable name": Fields.indicator_name,
                 }
             )
-            .loc[:, ["indicator_code", "indicator_name", "unit", "currency"]]
+            .loc[:, [Fields.indicator_code, Fields.indicator_name, "unit", "currency"]]
             .replace("-", np.nan)
             .pipe(convert_dtypes)
         )
@@ -187,10 +189,10 @@ class GHED(DataImporter):
         """
 
         cols = {
-            "country": "country_name",
-            "code": "iso3_code",
-            "variable name": "indicator_name",
-            "variable code": "indicator_code",
+            "country": Fields.country_name,
+            "code": Fields.iso3_code,
+            "variable name": Fields.indicator_name,
+            "variable code": Fields.indicator_code,
             "Sources": "sources",
             "Comments": "comments",
             "Data type": "data_type",
@@ -221,7 +223,19 @@ class GHED(DataImporter):
             logger.info("Importing data from GHED database")
             self._raw_data = self._extract_raw_data()
 
-        self._data = self._format_data()
+        df = self._format_data()
+        DataFrameValidator().validate(
+            df,
+            required_cols=[
+                Fields.country_name,
+                Fields.iso3_code,
+                Fields.year,
+                Fields.indicator_code,
+                Fields.indicator_name,
+                Fields.value,
+            ],
+        )
+        self._data = df
         self._metadata = self._format_metadata()
         logger.info("Data imported successfully")
 
