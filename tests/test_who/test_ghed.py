@@ -296,36 +296,34 @@ def test_read_local_data_read_error(mock_open):
 
 
 @mock.patch("bblocks_data_importers.who.ghed.GHED._extract_raw_data")
-@mock.patch("bblocks_data_importers.who.ghed.GHED._format_data")
-@mock.patch("bblocks_data_importers.who.ghed.GHED._format_metadata")
-def test_load_data_no_local_file(
-    mock_format_metadata, mock_format_data, mock_extract_raw_data
-):
+def test_load_data_no_local_file(mock_extract_raw_data, mock_raw_data):
     """Test that _extract_raw_data is called when no local file is provided"""
 
-    mock_extract_raw_data.return_value = io.BytesIO(
-        b"some raw data"
-    )  # Mock the return value for _extract_raw_data
+    mock_extract_raw_data.return_value = mock_raw_data
+
     ghed = GHED()
     ghed._load_data()
 
     # Ensure that _extract_raw_data is called
     mock_extract_raw_data.assert_called_once()
 
-    # Ensure that the formatting methods are called
-    mock_format_data.assert_called_once()
-    mock_format_metadata.assert_called_once()
+
+@mock.patch("bblocks_data_importers.who.ghed.GHED._extract_raw_data")
+def test_load_data_invalid_data_format(mock_extract_raw_data):
+    """Check that the data validation fails when the data format is invalid"""
+
+    mock_extract_raw_data.return_value = io.BytesIO(b"invalid raw content")
+
+    ghed = GHED()
+    with pytest.raises(DataFormattingError):
+        ghed._load_data()
 
 
 @mock.patch("bblocks_data_importers.who.ghed.GHED._read_local_data")
-@mock.patch("bblocks_data_importers.who.ghed.GHED._format_data")
-@mock.patch("bblocks_data_importers.who.ghed.GHED._format_metadata")
-def test_load_data_with_local_file(
-    mock_format_metadata, mock_format_data, mock_read_local_data
-):
+def test_load_data_with_local_file(mock_read_local_data, mock_raw_data):
     """Test that _read_local_data is called when a local file is provided"""
-    # Mock the return value for _read_local_data
-    mock_read_local_data.return_value = io.BytesIO(b"some raw data")
+
+    mock_read_local_data.return_value = mock_raw_data
 
     # Initialize GHED with a local file
     ghed = GHED(data_file=TEST_FILE_PATH)
@@ -335,10 +333,6 @@ def test_load_data_with_local_file(
 
     # Ensure that _read_local_data is called
     mock_read_local_data.assert_called_once()
-
-    # Ensure that the formatting methods are called
-    mock_format_data.assert_called_once()
-    mock_format_metadata.assert_called_once()
 
 
 def test_clear_cache():
