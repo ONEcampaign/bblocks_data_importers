@@ -20,8 +20,9 @@ class DataFrameValidator:
             logger.debug("DataFrame validation successful.")
 
         except ValueError as e:
-            raise DataValidationError(f"Data validation failed. There may be an issue with the original data source or the data transformation process. Error: {e}")
-
+            raise DataValidationError(
+                f"Data validation failed. There may be an issue with the original data source or the data transformation process. Error: {e}"
+            )
 
     @staticmethod
     def check_empty_df(df: pd.DataFrame) -> None:

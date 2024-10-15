@@ -49,8 +49,6 @@ class DataValidationError(Exception):
     """Raised when data validation fails."""
 
 
-
-
 def set_data_path(path):
     """Set the path to the folder containing the raw data or where raw data will be stored.
 

@@ -37,7 +37,7 @@ from bblocks_data_importers.config import (
     logger,
     DataExtractionError,
     DataFormattingError,
-    Fields
+    Fields,
 )
 from bblocks_data_importers.protocols import DataImporter
 from bblocks_data_importers.utilities import convert_dtypes
@@ -224,7 +224,17 @@ class GHED(DataImporter):
             self._raw_data = self._extract_raw_data()
 
         df = self._format_data()
-        DataFrameValidator().validate(df, required_cols=[Fields.country_name, Fields.iso3_code, Fields.year, Fields.indicator_code, Fields.indicator_name, Fields.value])
+        DataFrameValidator().validate(
+            df,
+            required_cols=[
+                Fields.country_name,
+                Fields.iso3_code,
+                Fields.year,
+                Fields.indicator_code,
+                Fields.indicator_name,
+                Fields.value,
+            ],
+        )
         self._data = df
         self._metadata = self._format_metadata()
         logger.info("Data imported successfully")
