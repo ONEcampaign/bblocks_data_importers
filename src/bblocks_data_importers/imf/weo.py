@@ -29,7 +29,13 @@ from imf_reader import weo
 
 from bblocks_data_importers.protocols import DataImporter
 from bblocks_data_importers.utilities import convert_dtypes
-from bblocks_data_importers.config import logger, weo_version, Fields, DataExtractionError, DataFormattingError
+from bblocks_data_importers.config import (
+    logger,
+    weo_version,
+    Fields,
+    DataExtractionError,
+    DataFormattingError,
+)
 from bblocks_data_importers.data_validators import DataFrameValidator
 
 
@@ -142,6 +148,6 @@ class WEO(DataImporter):
     def clear_cache(self):
         """Clear the data cached in the importer"""
 
-        self._latest_version = None # clear the latest version
-        self._data = {} # clear the data
+        self._latest_version = None  # clear the latest version
+        self._data = {}  # clear the data
         logger.info("Cache cleared")
