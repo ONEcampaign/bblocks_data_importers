@@ -29,7 +29,13 @@ from imf_reader import weo
 
 from bblocks_data_importers.protocols import DataImporter
 from bblocks_data_importers.utilities import convert_dtypes
-from bblocks_data_importers.config import logger, weo_version, Fields
+from bblocks_data_importers.config import (
+    logger,
+    weo_version,
+    Fields,
+    DataExtractionError,
+    DataFormattingError,
+)
 from bblocks_data_importers.data_validators import DataFrameValidator
 
 
@@ -88,8 +94,16 @@ class WEO(DataImporter):
             version: version of the WEO data to load. If None, the latest version is loaded
         """
 
-        df = weo.fetch_data(version)  # fetch the data
-        df = self._format_data(df)  # format the data
+        try:
+            df = weo.fetch_data(version)  # fetch the data
+        except Exception as e:
+            raise DataExtractionError(f"Failed to fetch data: {e}")
+
+        try:
+            df = self._format_data(df)  # format the data
+        except Exception as e:
+            raise DataFormattingError(f"Error formatting data: {e}")
+
         DataFrameValidator().validate(
             df,
             required_cols=[
@@ -99,6 +113,7 @@ class WEO(DataImporter):
                 Fields.indicator_code,
             ],
         )  # validate the data
+
         self._data[weo.fetch_data.last_version_fetched] = df
 
         # if the latest version is loaded, save the version to _latest_version
@@ -128,8 +143,11 @@ class WEO(DataImporter):
             self._load_data(version)
             return self._data[version]
 
+        return self._data[version]
+
     def clear_cache(self):
         """Clear the data cached in the importer"""
 
-        self._latest_version = None
+        self._latest_version = None  # clear the latest version
+        self._data = {}  # clear the data
         logger.info("Cache cleared")
