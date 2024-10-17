@@ -16,6 +16,6 @@ class DataImporter(Protocol):
     - get_data: get the data from the source.
     """
 
-    def get_data(self) -> pd.DataFrame:
+    def get_data(self, *args, **kwargs) -> pd.DataFrame:
         """Method to return data as a pandas DataFrame."""
         ...
