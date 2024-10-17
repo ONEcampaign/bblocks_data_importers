@@ -16,9 +16,9 @@ import pandas as pd
 import wbgapi
 
 from bblocks_data_importers.protocols import DataImporter
-from config import Fields, logger
-from data_validators import DataFrameValidator
-from utilities import convert_dtypes
+from bblocks_data_importers.config import Fields, logger
+from bblocks_data_importers.data_validators import DataFrameValidator
+from bblocks_data_importers.utilities import convert_dtypes
 
 
 class WorldBank(DataImporter):
