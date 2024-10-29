@@ -3,6 +3,7 @@
 
 import requests
 import io
+import pandas as pd
 
 from bblocks_data_importers.config import (
     logger,
@@ -15,26 +16,31 @@ from bblocks_data_importers.config import (
 # inflation YoY: 116
 # inflation MoM: 117
 
+HUNGERMAP_API = "https://api.hungermapdata.org/v2"
+HUNGERMAP_HEADERS = {"referrer": "https://hungermap.wfp.org/",}
+VAM_HEADERS = { "referrer": "https://dataviz.vam.wfp.org/"}
 
 
-def get_country_ids() -> list[dict]:
-    """Get country ID, name, and iso3 code from WFP"""
+def get_wfp_country_ids() -> dict:
+    """Get ADM0 country ID and iso3 code as a dictionary
 
-    url = "https://api.vam.wfp.org/dataviz/api/v1/ProxyEndpoints/GetExternalAPIResult"
-    params = {
-        "urlProxy": "https://api.vam.wfp.org/ReportsExplorer/v1/Countries",
-    }
-    headers = {
-        "referrer": "https://dataviz.vam.wfp.org/",
-    }
+    This function only returns countries with valid iso3 codes and excludes disputed and other
+    territories that may still be tracked by the WFP.
+    """
+
+    endpoint = f"{HUNGERMAP_API}/adm0data.json"
 
     try:
-        response = requests.get(url, headers=headers, params=params)
+        logger.info("Getting country IDs")
+        response = requests.get(endpoint, headers=HUNGERMAP_HEADERS)
         response.raise_for_status()
-        return response.json()
 
     except requests.exceptions.RequestException as e:
         raise DataExtractionError(f"Error getting country IDs: {e}")
+
+    # parse the response and create a dictionary
+    return {i["properties"]["iso3"]: i["properties"]["adm0_id"]
+            for i in response.json()["body"]["features"] if "," not in i["properties"]["iso3"]}
 
 
 def get_inflation_data(country_id: int, indicator_code: int | list[int],
@@ -70,11 +76,10 @@ def get_inflation_data(country_id: int, indicator_code: int | list[int],
 def get_insufficient_food_national(country_id: int) -> dict:
     """ 248"""
 
-    url = f"https://api.hungermapdata.org/v2/adm0/{country_id}/countryData.json"
-    headers = {"referrer": "https://hungermap.wfp.org/",}
+    endpoint = f"https://api.hungermapdata.org/v2/adm0/{country_id}/countryData.json"
 
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(endpoint, headers=HUNGERMAP_HEADERS)
         response.raise_for_status()
         return response.json()
 
@@ -84,15 +89,18 @@ def get_insufficient_food_national(country_id: int) -> dict:
 def get_insufficient_food_subnational(country_id: int) -> dict:
     """ 249"""
 
-    url = "https://api.hungermapdata.org/v2/adm0/248/adm1data.json"
-    headers = {"referrer": "https://hungermap.wfp.org/",}
+    endpoint = f"https://api.hungermapdata.org/v2/adm0/{country_id}/adm1data.json"
 
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(endpoint, headers=HUNGERMAP_HEADERS)
         response.raise_for_status()
         return response.json()
 
     except requests.exceptions.RequestException as e:
         raise DataExtractionError(f"Error getting subnational insufficient food data for country {country_id}: {e}")
+
+
+
+
 
 
