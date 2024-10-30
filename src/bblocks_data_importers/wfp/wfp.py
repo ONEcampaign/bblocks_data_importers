@@ -209,8 +209,29 @@ class WFPHunger(DataImporter):
 
         self._data_national[iso_code] = df
 
+    def load_subnational_data(self, iso_code) -> None:
+        """ """
 
-    def get_data(self, country_iso3_codes: str | list[str] | None = None,*, max_workers: int = 10) -> pd.DataFrame:
+        if not self._countries:
+            self.load_available_countries()
+
+        if iso_code not in self._countries:
+            logger.info(f"No data found for country: {iso_code}")
+            return
+
+        response = self.extract_data(self._countries[iso_code]["adm0_code"], level = "subnational")
+
+        df = (pd.concat([pd.DataFrame(_d['properties']['fcsGraph']).assign(region_name = _d['properties']['Name'])
+                   for _d in response['features']
+                   ], ignore_index = True)
+              .rename(columns = {"x": "date", "fcs": "value", "fcsHigh": "value_upper", "fcsLow": "value_lower"})
+              .assign(iso3_code = iso_code)
+              )
+
+        self._data_subnational[iso_code] = df
+
+
+    def get_data(self, country_iso3_codes: str | list[str] | None = None, level: Literal["national", "subnational"] = "national",*, max_workers: int = 10) -> pd.DataFrame:
         """Get the data"""
 
         if self._countries is None:
@@ -221,25 +242,52 @@ class WFPHunger(DataImporter):
         elif isinstance(country_iso3_codes, str):
             country_iso3_codes = [country_iso3_codes]
 
-        # Use ThreadPoolExecutor to load data concurrently
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit tasks to load country data concurrently
-            future_to_code = {
-                executor.submit(self.load_country_data, code): code
-                for code in country_iso3_codes
-                if code not in self._data_national
-            }
+        if level == "national":
+            # Use ThreadPoolExecutor to load data concurrently
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit tasks to load country data concurrently
+                future_to_code = {
+                    executor.submit(self.load_country_data, code): code
+                    for code in country_iso3_codes
+                    if code not in self._data_national
+                }
 
-            # Process the completed tasks
-            for future in as_completed(future_to_code):
-                code = future_to_code[future]
-                try:
-                    future.result()  # Raises exception if load_country_data failed
-                except Exception as e:
-                    logger.error(f"Failed to load data for country {code}: {e}")
+                # Process the completed tasks
+                for future in as_completed(future_to_code):
+                    code = future_to_code[future]
+                    try:
+                        future.result()  # Raises exception if load_country_data failed
+                    except Exception as e:
+                        logger.error(f"Failed to load data for country {code}: {e}")
 
-        return pd.concat([self._data_national[code] for code in country_iso3_codes if code in self._data_national],
-                         ignore_index=True)
+            df =  pd.concat([self._data_national[code] for code in country_iso3_codes if code in self._data_national],
+                             ignore_index=True)
+
+        elif level == "subnational":
+            # Use ThreadPoolExecutor to load data concurrently
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit tasks to load country data concurrently
+                future_to_code = {
+                    executor.submit(self.load_subnational_data, code): code
+                    for code in country_iso3_codes
+                    if code not in self._data_subnational
+                }
+
+                # Process the completed tasks
+                for future in as_completed(future_to_code):
+                    code = future_to_code[future]
+                    try:
+                        future.result()  # Raises exception if load_country_data failed
+                    except Exception as e:
+                        logger.error(f"Failed to load data for country {code}: {e}")
+
+            df = pd.concat([self._data_subnational[code] for code in country_iso3_codes if code in self._data_subnational],
+                           ignore_index=True)
+
+        else:
+            raise ValueError("level must be 'national' or 'subnational'")
+
+        return df
 
 
 
