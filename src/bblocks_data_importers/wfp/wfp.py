@@ -88,28 +88,6 @@ def get_inflation_data(country_id: int, indicator_code: int | list[int],
 
 
 
-
-
-def get_insufficient_food_subnational(country_id: int) -> dict:
-    """ 249"""
-
-    endpoint = f"https://api.hungermapdata.org/v2/adm0/{country_id}/adm1data.json"
-
-    try:
-        response = requests.get(endpoint, headers=HUNGERMAP_HEADERS)
-        response.raise_for_status()
-        return response.json()
-
-    except requests.exceptions.RequestException as e:
-        raise DataExtractionError(f"Error getting subnational insufficient food data for country {country_id}: {e}")
-
-
-
-
-
-
-
-
 class WFPHunger(DataImporter):
     """Class to import data from the WFP Hunger Map API"""
 
@@ -127,7 +105,6 @@ class WFPHunger(DataImporter):
 
         while attempt <= retries:
             try:
-                logger.info("Getting country IDs")
                 response = requests.get(endpoint, headers=HUNGERMAP_HEADERS, timeout=timeout)
                 response.raise_for_status()
 
@@ -154,7 +131,7 @@ class WFPHunger(DataImporter):
                 else:
                     raise DataExtractionError(f"Error getting country IDs after {retries + 1} attempts: {e}")
     @staticmethod
-    def extract_data(adm0_code, level: Literal["national", "subnational"], timeout: int = 10, retries: int = 2) -> dict:
+    def extract_data(adm0_code, level: Literal["national", "subnational"], timeout: int = 20, retries: int = 2) -> dict:
         """Extract the data from the source"""
 
         if level == "national":
@@ -175,7 +152,7 @@ class WFPHunger(DataImporter):
                 if attempt < retries:
                     attempt += 1
                 else:
-                    raise DataExtractionError(f"Request timed out for country adm0_code: {adm0_code} after {retries + 1} attempts")
+                    raise DataExtractionError(f"Request timed out for adm0 code: {adm0_code} after {retries + 1} attempts")
 
             except requests.exceptions.RequestException as e:
                 if attempt < retries:
@@ -183,7 +160,40 @@ class WFPHunger(DataImporter):
                 else:
                     raise DataExtractionError(f"Error extracting data for country adm0_code: {adm0_code} after {retries + 1} attempts: {e}")
 
-    def load_country_data(self, iso_code) -> None:
+    @staticmethod
+    def parse_national_data(data: dict, iso_code: str) -> pd.DataFrame | None:
+        """ """
+
+        # check that the data is valid, if not return None
+        if isinstance(data, list) or "fcsGraph" not in data:
+            logger.info(f"No data found for country: {iso_code}")
+            return None
+
+        # parse the data
+        return (pd.DataFrame(data["fcsGraph"])
+              .rename(columns = {"x": 'date', 'fcs': 'value', "fcsHigh": "value_upper", "fcsLow": "value_lower"})
+              .assign(iso3_code = iso_code)
+              # .assign(data_type = self._countries[iso_code]["data_type"])
+              )
+
+    @staticmethod
+    def parse_subnational_data(data: dict, iso_code: str) -> pd.DataFrame | None:
+        """ """
+
+        #TODO: Check if this data is valid, if invalid return None
+
+        if "features" not in data:
+            # print the data for debugging
+            raise ValueError(data)
+
+        return (pd.concat([pd.DataFrame(_d['properties']['fcsGraph']).assign(region_name = _d['properties']['Name'])
+                         for _d in data['features']
+                         ], ignore_index = True)
+              .rename(columns = {"x": "date", "fcs": "value", "fcsHigh": "value_upper", "fcsLow": "value_lower"})
+              .assign(iso3_code = iso_code)
+              )
+
+    def load_data(self, iso_code, level: Literal["national", "subnational"]) -> None:
         """Load data to the object"""
 
         if not self._countries:
@@ -193,45 +203,20 @@ class WFPHunger(DataImporter):
             logger.info(f"No data found for country: {iso_code}")
             return
 
-        response = self.extract_data(self._countries[iso_code]["adm0_code"], level = "national")
+        response = self.extract_data(self._countries[iso_code]["adm0_code"], level = level)
 
-        # check that fcsGraph is in the response.
-        # If the response is a list then no data was found or if fcsGraph is not in the response then no data was found
-        if isinstance(response, list) or "fcsGraph" not in response:
-            logger.info(f"No data found for country: {iso_code}")
-            return
+        if level == "national":
+            df = self.parse_national_data(response, iso_code)
+            if df is not None:
+                self._data_national[iso_code] = df
 
-        df = (pd.DataFrame(response["fcsGraph"])
-              .rename(columns = {"x": 'date', 'fcs': 'value', "fcsHigh": "value_upper", "fcsLow": "value_lower"})
-              .assign(iso3_code = iso_code)
-              .assign(data_type = self._countries[iso_code]["data_type"])
-              )
-
-        self._data_national[iso_code] = df
-
-    def load_subnational_data(self, iso_code) -> None:
-        """ """
-
-        if not self._countries:
-            self.load_available_countries()
-
-        if iso_code not in self._countries:
-            logger.info(f"No data found for country: {iso_code}")
-            return
-
-        response = self.extract_data(self._countries[iso_code]["adm0_code"], level = "subnational")
-
-        df = (pd.concat([pd.DataFrame(_d['properties']['fcsGraph']).assign(region_name = _d['properties']['Name'])
-                   for _d in response['features']
-                   ], ignore_index = True)
-              .rename(columns = {"x": "date", "fcs": "value", "fcsHigh": "value_upper", "fcsLow": "value_lower"})
-              .assign(iso3_code = iso_code)
-              )
-
-        self._data_subnational[iso_code] = df
+        elif level == "subnational":
+            df = self.parse_subnational_data(response, iso_code)
+            if df is not None:
+                self._data_subnational[iso_code] = df
 
 
-    def get_data(self, country_iso3_codes: str | list[str] | None = None, level: Literal["national", "subnational"] = "national",*, max_workers: int = 10) -> pd.DataFrame:
+    def get_data(self, country_iso3_codes: str | list[str] | None = None, level: Literal["national", "subnational"] = "national",*, max_workers: int = 5) -> pd.DataFrame:
         """Get the data"""
 
         if self._countries is None:
@@ -242,54 +227,22 @@ class WFPHunger(DataImporter):
         elif isinstance(country_iso3_codes, str):
             country_iso3_codes = [country_iso3_codes]
 
-        if level == "national":
-            # Use ThreadPoolExecutor to load data concurrently
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit tasks to load country data concurrently
-                future_to_code = {
-                    executor.submit(self.load_country_data, code): code
-                    for code in country_iso3_codes
-                    if code not in self._data_national
-                }
 
-                # Process the completed tasks
-                for future in as_completed(future_to_code):
-                    code = future_to_code[future]
-                    try:
-                        future.result()  # Raises exception if load_country_data failed
-                    except Exception as e:
-                        logger.error(f"Failed to load data for country {code}: {e}")
+        # multithreading
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_code = {
+                executor.submit(self.load_data, code, level): code
+                for code in country_iso3_codes
+            }
 
-            df =  pd.concat([self._data_national[code] for code in country_iso3_codes if code in self._data_national],
-                             ignore_index=True)
+            for future in as_completed(future_to_code):
+                code = future_to_code[future]
+                try:
+                    future.result()  # Raises exception if load_country_data failed
+                except Exception as e:
+                    logger.error(f"Failed to load data for country {code}: {e}")
 
-        elif level == "subnational":
-            # Use ThreadPoolExecutor to load data concurrently
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit tasks to load country data concurrently
-                future_to_code = {
-                    executor.submit(self.load_subnational_data, code): code
-                    for code in country_iso3_codes
-                    if code not in self._data_subnational
-                }
-
-                # Process the completed tasks
-                for future in as_completed(future_to_code):
-                    code = future_to_code[future]
-                    try:
-                        future.result()  # Raises exception if load_country_data failed
-                    except Exception as e:
-                        logger.error(f"Failed to load data for country {code}: {e}")
-
-            df = pd.concat([self._data_subnational[code] for code in country_iso3_codes if code in self._data_subnational],
+        df = pd.concat([self._data_subnational[code] for code in country_iso3_codes if code in self._data_subnational],
                            ignore_index=True)
 
-        else:
-            raise ValueError("level must be 'national' or 'subnational'")
-
         return df
-
-
-
-
-
