@@ -2,12 +2,9 @@
 
 
 import requests
-import io
 import pandas as pd
 import numpy as np
 from typing import Literal
-import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import country_converter as coco
 
 from bblocks_data_importers.config import (
@@ -15,10 +12,9 @@ from bblocks_data_importers.config import (
     DataExtractionError,
     DataFormattingError,
     Fields,
-Paths
 )
 from bblocks_data_importers.protocols import DataImporter
-from bblocks_data_importers.utilities import convert_dtypes
+from bblocks_data_importers.utilities import convert_dtypes, convert_countries_to_unique_list
 
 
 HUNGERMAP_API: str = "https://api.hungermapdata.org/v2"
@@ -147,14 +143,14 @@ class WFPFoodSecurity(DataImporter):
                 if attempt < self._retries:
                     attempt += 1
                 else:
-                    raise DataExtractionError(f"Request timed out for adm0 code: {entity_code} after {self._retries + 1} attempts")
+                    raise DataExtractionError(f"Request timed out for adm0 code - {entity_code} after {self._retries + 1} attempts")
 
             # handle other request errors
             except requests.exceptions.RequestException as e:
                 if attempt < self._retries:
                     attempt += 1
                 else:
-                    raise DataExtractionError(f"Error extracting data for country adm0_code: {entity_code} after {self._retries + 1} attempts: {e}")
+                    raise DataExtractionError(f"Error extracting data for country adm0_code - {entity_code} after {self._retries + 1} attempts: {e}")
 
     @staticmethod
     def _parse_national_data(data: dict, iso_code: str) -> pd.DataFrame:
@@ -172,17 +168,22 @@ class WFPFoodSecurity(DataImporter):
             A DataFrame with the parsed data
         """
 
-        return (pd.DataFrame(data["fcsGraph"])
-                .rename(columns = {"x": Fields.date, 'fcs': Fields.value, "fcsHigh": Fields.value_upper, "fcsLow": Fields.value_lower})
-                .assign(**{Fields.iso3_code: iso_code,
-                           Fields.country_name: coco.convert(iso_code, to = "name_short", not_found = np.nan),
-                           Fields.indicator_name: "people with insufficient food consumption",
-                           Fields.source: "World Food Programme"
-                           }
-                        )
-                .pipe(convert_dtypes)
-                .assign(**{Fields.date:lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")})
-              )
+        try:
+
+            return (pd.DataFrame(data["fcsGraph"])
+                    .rename(columns = {"x": Fields.date, 'fcs': Fields.value, "fcsHigh": Fields.value_upper, "fcsLow": Fields.value_lower})
+                    .assign(**{Fields.iso3_code: iso_code,
+                               Fields.country_name: coco.convert(iso_code, to = "name_short", not_found = np.nan),
+                               Fields.indicator_name: "people with insufficient food consumption",
+                               Fields.source: "World Food Programme"
+                               }
+                            )
+                    .pipe(convert_dtypes)
+                    .assign(**{Fields.date:lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")})
+                  )
+
+        except Exception as e:
+            raise DataFormattingError(f"Error parsing national data for country - {iso_code}: {e}")
 
     @staticmethod
     def _parse_subnational_data(data: dict, iso_code: str) -> pd.DataFrame:
@@ -201,19 +202,23 @@ class WFPFoodSecurity(DataImporter):
             A DataFrame with the parsed data
         """
 
-        return (pd.concat([pd.DataFrame(_d['properties']['fcsGraph']).assign(region_name = _d['properties']['Name'])
-                         for _d in data['features']
-                         ], ignore_index = True)
-                .rename(columns = {"x": Fields.date, "fcs": Fields.value, "fcsHigh": Fields.value_upper, "fcsLow": Fields.value_lower})
-                .assign(**{Fields.iso3_code: iso_code,
-                           Fields.country_name: coco.convert(iso_code, to = "name_short", not_found = np.nan),
-                           Fields.indicator_name: "people with insufficient food consumption",
-                           Fields.source: "World Food Programme"
-                           }
-                        )
-                .pipe(convert_dtypes)
-                .assign(**{Fields.date: lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")})
-              )
+        try:
+            return (pd.concat([pd.DataFrame(_d['properties']['fcsGraph']).assign(region_name = _d['properties']['Name'])
+                             for _d in data['features']
+                             ], ignore_index = True)
+                    .rename(columns = {"x": Fields.date, "fcs": Fields.value, "fcsHigh": Fields.value_upper, "fcsLow": Fields.value_lower})
+                    .assign(**{Fields.iso3_code: iso_code,
+                               Fields.country_name: coco.convert(iso_code, to = "name_short", not_found = np.nan),
+                               Fields.indicator_name: "people with insufficient food consumption",
+                               Fields.source: "World Food Programme"
+                               }
+                            )
+                    .pipe(convert_dtypes)
+                    .assign(**{Fields.date: lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")})
+                  )
+
+        except Exception as e:
+            raise DataFormattingError(f"Error parsing subnational data for country - {iso_code}: {e}")
 
     def _load_data(self, iso_code: str, level: Literal["national", "subnational"]) -> None:
         """Load data to the object
@@ -228,10 +233,10 @@ class WFPFoodSecurity(DataImporter):
 
         # if a requested country is not available log no data found and return
         if iso_code not in self._available_countries_dict:
-            logger.info(f"No data found for country: {iso_code}")
+            logger.info(f"No data found for country - {iso_code}")
             return None
 
-        logger.info(f"Importing {level} data for country: {iso_code} ...")
+        logger.info(f"Importing {level} data for country - {iso_code} ...")
 
         # extract, parse and load the data
         response = self._extract_data(self._available_countries_dict[iso_code][Fields.entity_code], level = level)
@@ -292,14 +297,7 @@ class WFPFoodSecurity(DataImporter):
                 countries = [countries]
 
             # convert the country names to ISO3 codes
-            for country in countries:
-                converted_country = coco.convert(country, to = "ISO3")
-                countries.remove(country)
-                if converted_country == "not found":
-                    logger.warning(f"Country not found: {country}")
-                else:
-                    # if the country is found, add it to the list
-                    countries.append(converted_country)
+            countries = convert_countries_to_unique_list(countries, to = "ISO3")
 
         # load the data for the requested countries and level if not already loaded
         for code in countries:
@@ -318,7 +316,7 @@ class WFPFoodSecurity(DataImporter):
             raise ValueError("level must be 'national' or 'subnational'")
 
         if len(data_list) == 0:
-            logger.info("No data found for the requested countries")
+            logger.warning("No data found for the requested countries")
             return pd.DataFrame()
 
         return pd.concat(data_list, ignore_index = True)

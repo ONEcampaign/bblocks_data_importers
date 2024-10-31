@@ -1,5 +1,12 @@
 import pandas as pd
 from typing import Literal
+import country_converter as coco
+import logging
+
+from bblocks_data_importers.config import logger
+
+coco_logger = coco.logging.getLogger()
+coco_logger.setLevel(logging.CRITICAL)
 
 
 def convert_dtypes(
@@ -25,3 +32,27 @@ def convert_dtypes(
 
     # Convert dtypes using the specified backend
     return df.convert_dtypes(dtype_backend=backend)
+
+
+def convert_countries_to_unique_list(countries: list, src=None, to="ISO3") -> list:
+    """Converts a list of country names to a unique list of countries in the specified format
+
+    Args:
+        countries: A list of country names
+        src: The source format of the country names. Default is None
+        to: The format to convert the country names to. Default is "ISO3"
+
+    Returns:
+        A unique list of countries in the specified format
+    """
+
+    converted_list = set()
+
+    for country in countries:
+        converted_country = coco.convert(country, src=src, to=to)
+        if converted_country == "not found":
+            logger.warning(f"Country not found: {country}")
+        else:
+            converted_list.add(converted_country)
+
+    return list(converted_list)
