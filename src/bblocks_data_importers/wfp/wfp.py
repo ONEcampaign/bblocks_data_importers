@@ -48,6 +48,8 @@ class WFPFoodSecurity(DataImporter):
     To clear the cache:
     >>> wfp.clear_cache()
 
+    To get the available countries and their details:
+    >>> wfp.available_countries
 
     Args:
         timeout: The time in seconds to wait for a response from the API. Defaults to 20s
@@ -88,9 +90,9 @@ class WFPFoodSecurity(DataImporter):
                 # parse the response and create a dictionary
                 self._countries = {
                     i["properties"]["iso3"]: {
-                        "adm0_code": i["properties"]["adm0_id"],
-                        "data_type": i["properties"]["dataType"],
-                        "country_name": coco.convert(i["properties"]["iso3"], to = "name_short", not_found = np.nan)
+                        Fields.entity_code: i["properties"]["adm0_id"],
+                        Fields.data_type: i["properties"]["dataType"],
+                        Fields.country_name: coco.convert(i["properties"]["iso3"], to = "name_short", not_found = np.nan)
                     }
                     for i in response.json()["body"]["features"]
                     if i["properties"]["dataType"] is not None
@@ -113,11 +115,11 @@ class WFPFoodSecurity(DataImporter):
                 else:
                     raise DataExtractionError(f"Error getting country IDs after {self._retries + 1} attempts: {e}")
 
-    def _extract_data(self, adm0_code: int, level: Literal["national", "subnational"]) -> dict:
+    def _extract_data(self, entity_code: int, level: Literal["national", "subnational"]) -> dict:
         """Extract the data from the source
 
         Args:
-            adm0_code: The adm0 code of the country
+            entity_code: The adm0 code of the country
             level: The level of data to extract. Can be "national" or "subnational"
 
         Returns:
@@ -126,9 +128,9 @@ class WFPFoodSecurity(DataImporter):
 
         # get the specific endpoint based on the level
         if level == "national":
-            endpoint = f"https://api.hungermapdata.org/v2/adm0/{adm0_code}/countryData.json"
+            endpoint = f"https://api.hungermapdata.org/v2/adm0/{entity_code}/countryData.json"
         elif level == "subnational":
-            endpoint = f"https://api.hungermapdata.org/v2/adm0/{adm0_code}/adm1data.json"
+            endpoint = f"https://api.hungermapdata.org/v2/adm0/{entity_code}/adm1data.json"
         else:
             raise ValueError("level must be 'national' or 'subnational'")
 
@@ -145,14 +147,14 @@ class WFPFoodSecurity(DataImporter):
                 if attempt < self._retries:
                     attempt += 1
                 else:
-                    raise DataExtractionError(f"Request timed out for adm0 code: {adm0_code} after {self._retries + 1} attempts")
+                    raise DataExtractionError(f"Request timed out for adm0 code: {entity_code} after {self._retries + 1} attempts")
 
             # handle other request errors
             except requests.exceptions.RequestException as e:
                 if attempt < self._retries:
                     attempt += 1
                 else:
-                    raise DataExtractionError(f"Error extracting data for country adm0_code: {adm0_code} after {self._retries + 1} attempts: {e}")
+                    raise DataExtractionError(f"Error extracting data for country adm0_code: {entity_code} after {self._retries + 1} attempts: {e}")
 
     @staticmethod
     def _parse_national_data(data: dict, iso_code: str) -> pd.DataFrame:
@@ -161,9 +163,6 @@ class WFPFoodSecurity(DataImporter):
         This method parses the national data and returns a DataFrame with the data
         It looks for the field "fcsGraph" from the response which contains the data to render the chart
         for the indicator "people with insufficient food consumption" over time
-
-        TODO: convert dtypes
-        TODO: add source and country name
 
         Args:
             data: The json response from the API
@@ -174,13 +173,15 @@ class WFPFoodSecurity(DataImporter):
         """
 
         return (pd.DataFrame(data["fcsGraph"])
-                .rename(columns = {"x": 'date', 'fcs': 'value', "fcsHigh": "value_upper", "fcsLow": "value_lower"})
-                .assign(iso3_code = iso_code,
-                        country_name = coco.convert(iso_code, to = "name_short", not_found = np.nan),
-                        indicator = "people with insufficient food consumption",
+                .rename(columns = {"x": Fields.date, 'fcs': Fields.value, "fcsHigh": Fields.value_upper, "fcsLow": Fields.value_lower})
+                .assign(**{Fields.iso3_code: iso_code,
+                           Fields.country_name: coco.convert(iso_code, to = "name_short", not_found = np.nan),
+                           Fields.indicator_name: "people with insufficient food consumption",
+                           Fields.source: "World Food Programme"
+                           }
                         )
                 .pipe(convert_dtypes)
-                .assign(date=lambda d: pd.to_datetime(d.date, format="%Y-%m-%d"))
+                .assign(**{Fields.date:lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")})
               )
 
     @staticmethod
@@ -191,9 +192,6 @@ class WFPFoodSecurity(DataImporter):
         It looks for the field "fcsGraph" from the response which contains the data to render the chart for
         each region for the indicator "people with insufficient food consumption" over time. The method
         loops through the regions concatenating the data for each region into a single DataFrame
-
-        TODO: convert dtypes
-        TODO: add source and country name
 
         Args:
             data: The json response from the API
@@ -206,13 +204,15 @@ class WFPFoodSecurity(DataImporter):
         return (pd.concat([pd.DataFrame(_d['properties']['fcsGraph']).assign(region_name = _d['properties']['Name'])
                          for _d in data['features']
                          ], ignore_index = True)
-                .rename(columns = {"x": "date", "fcs": "value", "fcsHigh": "value_upper", "fcsLow": "value_lower"})
-                .assign(iso3_code = iso_code,
-                        country_name = coco.convert(iso_code, to = "name_short", not_found = np.nan),
-                        indicator = "people with insufficient food consumption",
+                .rename(columns = {"x": Fields.date, "fcs": Fields.value, "fcsHigh": Fields.value_upper, "fcsLow": Fields.value_lower})
+                .assign(**{Fields.iso3_code: iso_code,
+                           Fields.country_name: coco.convert(iso_code, to = "name_short", not_found = np.nan),
+                           Fields.indicator_name: "people with insufficient food consumption",
+                           Fields.source: "World Food Programme"
+                           }
                         )
                 .pipe(convert_dtypes)
-                .assign(date=lambda d: pd.to_datetime(d.date, format="%Y-%m-%d"))
+                .assign(**{Fields.date: lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")})
               )
 
     def _load_data(self, iso_code: str, level: Literal["national", "subnational"]) -> None:
@@ -234,7 +234,7 @@ class WFPFoodSecurity(DataImporter):
         logger.info(f"Importing {level} data for country: {iso_code} ...")
 
         # extract, parse and load the data
-        response = self._extract_data(self._available_countries_dict[iso_code]["adm0_code"], level = level)
+        response = self._extract_data(self._available_countries_dict[iso_code][Fields.entity_code], level = level)
 
         # parse and load the data
         if level == "national":
@@ -266,7 +266,7 @@ class WFPFoodSecurity(DataImporter):
         return (pd.DataFrame(self._countries)
                 .T
                 .reset_index()
-                .rename(columns = {"index": "iso3_code"})
+                .rename(columns = {"index": Fields.iso3_code})
                 .pipe(convert_dtypes)
                )
 

@@ -70,6 +70,8 @@ class Fields:
 
     # value fields
     value = "value"
+    value_upper = "value_upper"
+    value_lower = "value_lower"
 
     # country, region and other entity names
     country_name = "country_name"
@@ -81,9 +83,14 @@ class Fields:
     iso3_code = "iso3_code"
     entity_code = "entity_code"
 
-    # other fields
+    # time fields
     year = "year"
+    date = "date"
+
+    # other fields
     indicator_code = "indicator_code"
     indicator_name = "indicator_name"
     unit = "unit"
     currency = "currency"
+    source = "source"
+    data_type = "data_type"
