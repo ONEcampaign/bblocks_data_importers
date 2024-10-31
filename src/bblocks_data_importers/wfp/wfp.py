@@ -4,9 +4,11 @@
 import requests
 import io
 import pandas as pd
+import numpy as np
 from typing import Literal
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import country_converter as coco
 
 from bblocks_data_importers.config import (
     logger,
@@ -87,7 +89,8 @@ class WFPFoodSecurity(DataImporter):
                 self._countries = {
                     i["properties"]["iso3"]: {
                         "adm0_code": i["properties"]["adm0_id"],
-                        "data_type": i["properties"]["dataType"]
+                        "data_type": i["properties"]["dataType"],
+                        "country_name": coco.convert(i["properties"]["iso3"], to = "name_short", not_found = np.nan)
                     }
                     for i in response.json()["body"]["features"]
                     if i["properties"]["dataType"] is not None
@@ -173,6 +176,7 @@ class WFPFoodSecurity(DataImporter):
         return (pd.DataFrame(data["fcsGraph"])
                 .rename(columns = {"x": 'date', 'fcs': 'value', "fcsHigh": "value_upper", "fcsLow": "value_lower"})
                 .assign(iso3_code = iso_code,
+                        country_name = coco.convert(iso_code, to = "name_short", not_found = np.nan),
                         indicator = "people with insufficient food consumption",
                         )
                 .pipe(convert_dtypes)
@@ -204,6 +208,7 @@ class WFPFoodSecurity(DataImporter):
                          ], ignore_index = True)
                 .rename(columns = {"x": "date", "fcs": "value", "fcsHigh": "value_upper", "fcsLow": "value_lower"})
                 .assign(iso3_code = iso_code,
+                        country_name = coco.convert(iso_code, to = "name_short", not_found = np.nan),
                         indicator = "people with insufficient food consumption",
                         )
                 .pipe(convert_dtypes)
@@ -261,16 +266,16 @@ class WFPFoodSecurity(DataImporter):
         return (pd.DataFrame(self._countries)
                 .T
                 .reset_index()
-                .rename(columns = {"index": "iso3_code", "adm0_code": "country_id", "data_type": "data_type"})
+                .rename(columns = {"index": "iso3_code"})
                 .pipe(convert_dtypes)
                )
 
 
-    def get_data(self, country_iso3_codes: str | list[str] | None = None, level: Literal["national", "subnational"] = "national") -> pd.DataFrame:
+    def get_data(self, countries: str | list[str] | None = None, level: Literal["national", "subnational"] = "national") -> pd.DataFrame:
         """Get data for "people with insufficient food consumption"
 
         Args:
-            country_iso3_codes: The iso3 codes of the countries to get the data for. If None, data for all available countries is returned
+            countries: The countries (name or ISO3 code) to get data for. If None, data for all available countries is returned
             level: The level of data to get. Can be "national" or "subnational". Defaults to "national"
 
         Returns:
@@ -278,15 +283,26 @@ class WFPFoodSecurity(DataImporter):
         """
 
         # if no country is specified, get data for all available countries
-        if not country_iso3_codes:
-            country_iso3_codes = list(self._available_countries_dict.keys())
+        if not countries:
+            countries = list(self._available_countries_dict.keys())
 
-        # if a single country is specified, convert it to a list
-        if isinstance(country_iso3_codes, str):
-            country_iso3_codes = [country_iso3_codes]
+        else:
+            # if a single country is specified, convert it to a list
+            if isinstance(countries, str):
+                countries = [countries]
+
+            # convert the country names to ISO3 codes
+            for country in countries:
+                converted_country = coco.convert(country, to = "ISO3")
+                countries.remove(country)
+                if converted_country == "not found":
+                    logger.warning(f"Country not found: {country}")
+                else:
+                    # if the country is found, add it to the list
+                    countries.append(converted_country)
 
         # load the data for the requested countries and level if not already loaded
-        for code in country_iso3_codes:
+        for code in countries:
             # if the data is already loaded, return
             if code not in self._data_national and level == "national":
                 self._load_data(code, level)
@@ -295,9 +311,9 @@ class WFPFoodSecurity(DataImporter):
 
         # concatenate the dataframes
         if level == "national":
-            data_list = [self._data_national[code] for code in country_iso3_codes if code in self._data_national]
+            data_list = [self._data_national[code] for code in countries if code in self._data_national]
         elif level == "subnational":
-            data_list = [self._data_subnational[code] for code in country_iso3_codes if code in self._data_subnational]
+            data_list = [self._data_subnational[code] for code in countries if code in self._data_subnational]
         else:
             raise ValueError("level must be 'national' or 'subnational'")
 
