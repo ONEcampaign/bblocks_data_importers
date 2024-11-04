@@ -1,4 +1,51 @@
-"""Module to get data from WFP"""
+"""Module to get data from WFP
+
+The World Food Programme (WFP) provides data on inflation and food security.
+Food Security data is available at the national and subnational levels and can be accessed through the Hunger Map tool.
+Inflation data is available for various countries and indicators and can be accessed through the VAM data portal.
+
+This module provides 2 importers to get the data from WFP:
+1. WFPInflation: To get inflation data
+2. WFPFoodSecurity: To get food security data
+
+Access the data at:
+1. Inflation: https://dataviz.vam.wfp.org/economic/inflation
+2. Food Security: https://hungermap.wfp.org/
+
+Simple usage:
+
+1. Inflation data:
+Instantiat the object and call the get_data method to get the data for a specific indicator and country
+>>> wfp = WFPInflation()
+>>> data = wfp.get_data(indicator = "Headline inflation (YoY)", country = ["KEN", "UGA"])
+
+2. Food Security data:
+Instantiat the object and call the get_data method to get the data for a specific country
+>>> wfp = WFPFoodSecurity()
+>>> data = wfp.get_data(countries = ["KEN", "UGA"])
+
+The data is cached to avoid downloading it multiple times. To clear the cache, call the clear_cache method.
+>>> wfp.clear_cache()
+
+
+Developer notes:
+
+The script requests data from WFP HungerMap and VAM internal APIs.
+Both VAM and HungerMap sites robots.txt files allow scraping. However, since they do not offer
+public APIs, the is scraped in a similar fashion to how a user would interact with the site. i.e.
+By requesting data for a single country at a time. This is done to avoid overloading the servers.
+No multithreading is used to avoid overloading the servers and to prevent unexpected behaviour and errors.
+
+WFP uses custom country IDs to identify countries in their APIs. Different internal APIs exist which identify
+countries using different IDs. The script uses the HungerMap API to get the country IDs and then uses these IDs
+for both the HungerMap and VAM APIs. These IDs have been cross-checked at the time of development but
+may change in the future and can cause unexpected behaviour.
+
+It is possible that these internal APIs may change in the future which may cause the script to break.
+If this happens, the script will need to be updated to reflect the changes in the APIs. If you encounter
+any issues with the script, please raise an issue on the GitHub repository for the bblocks_data_importers package.
+
+"""
 
 import io
 import requests
@@ -29,7 +76,7 @@ VAM_HEADERS: dict = {"referrer": "https://dataviz.vam.wfp.org/"}
 
 
 INFLATION_IND_TYPE = Literal["Headline inflation (YoY)", "Headline inflation (MoM)", "Food inflation"]
-
+FOOD_SECURITY_LEVEL_TYPE = Literal["national", "subnational"]
 
 
 def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
@@ -392,7 +439,7 @@ class WFPFoodSecurity(DataImporter):
 
 
     def _extract_data(
-        self, entity_code: int, level: Literal["national", "subnational"]
+        self, entity_code: int, level: FOOD_SECURITY_LEVEL_TYPE
     ) -> dict:
         """Extract the data from the source
 
@@ -551,7 +598,7 @@ class WFPFoodSecurity(DataImporter):
             )
 
     def _load_data(
-        self, iso_codes: list[str], level: Literal["national", "subnational"]
+        self, iso_codes: list[str], level: FOOD_SECURITY_LEVEL_TYPE
     ) -> None:
         """Load data to the object
 
@@ -614,7 +661,7 @@ class WFPFoodSecurity(DataImporter):
     def get_data(
         self,
         countries: str | list[str] | None = None,
-        level: Literal["national", "subnational"] = "national",
+        level: FOOD_SECURITY_LEVEL_TYPE = "national",
     ) -> pd.DataFrame:
         """Get data for "people with insufficient food consumption"
 
