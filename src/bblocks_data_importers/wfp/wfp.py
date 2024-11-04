@@ -64,7 +64,7 @@ def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
                     ),
                 }
                 for i in response.json()["body"]["features"]
-                if i["properties"]["dataType"] is not None
+                # if i["properties"]["dataType"] is not None
             }
 
         # handle timeout errors
@@ -190,18 +190,21 @@ class WFPInflation(DataImporter):
             A DataFrame with the formatted data
         """
 
-        return (pd.read_csv(data)
-        .drop(columns = ["IndicatorName", "CountryName"]) # drop unnecessary columns
-         .rename(columns = {'Date': Fields.date, "Value": Fields.value, 'SourceOfTheData': Fields.source})
-                .pipe(convert_dtypes)
-         .assign(**{
-            Fields.indicator_name: indicator_name,
-            Fields.iso3_code: iso3_code,
-            Fields.country_name:coco.convert(iso3_code, to = 'name_short', not_found = np.nan),
-            Fields.date: lambda d: pd.to_datetime(d[Fields.date], format="%d/%m/%Y"),
-            Fields.unit: Units.percent
-            })
-         )
+        try:
+            return (pd.read_csv(data)
+            .drop(columns = ["IndicatorName", "CountryName"]) # drop unnecessary columns
+             .rename(columns = {'Date': Fields.date, "Value": Fields.value, 'SourceOfTheData': Fields.source})
+                    .pipe(convert_dtypes)
+             .assign(**{
+                Fields.indicator_name: indicator_name,
+                Fields.iso3_code: iso3_code,
+                Fields.country_name:coco.convert(iso3_code, to = 'name_short', not_found = np.nan),
+                Fields.date: lambda d: pd.to_datetime(d[Fields.date], format="%d/%m/%Y"),
+                Fields.unit: Units.percent
+                })
+             )
+        except Exception as e:
+            raise DataFormattingError(f"Error formatting data for country - {iso3_code}: {e}")
 
     def load_data(self, indicator_name: str, iso3_codes: list[str]) -> None:
         """Load data to the object
@@ -332,22 +335,6 @@ class WFPInflation(DataImporter):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class WFPFoodSecurity(DataImporter):
     """Class to import food security data from the WFP Hunger Map API
 
@@ -389,62 +376,19 @@ class WFPFoodSecurity(DataImporter):
         self._retries = retries
 
         self._countries: None | dict = None
-        self._data_national: dict = {}
-        self._data_subnational: dict = {}
+        self._data = {"national": {},
+                      "subnational": {}
+                      }
 
     def _load_available_countries(self) -> None:
-        """Load available countries to the object with timeout and retry mechanism
-
-        This method gets the countries tracked in HungerMap which have food security data available
-        It collects their iso3 codes, adm0 codes and data types. Data types can be "ACTUAL", "PREDICTED" or "MIXED
+        """Load available countries to the object
+        Excludes countries for which there is no registered data. i.e. data_type is None in the response
         """
 
         logger.info("Importing available country IDs ...")
+        d = extract_countries(self._timeout, self._retries)
+        self._countries = {k: v for k, v in d.items() if v['data_type'] is not None}
 
-        endpoint = f"{HUNGERMAP_API}/adm0data.json"  # endpoint to get the country IDs
-
-        # try to get the data from the API with retries
-        attempt = 0
-        while attempt <= self._retries:
-            try:
-                response = requests.get(
-                    endpoint, headers=HUNGERMAP_HEADERS, timeout=self._timeout
-                )
-                response.raise_for_status()
-
-                # parse the response and create a dictionary
-                self._countries = {
-                    i["properties"]["iso3"]: {
-                        Fields.entity_code: i["properties"]["adm0_id"],
-                        Fields.data_type: i["properties"]["dataType"],
-                        Fields.country_name: coco.convert(
-                            i["properties"]["iso3"], to="name_short", not_found=np.nan
-                        ),
-                    }
-                    for i in response.json()["body"]["features"]
-                    if i["properties"]["dataType"] is not None
-                }
-
-                # exit loop if successful
-                break
-
-            # handle timeout errors
-            except requests.exceptions.Timeout:
-                if attempt < self._retries:
-                    attempt += 1
-                else:
-                    raise DataExtractionError(
-                        f"Request timed out while getting country IDs after {self._retries + 1} attempts"
-                    )
-
-            # handle other request errors
-            except requests.exceptions.RequestException as e:
-                if attempt < self._retries:
-                    attempt += 1
-                else:
-                    raise DataExtractionError(
-                        f"Error getting country IDs after {self._retries + 1} attempts: {e}"
-                    )
 
     def _extract_data(
         self, entity_code: int, level: Literal["national", "subnational"]
@@ -606,49 +550,51 @@ class WFPFoodSecurity(DataImporter):
             )
 
     def _load_data(
-        self, iso_code: str, level: Literal["national", "subnational"]
+        self, iso_codes: list[str], level: Literal["national", "subnational"]
     ) -> None:
         """Load data to the object
 
-        This method runs the process to extract, parse and load the data to the object for a specific country
-        at the specified level
+        This method runs the process to extract, parse and load the data to the object for a specific level
+        and list of countries. It checks if the data is already loaded for specified countries and skips the process if it is. If the data
+        is not available for a specific country, it logs a warning
 
         Args:
-            iso_code: The iso3 code of the country
+            iso_codes: A list of ISO3 codes of the countries to load the data for
             level: The level of data to load. Can be "national" or "subnational"
         """
 
-        # if a requested country is not available log no data found and return
-        if iso_code not in self._available_countries_dict:
-            logger.info(f"No data found for country - {iso_code}")
+        # make a list of unloaded countries
+        unloaded_countries = [c for c in iso_codes if c not in self._data[level]]
+
+        # if all countries have been loaded skip the process
+        if len(unloaded_countries) == 0:
             return None
 
-        logger.info(f"Importing {level} data for country - {iso_code} ...")
+        logger.info(f"Importing {level} data")
 
-        # extract, parse and load the data
-        response = self._extract_data(
-            self._available_countries_dict[iso_code][Fields.entity_code], level=level
-        )
+        for iso_code in unloaded_countries:
 
-        # parse and load the data
-        if level == "national":
-            df = self._parse_national_data(response, iso_code)
-            self._data_national[iso_code] = df
-        if level == "subnational":
-            df = self._parse_subnational_data(response, iso_code)
-            self._data_subnational[iso_code] = df
+            # if a requested country is not available log no data found and return
+            if iso_code not in self._countries:
+                logger.info(f"No data found for country - {iso_code}")
+                continue
 
-    @property
-    def _available_countries_dict(self) -> dict:
-        """Returns a dictionary of available countries with keys as country ISO3 codes
-        and values as dictionaries with the adm0 code and data type
-        If the countries are not loaded, it loads them
-        """
+            # extract, parse and load the data
+            logger.info(f"Importing {level} data for country - {iso_code} ...")
 
-        if self._countries is None:
-            self._load_available_countries()
+            response = self._extract_data(
+                self._countries[iso_code][Fields.entity_code], level=level
+            )
 
-        return self._countries
+            # parse and load the data
+            if level == "national":
+                df = self._parse_national_data(response, iso_code)
+            else:
+                df = self._parse_subnational_data(response, iso_code)
+
+            self._data[level][iso_code] = df
+
+        logger.info(f"{level.capitalize()} data imported successfully")
 
     @property
     def available_countries(self) -> pd.DataFrame:
@@ -679,9 +625,13 @@ class WFPFoodSecurity(DataImporter):
             A DataFrame with the data
         """
 
+        # check if country IDs are loaded, if not then load them
+        if self._countries is None:
+            self._load_available_countries()
+
         # if no country is specified, get data for all available countries
         if not countries:
-            countries = list(self._available_countries_dict.keys())
+            countries = list(self._countries.keys())
 
         else:
             # if a single country is specified, convert it to a list
@@ -691,29 +641,16 @@ class WFPFoodSecurity(DataImporter):
             # convert the country names to ISO3 codes
             countries = convert_countries_to_unique_list(countries, to="ISO3")
 
+            if len(countries) == 0:
+                raise ValueError("No valid countries found")
+
         # load the data for the requested countries and level if not already loaded
-        for code in countries:
-            # if the data is already loaded, return
-            if code not in self._data_national and level == "national":
-                self._load_data(code, level)
-            if code not in self._data_subnational and level == "subnational":
-                self._load_data(code, level)
+        self._load_data(countries, level)
 
         # concatenate the dataframes
-        if level == "national":
-            data_list = [
-                self._data_national[code]
-                for code in countries
-                if code in self._data_national
-            ]
-        elif level == "subnational":
-            data_list = [
-                self._data_subnational[code]
-                for code in countries
-                if code in self._data_subnational
-            ]
-        else:
-            raise ValueError("level must be 'national' or 'subnational'")
+        data_list = [self._data[level][code]
+                     for code in countries
+                     if code in self._data[level] and self._data[level][code] is not None]
 
         if len(data_list) == 0:
             logger.warning("No data found for the requested countries")
@@ -724,7 +661,8 @@ class WFPFoodSecurity(DataImporter):
     def clear_cache(self) -> None:
         """Clear the cache"""
 
-        self._data_national = {}
-        self._data_subnational = {}
         self._countries = None
+        self._data = {"national": {},
+                      "subnational": {}
+                      }
         logger.info("Cache cleared")
