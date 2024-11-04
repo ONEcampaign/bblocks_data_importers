@@ -59,7 +59,7 @@ from bblocks_data_importers.config import (
     DataExtractionError,
     DataFormattingError,
     Fields,
-    Units
+    Units,
 )
 from bblocks_data_importers.protocols import DataImporter
 from bblocks_data_importers.utilities import (
@@ -75,7 +75,9 @@ VAM_API: str = "https://api.vam.wfp.org"
 VAM_HEADERS: dict = {"referrer": "https://dataviz.vam.wfp.org/"}
 
 
-INFLATION_IND_TYPE = Literal["Headline inflation (YoY)", "Headline inflation (MoM)", "Food inflation"]
+INFLATION_IND_TYPE = Literal[
+    "Headline inflation (YoY)", "Headline inflation (MoM)", "Food inflation"
+]
 FOOD_SECURITY_LEVEL_TYPE = Literal["national", "subnational"]
 
 
@@ -133,8 +135,6 @@ def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
                 )
 
 
-
-
 class WFPInflation(DataImporter):
     """A class to import inflation data from the World Food Programme (WFP)
 
@@ -170,24 +170,27 @@ class WFPInflation(DataImporter):
     def __init__(self, *, timeout: int = 20):
 
         self._timeout = timeout
-        self._indicators = {"Headline inflation (YoY)": 116,
-                            "Headline inflation (MoM)": 117,
-                            "Food inflation": 71
-                            }
-        self._countries = None # available countries
-        self._data = {"Headline inflation (YoY)": {},
-                     "Headline inflation (MoM)": {},
-                     "Food inflation": {}
-                     }
+        self._indicators = {
+            "Headline inflation (YoY)": 116,
+            "Headline inflation (MoM)": 117,
+            "Food inflation": 71,
+        }
+        self._countries = None  # available countries
+        self._data = {
+            "Headline inflation (YoY)": {},
+            "Headline inflation (MoM)": {},
+            "Food inflation": {},
+        }
 
     def load_available_countries(self):
-        """Load available countries to the object
-        """
+        """Load available countries to the object"""
 
         logger.info("Importing available country IDs ...")
         self._countries = extract_countries(self._timeout)
 
-    def extract_data(self, country_code: int, indicator_code: int | list[int]) -> io.BytesIO:
+    def extract_data(
+        self, country_code: int, indicator_code: int | list[int]
+    ) -> io.BytesIO:
         """Extract the data from the source
 
         Queries the WFP API to get the inflation data for a specific country and indicator
@@ -212,7 +215,9 @@ class WFPInflation(DataImporter):
         }
 
         try:
-            resp = requests.post(endpoint, json=params, headers=VAM_HEADERS, timeout=self._timeout)
+            resp = requests.post(
+                endpoint, json=params, headers=VAM_HEADERS, timeout=self._timeout
+            )
             resp.raise_for_status()
             return io.BytesIO(resp.content)
 
@@ -223,7 +228,9 @@ class WFPInflation(DataImporter):
             raise DataExtractionError(f"Error getting inflation data: {e}")
 
     @staticmethod
-    def format_data(data: io.BytesIO, indicator_name: str, iso3_code: str) -> pd.DataFrame:
+    def format_data(
+        data: io.BytesIO, indicator_name: str, iso3_code: str
+    ) -> pd.DataFrame:
         """Format the data
 
         This method reads the data from the BytesIO object, formats it and returns a DataFrame
@@ -238,20 +245,37 @@ class WFPInflation(DataImporter):
         """
 
         try:
-            return (pd.read_csv(data)
-            .drop(columns = ["IndicatorName", "CountryName"]) # drop unnecessary columns
-             .rename(columns = {'Date': Fields.date, "Value": Fields.value, 'SourceOfTheData': Fields.source})
-                    .pipe(convert_dtypes)
-             .assign(**{
-                Fields.indicator_name: indicator_name,
-                Fields.iso3_code: iso3_code,
-                Fields.country_name:coco.convert(iso3_code, to = 'name_short', not_found = np.nan),
-                Fields.date: lambda d: pd.to_datetime(d[Fields.date], format="%d/%m/%Y"),
-                Fields.unit: Units.percent
-                })
-             )
+            return (
+                pd.read_csv(data)
+                .drop(
+                    columns=["IndicatorName", "CountryName"]
+                )  # drop unnecessary columns
+                .rename(
+                    columns={
+                        "Date": Fields.date,
+                        "Value": Fields.value,
+                        "SourceOfTheData": Fields.source,
+                    }
+                )
+                .pipe(convert_dtypes)
+                .assign(
+                    **{
+                        Fields.indicator_name: indicator_name,
+                        Fields.iso3_code: iso3_code,
+                        Fields.country_name: coco.convert(
+                            iso3_code, to="name_short", not_found=np.nan
+                        ),
+                        Fields.date: lambda d: pd.to_datetime(
+                            d[Fields.date], format="%d/%m/%Y"
+                        ),
+                        Fields.unit: Units.percent,
+                    }
+                )
+            )
         except Exception as e:
-            raise DataFormattingError(f"Error formatting data for country - {iso3_code}: {e}")
+            raise DataFormattingError(
+                f"Error formatting data for country - {iso3_code}: {e}"
+            )
 
     def load_data(self, indicator_name: str, iso3_codes: list[str]) -> None:
         """Load data to the object
@@ -266,7 +290,9 @@ class WFPInflation(DataImporter):
         """
 
         # make a list of unloaded countries
-        unloaded_countries = [c for c in iso3_codes if c not in self._data[indicator_name]]
+        unloaded_countries = [
+            c for c in iso3_codes if c not in self._data[indicator_name]
+        ]
 
         # if all countries have been loaded skip the process
         if len(unloaded_countries) == 0:
@@ -283,12 +309,17 @@ class WFPInflation(DataImporter):
                 continue
 
             # extract the data, format it and load it to the object
-            data = self.extract_data(self._countries[iso3_code]['entity_code'], self._indicators[indicator_name])
+            data = self.extract_data(
+                self._countries[iso3_code]["entity_code"],
+                self._indicators[indicator_name],
+            )
             df = self.format_data(data, indicator_name, iso3_code)
 
             # if the dataframe is empty log a warning, set the data to None and continue
             if df.empty:
-                logger.warning(f"No {indicator_name} data found for country - {iso3_code}")
+                logger.warning(
+                    f"No {indicator_name} data found for country - {iso3_code}"
+                )
                 self._data[indicator_name][iso3_code] = None
                 continue
 
@@ -302,8 +333,11 @@ class WFPInflation(DataImporter):
 
         return list(self._indicators.keys())
 
-    def get_data(self, indicators: INFLATION_IND_TYPE | list[INFLATION_IND_TYPE] | None = None,
-                 countries: str | list[str] = None) -> pd.DataFrame:
+    def get_data(
+        self,
+        indicators: INFLATION_IND_TYPE | list[INFLATION_IND_TYPE] | None = None,
+        countries: str | list[str] = None,
+    ) -> pd.DataFrame:
         """Get inflation data
 
         Get a dataframe with the data for the specified inflation indicator and countries
@@ -326,12 +360,13 @@ class WFPInflation(DataImporter):
             # check that all indicators are valid
             for indicator in indicators:
                 if indicator not in self._indicators:
-                    raise ValueError(f"Invalid indicator - {indicator}. Please choose from {list(self._indicators.keys())}")
+                    raise ValueError(
+                        f"Invalid indicator - {indicator}. Please choose from {list(self._indicators.keys())}"
+                    )
 
         # if no indicator is specified, get data for all available indicators
         else:
             indicators = list(self._indicators.keys())
-
 
         # check if country IDs are loaded, if not then load them
         if self._countries is None:
@@ -353,34 +388,36 @@ class WFPInflation(DataImporter):
         else:
             country = list(self._countries.keys())
 
-
         # load the data for the requested countries and indicators if not already loaded
         for indicator in indicators:
             self.load_data(indicator_name=indicator, iso3_codes=country)
 
         # concatenate the dataframes for the requested countries and indicators if available
-        data_list = [self._data[indicator][code]
-                     for indicator in indicators for code in country
-                     if code in self._data[indicator] and self._data[indicator][code] is not None]
+        data_list = [
+            self._data[indicator][code]
+            for indicator in indicators
+            for code in country
+            if code in self._data[indicator] and self._data[indicator][code] is not None
+        ]
 
         # if no data is found return an empty DataFrame and log a warning
         if len(data_list) == 0:
             logger.warning("No data found for the requested countries")
             return pd.DataFrame()
 
-        return pd.concat(data_list, ignore_index = True)
+        return pd.concat(data_list, ignore_index=True)
 
     def clear_cache(self) -> None:
         """Clear the cached data"""
 
-        self._data = {"Headline inflation (YoY)": {},
-                     "Headline inflation (MoM)": {},
-                     "Food inflation": {}
-                     }
+        self._data = {
+            "Headline inflation (YoY)": {},
+            "Headline inflation (MoM)": {},
+            "Food inflation": {},
+        }
         self._countries = None
 
         logger.info("Cache cleared")
-
 
 
 class WFPFoodSecurity(DataImporter):
@@ -424,9 +461,7 @@ class WFPFoodSecurity(DataImporter):
         self._retries = retries
 
         self._countries: None | dict = None
-        self._data = {"national": {},
-                      "subnational": {}
-                      }
+        self._data = {"national": {}, "subnational": {}}
 
     def _load_available_countries(self) -> None:
         """Load available countries to the object
@@ -435,12 +470,9 @@ class WFPFoodSecurity(DataImporter):
 
         logger.info("Importing available country IDs ...")
         d = extract_countries(self._timeout, self._retries)
-        self._countries = {k: v for k, v in d.items() if v['data_type'] is not None}
+        self._countries = {k: v for k, v in d.items() if v["data_type"] is not None}
 
-
-    def _extract_data(
-        self, entity_code: int, level: FOOD_SECURITY_LEVEL_TYPE
-    ) -> dict:
+    def _extract_data(self, entity_code: int, level: FOOD_SECURITY_LEVEL_TYPE) -> dict:
         """Extract the data from the source
 
         Args:
@@ -597,9 +629,7 @@ class WFPFoodSecurity(DataImporter):
                 f"Error parsing subnational data for country - {iso_code}: {e}"
             )
 
-    def _load_data(
-        self, iso_codes: list[str], level: FOOD_SECURITY_LEVEL_TYPE
-    ) -> None:
+    def _load_data(self, iso_codes: list[str], level: FOOD_SECURITY_LEVEL_TYPE) -> None:
         """Load data to the object
 
         This method runs the process to extract, parse and load the data to the object for a specific level
@@ -696,9 +726,11 @@ class WFPFoodSecurity(DataImporter):
         self._load_data(countries, level)
 
         # concatenate the dataframes
-        data_list = [self._data[level][code]
-                     for code in countries
-                     if code in self._data[level] and self._data[level][code] is not None]
+        data_list = [
+            self._data[level][code]
+            for code in countries
+            if code in self._data[level] and self._data[level][code] is not None
+        ]
 
         if len(data_list) == 0:
             logger.warning("No data found for the requested countries")
@@ -710,7 +742,5 @@ class WFPFoodSecurity(DataImporter):
         """Clear the cache"""
 
         self._countries = None
-        self._data = {"national": {},
-                      "subnational": {}
-                      }
+        self._data = {"national": {}, "subnational": {}}
         logger.info("Cache cleared")
