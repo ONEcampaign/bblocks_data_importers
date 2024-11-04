@@ -12,6 +12,7 @@ from bblocks_data_importers.config import (
     DataExtractionError,
     DataFormattingError,
     Fields,
+    Units
 )
 from bblocks_data_importers.protocols import DataImporter
 from bblocks_data_importers.utilities import (
@@ -138,10 +139,13 @@ class WFPInflation(DataImporter):
         return (pd.read_csv(data)
         .drop(columns = ["IndicatorName", "CountryName"]) # drop unnecessary columns
          .rename(columns = {'Date': Fields.date, "Value": Fields.value, 'SourceOfTheData': Fields.source})
+                .pipe(convert_dtypes)
          .assign(**{
             Fields.indicator_name: indicator_name,
             Fields.iso3_code: iso3_code,
-            Fields.country_name:coco.convert(iso3_code, to = 'name_short', not_found = np.nan)
+            Fields.country_name:coco.convert(iso3_code, to = 'name_short', not_found = np.nan),
+            Fields.date: lambda d: pd.to_datetime(d[Fields.date], format="%d/%m/%Y"),
+            Fields.unit: Units.percent
             })
          )
 
@@ -178,6 +182,12 @@ class WFPInflation(DataImporter):
             self._data[indicator_name][iso3_code] = df
 
         logger.info(f"Data imported successfully for indicator: {indicator_name}")
+
+    @property
+    def available_indicators(self) -> list[str]:
+        """Returns a list of available indicators"""
+
+        return list(self._indicators.keys())
 
     def get_data(self, indicator: str | list[str] | None = None, country: str | list[str] = None) -> pd.DataFrame:
         """ """

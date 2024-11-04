@@ -94,3 +94,9 @@ class Fields:
     currency = "currency"
     source = "source"
     data_type = "data_type"
+
+
+class Units:
+    """A class to store the units of measurement for the data"""
+
+    percent = "percent"
