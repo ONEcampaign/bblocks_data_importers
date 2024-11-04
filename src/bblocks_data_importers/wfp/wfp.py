@@ -1,6 +1,6 @@
 """Module to get data from WFP"""
-import io
 
+import io
 import requests
 import pandas as pd
 import numpy as np
@@ -255,34 +255,35 @@ class WFPInflation(DataImporter):
 
         return list(self._indicators.keys())
 
-    def get_data(self, indicator: INFLATION_IND_TYPE | list[INFLATION_IND_TYPE] | None = None, country: str | list[str] = None) -> pd.DataFrame:
+    def get_data(self, indicators: INFLATION_IND_TYPE | list[INFLATION_IND_TYPE] | None = None,
+                 countries: str | list[str] = None) -> pd.DataFrame:
         """Get inflation data
 
         Get a dataframe with the data for the specified inflation indicator and countries
 
         Args:
-            indicator: The inflation indicator to get data for. Can be a single indicator or a list of indicators.
+            indicators: The inflation indicators to get data for. Can be a single indicator or a list of indicators.
                 If None, data for all available indicators is returned. By default, returns all available indicators.
                 To see the available indicators use the available_indicators property
-            country: The countries (name or ISO3 code) to get data for. If None, data for all available countries is returned
+            countries: The countries (name or ISO3 code) to get data for. If None, data for all available countries is returned
                 By default returns data for all available countries
 
         Returns:
             A DataFrame with the requested data
         """
 
-        if indicator:
-            if isinstance(indicator, str):
-                indicator = [indicator]
+        if indicators:
+            if isinstance(indicators, str):
+                indicators = [indicators]
 
             # check that all indicators are valid
-            for ind in indicator:
-                if ind not in self._indicators:
-                    raise ValueError(f"Invalid indicator - {ind}. Please choose from {list(self._indicators.keys())}")
+            for indicator in indicators:
+                if indicator not in self._indicators:
+                    raise ValueError(f"Invalid indicator - {indicator}. Please choose from {list(self._indicators.keys())}")
 
         # if no indicator is specified, get data for all available indicators
         else:
-            indicator = list(self._indicators.keys())
+            indicators = list(self._indicators.keys())
 
 
         # check if country IDs are loaded, if not then load them
@@ -290,12 +291,12 @@ class WFPInflation(DataImporter):
             self.load_available_countries()
 
         # validate countries
-        if country:
-            if isinstance(country, str):
-                country = [country]
+        if countries:
+            if isinstance(countries, str):
+                countries = [countries]
 
             # check that countries are valid, if not then drop them to make a unique list
-            country = convert_countries_to_unique_list(country, to="ISO3")
+            country = convert_countries_to_unique_list(countries, to="ISO3")
 
             # if the list is empty then raise an error
             if len(country) == 0:
@@ -307,13 +308,13 @@ class WFPInflation(DataImporter):
 
 
         # load the data for the requested countries and indicators if not already loaded
-        for ind in indicator:
-            self.load_data(indicator_name=ind, iso3_codes=country)
+        for indicator in indicators:
+            self.load_data(indicator_name=indicator, iso3_codes=country)
 
         # concatenate the dataframes for the requested countries and indicators if available
-        data_list = [self._data[ind][code]
-                     for ind in indicator for code in country
-                     if code in self._data[ind] and self._data[ind][code] is not None]
+        data_list = [self._data[indicator][code]
+                     for indicator in indicators for code in country
+                     if code in self._data[indicator] and self._data[indicator][code] is not None]
 
         # if no data is found return an empty DataFrame and log a warning
         if len(data_list) == 0:
