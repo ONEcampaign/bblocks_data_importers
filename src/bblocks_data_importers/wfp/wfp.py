@@ -1,4 +1,5 @@
 """Module to get data from WFP"""
+import io
 
 import requests
 import pandas as pd
@@ -21,6 +22,221 @@ from bblocks_data_importers.utilities import (
 
 HUNGERMAP_API: str = "https://api.hungermapdata.org/v2"
 HUNGERMAP_HEADERS: dict = {"referrer": "https://hungermap.wfp.org/"}
+
+VAM_HEADERS: dict = {"referrer": "https://dataviz.vam.wfp.org/"}
+
+
+
+def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
+    """Load available countries to the object with timeout and retry mechanism
+
+    This method gets the countries tracked in HungerMap which have food security data available
+    It collects their iso3 codes, adm0 codes and data types. Data types can be "ACTUAL", "PREDICTED" or "MIXED
+
+    Args:
+        timeout: The time in seconds to wait for a response from the API. Defaults to 20s
+        retries: The number of times to retry the request in case of a failure. Defaults to 2
+    """
+
+    endpoint = f"{HUNGERMAP_API}/adm0data.json"  # endpoint to get the country IDs
+
+    # try to get the data from the API with retries
+    attempt = 0
+    while attempt <= retries:
+        try:
+            response = requests.get(
+                endpoint, headers=HUNGERMAP_HEADERS, timeout=timeout
+            )
+            response.raise_for_status()
+
+            # parse the response and create a dictionary
+            return {
+                i["properties"]["iso3"]: {
+                    Fields.entity_code: i["properties"]["adm0_id"],
+                    Fields.data_type: i["properties"]["dataType"],
+                    Fields.country_name: coco.convert(
+                        i["properties"]["iso3"], to="name_short", not_found=np.nan
+                    ),
+                }
+                for i in response.json()["body"]["features"]
+                if i["properties"]["dataType"] is not None
+            }
+
+        # handle timeout errors
+        except requests.exceptions.Timeout:
+            if attempt < retries:
+                attempt += 1
+            else:
+                raise DataExtractionError(
+                    f"Request timed out while getting country IDs after {retries + 1} attempts"
+                )
+
+        # handle other request errors
+        except requests.exceptions.RequestException as e:
+            if attempt < retries:
+                attempt += 1
+            else:
+                raise DataExtractionError(
+                    f"Error getting country IDs after {retries + 1} attempts: {e}"
+                )
+
+
+
+
+class WFPInflation(DataImporter):
+    """ """
+
+    def __init__(self, *, timeout: int = 20, retries: int = 2):
+        self._timeout = timeout
+        self._retries = retries
+
+        self._indicators = {"Headline inflation (YoY)": 116,
+                            "Headline inflation (MoM)": 117,
+                            "Food inflation": 71
+                            }
+        self._countries = None # available countries
+        self._data = {"Headline inflation (YoY)": {},
+                     "Headline inflation (MoM)": {},
+                     "Food inflation": {}
+                     }
+
+    def load_available_countries(self):
+        """ """
+
+        logger.info("Importing available country IDs ...")
+        self._countries = extract_countries(self._timeout, self._retries)
+
+    def extract_data(self, country_code: int, indicator_code: int | list[int]) -> io.BytesIO:
+        """ """
+
+        if isinstance(indicator_code, int):
+            indicator_code = [indicator_code]
+
+        url = "https://api.vam.wfp.org/economicExplorer/TradingEconomics/InflationExport"
+        params = {
+            "adm0Code": country_code,
+            "economicIndicatorIds": indicator_code,
+            # "endDate": "2024-10-31", # defaults to latest
+            # "startDate": "2023-07-01", # defaults to all available
+        }
+
+        try:
+            resp = requests.post(url, json=params, headers=VAM_HEADERS, timeout=self._timeout)
+            resp.raise_for_status()
+            return io.BytesIO(resp.content)
+
+        except requests.exceptions.Timeout:
+            raise DataExtractionError("Request timed out while getting inflation data")
+
+        except requests.exceptions.RequestException as e:
+            raise DataExtractionError(f"Error getting inflation data: {e}")
+
+    @staticmethod
+    def format_data(data: io.BytesIO, indicator_name: str, iso3_code: str) -> pd.DataFrame:
+        """ """
+
+        return (pd.read_csv(data)
+        .drop(columns = ["IndicatorName", "CountryName"]) # drop unnecessary columns
+         .rename(columns = {'Date': Fields.date, "Value": Fields.value, 'SourceOfTheData': Fields.source})
+         .assign(**{
+            Fields.indicator_name: indicator_name,
+            Fields.iso3_code: iso3_code,
+            Fields.country_name:coco.convert(iso3_code, to = 'name_short', not_found = np.nan)
+            })
+         )
+
+    def load_data(self, indicator_name: str, iso3_code: str) -> None:
+        """ """
+
+        # if the country is not available raise a warning and return
+        if iso3_code not in self._countries:
+            logger.warning(f"Data not found for country - {iso3_code}")
+            return None
+
+        # if the data is already loaded, return
+        if iso3_code in self._data[indicator_name]:
+            return None
+
+        data = self.extract_data(self._countries[iso3_code]['entity_code'], self._indicators[indicator_name])
+        df = self.format_data(data, indicator_name, iso3_code)
+        if df.empty:
+            logger.warning(f"No {indicator_name} data found for country - {iso3_code}")
+            return None
+        self._data[indicator_name][iso3_code] = df
+
+    def get_data(self, indicator: str | list[str] | None = None, country: str | list[str] = None) -> pd.DataFrame:
+        """ """
+
+        if indicator:
+            if isinstance(indicator, str):
+                indicator = [indicator]
+
+            # check that all indicators are valid
+            for ind in indicator:
+                if ind not in self._indicators:
+                    raise ValueError(f"Invalid indicator - {ind}. Please choose from {list(self._indicators.keys())}")
+
+        # if no indicator is specified, get data for all available indicators
+        else:
+            indicator = list(self._indicators.keys())
+
+
+        # check if country IDs are loaded, if not then load them
+        if self._countries is None:
+            self.load_available_countries()
+
+        # validate countries
+        if country:
+            if isinstance(country, str):
+                country = [country]
+
+            # check that countries are valid, if not then drop them to make a unique list
+            country = convert_countries_to_unique_list(country, to="ISO3")
+
+            # if the list is empty then raise an error
+            if len(country) == 0:
+                raise ValueError("No valid countries found")
+
+        # if no country is specified, get data for all available countries
+        else:
+            country = list(self._countries.keys())
+
+        # check if requested countries are available
+        for c in country:
+            if c not in self._countries:
+                logger.warning(f"Data not found for country - {c}")
+                country.remove(c) # remove country from the list
+
+        # load the data for the requested countries and indicators if not already loaded
+        for ind in indicator:
+            for country_code in country:
+                self.load_data(indicator_name=ind, iso3_code=country_code)
+
+        # concatenate the dataframes
+        data_list = [self._data[ind][code] for ind in indicator for code in country if code in self._data[ind]]
+
+        if len(data_list) == 0:
+            logger.warning("No data found for the requested countries")
+            return pd.DataFrame()
+
+        return pd.concat(data_list, ignore_index = True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class WFPFoodSecurity(DataImporter):
