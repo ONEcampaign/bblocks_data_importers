@@ -145,24 +145,39 @@ class WFPInflation(DataImporter):
             })
          )
 
-    def load_data(self, indicator_name: str, iso3_code: str) -> None:
+    def load_data(self, indicator_name: str, iso3_codes: list[str]) -> None:
         """ """
 
-        # if the country is not available raise a warning and return
-        if iso3_code not in self._countries:
-            logger.warning(f"Data not found for country - {iso3_code}")
+        # make a list of unloaded countries
+        unloaded_countries = [c for c in iso3_codes if c not in self._data[indicator_name]]
+
+        # if all countries have been loaded skip the process
+        if len(unloaded_countries) == 0:
             return None
 
-        # if the data is already loaded, return
-        if iso3_code in self._data[indicator_name]:
-            return None
+        logger.info(f"Importing data for indicator: {indicator_name} ...")
 
-        data = self.extract_data(self._countries[iso3_code]['entity_code'], self._indicators[indicator_name])
-        df = self.format_data(data, indicator_name, iso3_code)
-        if df.empty:
-            logger.warning(f"No {indicator_name} data found for country - {iso3_code}")
-            return None
-        self._data[indicator_name][iso3_code] = df
+        for iso3_code in unloaded_countries:
+
+            # if the country is not available raise a warning set the data to None and continue
+            if iso3_code not in self._countries:
+                logger.warning(f"Data not found for country - {iso3_code}")
+                self._data[indicator_name][iso3_code] = None
+                continue
+
+            # extract the data, format it and load it to the object
+            data = self.extract_data(self._countries[iso3_code]['entity_code'], self._indicators[indicator_name])
+            df = self.format_data(data, indicator_name, iso3_code)
+
+            # if the dataframe is empty log a warning, set the data to None and continue
+            if df.empty:
+                logger.warning(f"No {indicator_name} data found for country - {iso3_code}")
+                self._data[indicator_name][iso3_code] = None
+                continue
+
+            self._data[indicator_name][iso3_code] = df
+
+        logger.info(f"Data imported successfully for indicator: {indicator_name}")
 
     def get_data(self, indicator: str | list[str] | None = None, country: str | list[str] = None) -> pd.DataFrame:
         """ """
@@ -201,20 +216,17 @@ class WFPInflation(DataImporter):
         else:
             country = list(self._countries.keys())
 
-        # check if requested countries are available
-        for c in country:
-            if c not in self._countries:
-                logger.warning(f"Data not found for country - {c}")
-                country.remove(c) # remove country from the list
 
         # load the data for the requested countries and indicators if not already loaded
         for ind in indicator:
-            for country_code in country:
-                self.load_data(indicator_name=ind, iso3_code=country_code)
+            self.load_data(indicator_name=ind, iso3_codes=country)
 
-        # concatenate the dataframes
-        data_list = [self._data[ind][code] for ind in indicator for code in country if code in self._data[ind]]
+        # concatenate the dataframes for the requested countries and indicators if available
+        data_list = [self._data[ind][code]
+                     for ind in indicator for code in country
+                     if code in self._data[ind] and self._data[ind][code] is not None]
 
+        # if no data is found return an empty DataFrame and log a warning
         if len(data_list) == 0:
             logger.warning("No data found for the requested countries")
             return pd.DataFrame()
