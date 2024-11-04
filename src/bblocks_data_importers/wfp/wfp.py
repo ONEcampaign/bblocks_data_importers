@@ -4,8 +4,8 @@ import io
 import requests
 import pandas as pd
 import numpy as np
-from typing import Literal
 import country_converter as coco
+from typing import Literal
 
 from bblocks_data_importers.config import (
     logger,
@@ -24,7 +24,11 @@ from bblocks_data_importers.utilities import (
 HUNGERMAP_API: str = "https://api.hungermapdata.org/v2"
 HUNGERMAP_HEADERS: dict = {"referrer": "https://hungermap.wfp.org/"}
 
+VAM_API: str = "https://api.vam.wfp.org"
 VAM_HEADERS: dict = {"referrer": "https://dataviz.vam.wfp.org/"}
+
+
+INFLATION_IND_TYPE = Literal["Headline inflation (YoY)", "Headline inflation (MoM)", "Food inflation"]
 
 
 
@@ -85,12 +89,40 @@ def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
 
 
 class WFPInflation(DataImporter):
-    """ """
+    """A class to import inflation data from the World Food Programme (WFP)
 
-    def __init__(self, *, timeout: int = 20, retries: int = 2):
+    The World Food Programme (WFP) provides data on inflation for various countries collected
+    from Trading Economics. The data is available for different indicators including headline inflation (year-on-year
+    and month-on-month) and food inflation.
+    See the data at: https://dataviz.vam.wfp.org/economic/inflation
+
+    Usage:
+    First instantiate an importer object:
+    >>> wfp = WFPInflation()
+
+    Optionally set the timeout for the requests in seconds. By default, it is set to 20s.:
+    >>> wfp = WFPInflation(timeout = 30)
+
+    See the available indicators:
+    >>> wfp.available_indicators
+
+    Get the data:
+    >>> data = wfp.get_data(indicator = "Headline inflation (YoY)", country = ["KEN", "UGA"])
+    If no indicator is specified, data for all available indicators is returned and if no country is specified, data for all available countries is returned.
+    It is advised to specify the required indicator and countries to avoid long wait times.
+
+    To clear the cache:
+    >>> wfp.clear_cache()
+
+
+    Args:
+        timeout: The time in seconds to wait for a response from the API. Defaults to 20s
+
+    """
+
+    def __init__(self, *, timeout: int = 20):
+
         self._timeout = timeout
-        self._retries = retries
-
         self._indicators = {"Headline inflation (YoY)": 116,
                             "Headline inflation (MoM)": 117,
                             "Food inflation": 71
@@ -102,18 +134,29 @@ class WFPInflation(DataImporter):
                      }
 
     def load_available_countries(self):
-        """ """
+        """Load available countries to the object
+        """
 
         logger.info("Importing available country IDs ...")
-        self._countries = extract_countries(self._timeout, self._retries)
+        self._countries = extract_countries(self._timeout)
 
     def extract_data(self, country_code: int, indicator_code: int | list[int]) -> io.BytesIO:
-        """ """
+        """Extract the data from the source
+
+        Queries the WFP API to get the inflation data for a specific country and indicator
+
+        Args:
+            country_code: The adm0 code of the country
+            indicator_code: The indicator code. Can be a single code or a list of codes
+
+        Returns:
+            A BytesIO object with the data
+        """
 
         if isinstance(indicator_code, int):
             indicator_code = [indicator_code]
 
-        url = "https://api.vam.wfp.org/economicExplorer/TradingEconomics/InflationExport"
+        endpoint = f"{VAM_API}/economicExplorer/TradingEconomics/InflationExport"
         params = {
             "adm0Code": country_code,
             "economicIndicatorIds": indicator_code,
@@ -122,7 +165,7 @@ class WFPInflation(DataImporter):
         }
 
         try:
-            resp = requests.post(url, json=params, headers=VAM_HEADERS, timeout=self._timeout)
+            resp = requests.post(endpoint, json=params, headers=VAM_HEADERS, timeout=self._timeout)
             resp.raise_for_status()
             return io.BytesIO(resp.content)
 
@@ -134,7 +177,18 @@ class WFPInflation(DataImporter):
 
     @staticmethod
     def format_data(data: io.BytesIO, indicator_name: str, iso3_code: str) -> pd.DataFrame:
-        """ """
+        """Format the data
+
+        This method reads the data from the BytesIO object, formats it and returns a DataFrame
+
+        Args:
+            data: The BytesIO object with the data
+            indicator_name: The name of the indicator
+            iso3_code: The ISO3 code of the country
+
+        Returns:
+            A DataFrame with the formatted data
+        """
 
         return (pd.read_csv(data)
         .drop(columns = ["IndicatorName", "CountryName"]) # drop unnecessary columns
@@ -150,7 +204,16 @@ class WFPInflation(DataImporter):
          )
 
     def load_data(self, indicator_name: str, iso3_codes: list[str]) -> None:
-        """ """
+        """Load data to the object
+
+        This method runs the process to extract, format and load the data to the object for a specific indicator
+        and list of countries. It checks if the data is already loaded for specified countries and skips the process if it is. If the data
+        is not available for a specific country, it logs a warning and sets the data to None.
+
+        Args:
+            indicator_name: The name of the indicator
+            iso3_codes: A list of ISO3 codes of the countries to load the data for
+        """
 
         # make a list of unloaded countries
         unloaded_countries = [c for c in iso3_codes if c not in self._data[indicator_name]]
@@ -189,8 +252,21 @@ class WFPInflation(DataImporter):
 
         return list(self._indicators.keys())
 
-    def get_data(self, indicator: str | list[str] | None = None, country: str | list[str] = None) -> pd.DataFrame:
-        """ """
+    def get_data(self, indicator: INFLATION_IND_TYPE | list[INFLATION_IND_TYPE] | None = None, country: str | list[str] = None) -> pd.DataFrame:
+        """Get inflation data
+
+        Get a dataframe with the data for the specified inflation indicator and countries
+
+        Args:
+            indicator: The inflation indicator to get data for. Can be a single indicator or a list of indicators.
+                If None, data for all available indicators is returned. By default, returns all available indicators.
+                To see the available indicators use the available_indicators property
+            country: The countries (name or ISO3 code) to get data for. If None, data for all available countries is returned
+                By default returns data for all available countries
+
+        Returns:
+            A DataFrame with the requested data
+        """
 
         if indicator:
             if isinstance(indicator, str):
@@ -242,6 +318,17 @@ class WFPInflation(DataImporter):
             return pd.DataFrame()
 
         return pd.concat(data_list, ignore_index = True)
+
+    def clear_cache(self) -> None:
+        """Clear the cached data"""
+
+        self._data = {"Headline inflation (YoY)": {},
+                     "Headline inflation (MoM)": {},
+                     "Food inflation": {}
+                     }
+        self._countries = None
+
+        logger.info("Cache cleared")
 
 
 
