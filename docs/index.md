@@ -6,6 +6,7 @@
 :hidden:
 
 weo.ipynb
+ghed.ipynb
 changelog.md
 contributing.md
 conduct.md
