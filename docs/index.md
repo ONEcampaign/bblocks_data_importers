@@ -5,9 +5,7 @@
 :maxdepth: 2
 :hidden:
 
-Importers
-    weo.ipynb
-    ghed.ipynb
+Importers <Importers/index>
 changelog.md
 contributing.md
 conduct.md
