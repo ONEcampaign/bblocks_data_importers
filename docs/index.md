@@ -2,10 +2,12 @@
 ```
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 :hidden:
 
-example.ipynb
+Importers
+    weo.ipynb
+    ghed.ipynb
 changelog.md
 contributing.md
 conduct.md
