@@ -34,12 +34,14 @@ def convert_dtypes(
     return df.convert_dtypes(dtype_backend=backend)
 
 
-def convert_countries_to_unique_list(countries: list, src=None, to="ISO3") -> list:
+def convert_countries_to_unique_list(
+    countries: list, src: str | None = None, to: str = "ISO3"
+) -> list:
     """Converts a list of country names to a unique list of countries in the specified format
 
     Args:
         countries: A list of country names
-        src: The source format of the country names. Default is None
+        src: The source format of the country names. Default is None, uses the conversion mechanism of the country_converter package to determine the source format
         to: The format to convert the country names to. Default is "ISO3"
 
     Returns:
