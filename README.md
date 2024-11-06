@@ -7,7 +7,7 @@
 
 # bblocks_data_importers
 
-A package to import data
+A package to import data from major humanitarian, development and financial institutions.
 
 ## Installation
 
@@ -15,9 +15,25 @@ A package to import data
 $ pip install bblocks_data_importers
 ```
 
-## Usage
+## Example Usage
 
-- TODO
+Import the package and use the various importer objects to access data from different sources.
+
+```python
+import bblocks_data_importers as bbdata
+```
+
+To access data from the IMF's World Economic Outlook use a WEO object:
+
+```python
+weo = bbdata.WEO() # Create a WEO object
+df = weo.get_data() # Get the data as a pandas DataFrame
+```
+
+Available importers include:
+- `WEO` to access the IMF's World Economic Outlook
+- `GHED` to access WHO's Global Health Expenditure Database
+
 
 ## Contributing
 
