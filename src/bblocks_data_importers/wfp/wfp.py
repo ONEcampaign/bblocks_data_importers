@@ -257,7 +257,6 @@ class WFPInflation(DataImporter):
                         "SourceOfTheData": Fields.source,
                     }
                 )
-                .pipe(convert_dtypes)
                 .assign(
                     **{
                         Fields.indicator_name: indicator_name,
@@ -271,6 +270,7 @@ class WFPInflation(DataImporter):
                         Fields.unit: Units.percent,
                     }
                 )
+                .pipe(convert_dtypes)
             )
         except Exception as e:
             raise DataFormattingError(
@@ -559,12 +559,11 @@ class WFPFoodSecurity(DataImporter):
                         ),
                         Fields.indicator_name: "people with insufficient food consumption",
                         Fields.source: "World Food Programme",
+                        Fields.date: lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")
                     }
+
                 )
                 .pipe(convert_dtypes)
-                .assign(
-                    **{Fields.date: lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")}
-                )
             )
 
         except Exception as e:
@@ -616,12 +615,10 @@ class WFPFoodSecurity(DataImporter):
                         ),
                         Fields.indicator_name: "people with insufficient food consumption",
                         Fields.source: "World Food Programme",
+                        Fields.date: lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")
                     }
                 )
                 .pipe(convert_dtypes)
-                .assign(
-                    **{Fields.date: lambda d: pd.to_datetime(d.date, format="%Y-%m-%d")}
-                )
             )
 
         except Exception as e:
