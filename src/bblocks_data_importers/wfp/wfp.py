@@ -82,6 +82,9 @@ INFLATION_IND_TYPE = Literal[
 FOOD_SECURITY_LEVEL_TYPE = Literal["national", "subnational"]
 
 
+_cached_countries: dict | None = None # cached countries
+
+
 def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
     """Load available countries to the object with timeout and retry mechanism
 
@@ -93,7 +96,15 @@ def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
         retries: The number of times to retry the request in case of a failure. Defaults to 2
     """
 
+    global _cached_countries
+
+    # If data is already cached, return it
+    if _cached_countries is not None:
+        return _cached_countries
+
     endpoint = f"{HUNGERMAP_API}/adm0data.json"  # endpoint to get the country IDs
+
+    logger.info("Importing available country IDs ...")
 
     # try to get the data from the API with retries
     attempt = 0
@@ -105,7 +116,7 @@ def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
             response.raise_for_status()
 
             # parse the response and create a dictionary
-            return {
+            _cached_countries =  {
                 i["properties"]["iso3"]: {
                     Fields.entity_code: i["properties"]["adm0_id"],
                     Fields.data_type: i["properties"]["dataType"],
@@ -116,6 +127,8 @@ def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
                 for i in response.json()["body"]["features"]
                 # if i["properties"]["dataType"] is not None
             }
+
+            return _cached_countries
 
         # handle timeout errors
         except requests.exceptions.Timeout:
@@ -186,8 +199,7 @@ class WFPInflation(DataImporter):
     def load_available_countries(self):
         """Load available countries to the object"""
 
-        logger.info("Importing available country IDs ...")
-        self._countries = extract_countries(self._timeout)
+        self._countries = extract_countries(self._timeout, retries=2)
 
     def extract_data(
         self, country_code: int, indicator_code: int | list[int]
@@ -416,7 +428,11 @@ class WFPInflation(DataImporter):
             "Headline inflation (MoM)": {},
             "Food inflation": {},
         }
+
+        # clear the cached countries
         self._countries = None
+        global _cached_countries
+        _cached_countries = None
 
         logger.info("Cache cleared")
 
@@ -469,8 +485,7 @@ class WFPFoodSecurity(DataImporter):
         Excludes countries for which there is no registered data. i.e. data_type is None in the response
         """
 
-        logger.info("Importing available country IDs ...")
-        d = extract_countries(self._timeout, self._retries)
+        d = extract_countries(timeout=self._timeout, retries= self._retries)
         self._countries = {k: v for k, v in d.items() if v["data_type"] is not None}
 
     def _extract_data(self, entity_code: int, level: FOOD_SECURITY_LEVEL_TYPE) -> dict:
@@ -747,6 +762,11 @@ class WFPFoodSecurity(DataImporter):
     def clear_cache(self) -> None:
         """Clear the cache"""
 
-        self._countries = None
         self._data = {"national": {}, "subnational": {}}
+
+        # clear the cached countries
+        self._countries = None
+        global _cached_countries
+        _cached_countries = None
+
         logger.info("Cache cleared")
