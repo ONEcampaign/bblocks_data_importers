@@ -66,6 +66,7 @@ from bblocks_data_importers.utilities import (
     convert_dtypes,
     convert_countries_to_unique_list,
 )
+from bblocks_data_importers.data_validators import DataFrameValidator
 
 
 HUNGERMAP_API: str = "https://api.hungermapdata.org/v2"
@@ -664,8 +665,16 @@ class WFPFoodSecurity(DataImporter):
             # parse and load the data
             if level == "national":
                 df = self._parse_national_data(response, iso_code)
+
+                # validate national data
+                DataFrameValidator().validate(df, required_cols=[Fields.iso3_code, Fields.date, Fields.value, Fields.indicator_name])
+
             else:
                 df = self._parse_subnational_data(response, iso_code)
+
+                # validate data
+                DataFrameValidator().validate(df, required_cols=[Fields.iso3_code, Fields.date, Fields.value, Fields.indicator_name, Fields.region_name])
+
 
             self._data[level][iso_code] = df
 
