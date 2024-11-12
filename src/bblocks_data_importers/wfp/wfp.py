@@ -17,7 +17,7 @@ Simple usage:
 1. Inflation data:
 Instantiat the object and call the get_data method to get the data for a specific indicator and country
 >>> wfp = WFPInflation()
->>> data = wfp.get_data(indicator = "Headline inflation (YoY)", country = ["KEN", "UGA"])
+>>> data = wfp.get_data(indicators = "Headline inflation (YoY)", countries = ["KEN", "UGA"])
 
 2. Food Security data:
 Instantiat the object and call the get_data method to get the data for a specific country
@@ -168,7 +168,7 @@ class WFPInflation(DataImporter):
     >>> wfp.available_indicators
 
     Get the data:
-    >>> data = wfp.get_data(indicator = "Headline inflation (YoY)", country = ["KEN", "UGA"])
+    >>> data = wfp.get_data(indicators = "Headline inflation (YoY)", countries = ["KEN", "UGA"])
     If no indicator is specified, data for all available indicators is returned and if no country is specified, data for all available countries is returned.
     It is advised to specify the required indicator and countries to avoid long wait times.
 
@@ -451,11 +451,11 @@ class WFPFoodSecurity(DataImporter):
     >>> wfp = WFPFoodSecurity()
 
     Get the data:
-    >>> data = wfp.get_data(country_iso3_codes = ["KEN", "UGA"])
+    >>> data = wfp.get_data(countries = ["KEN", "UGA"])
     This will return a pandas DataFrame with the data for the specified countries.
 
     You can also get the data at the subnational level:
-    >>> data = wfp.get_data(country_iso3_codes = ["KEN", "UGA"], level = "subnational")
+    >>> data = wfp.get_data(countries = ["KEN", "UGA"], level = "subnational")
 
     To clear the cache:
     >>> wfp.clear_cache()
