@@ -6,18 +6,12 @@ import pytest
 import requests
 from unittest import mock
 
-import bblocks_data_importers.wfp.wfp as WFP 
-from bblocks_data_importers.wfp.wfp import (
-    WFPInflation,  
-    WFPFoodSecurity,
-    Fields
-)
-from bblocks_data_importers.config import (
-    DataExtractionError,
-    DataFormattingError
-)
+import bblocks_data_importers.wfp.wfp as WFP
+from bblocks_data_importers.wfp.wfp import WFPInflation, WFPFoodSecurity, Fields
+from bblocks_data_importers.config import DataExtractionError, DataFormattingError
 from bblocks_data_importers.utilities import convert_dtypes
 from bblocks_data_importers.data_validators import DataFrameValidator
+
 
 # Fixtures
 @pytest.fixture(autouse=True)
@@ -37,28 +31,21 @@ def mock_request_countries():
     mock_request.json.return_value = {
         "body": {
             "features": [
-                {
-                    "properties": {
-                        "iso3": "VEN",
-                        "adm0_id": 1,
-                        "dataType": None
-                    }
-                },
+                {"properties": {"iso3": "VEN", "adm0_id": 1, "dataType": None}},
                 {
                     "properties": {
                         "iso3": "LBN",
                         "adm0_id": 2,
-                        "dataType": "ACTUAL DATA"
+                        "dataType": "ACTUAL DATA",
                     }
-                }
+                },
             ]
         }
     }
     mock_request.raise_for_status = mock.Mock()
-    
-    with mock.patch(
-        "requests.get", return_value=mock_request
-    ): yield mock_request
+
+    with mock.patch("requests.get", return_value=mock_request):
+        yield mock_request
 
 
 @pytest.fixture
@@ -67,11 +54,7 @@ def mock_cached_countries():
     Fixture to simulate cached countries.
     """
     mock_cache = {
-        'VNM': {
-            'entity_code': 1, 
-            'data_type': 'PREDICTION', 
-            'country_name': 'Vietnam'
-        }
+        "VNM": {"entity_code": 1, "data_type": "PREDICTION", "country_name": "Vietnam"}
     }
     WFP._cached_countries = mock_cache
 
@@ -85,10 +68,9 @@ def mock_response_inflation():
     mock_response.status_code = 200
     mock_response.content = b"mocked response data"
 
-    with mock.patch(
-        "requests.post", return_value=mock_response
-    ) as mock_post: 
+    with mock.patch("requests.post", return_value=mock_response) as mock_post:
         yield mock_post
+
 
 @pytest.fixture
 def wfp_inflation():
@@ -154,6 +136,7 @@ def wfp_foodsecurity_pre_load():
     }
     return instance
 
+
 @pytest.fixture
 def wfp_foodsecurity_post_load():
     """
@@ -162,14 +145,20 @@ def wfp_foodsecurity_post_load():
     instance = WFPFoodSecurity()
     instance._data = {"national": {}, "subnational": {}}
     instance._countries = {
-        "USA": {"entity_code": 1, "data_type": "National",    "country_name": "United States"},
+        "USA": {
+            "entity_code": 1,
+            "data_type": "National",
+            "country_name": "United States",
+        },
         "CAN": {"entity_code": 2, "data_type": "Subnational", "country_name": "Canada"},
     }
     return instance
 
+
 # TESTS
 
 # WFPInflation
+
 
 def test_wfp_inflation_init(wfp_inflation):
     """
@@ -178,19 +167,21 @@ def test_wfp_inflation_init(wfp_inflation):
     # Assertions
     assert wfp_inflation._timeout == 20
     assert wfp_inflation._indicators == {
-            "Headline inflation (YoY)": 116,
-            "Headline inflation (MoM)": 117,
-            "Food inflation": 71,
-        }
+        "Headline inflation (YoY)": 116,
+        "Headline inflation (MoM)": 117,
+        "Food inflation": 71,
+    }
     assert wfp_inflation._countries == None
     assert wfp_inflation._data == {
-            "Headline inflation (YoY)": {},
-            "Headline inflation (MoM)": {},
-            "Food inflation": {},
-        }
-    
+        "Headline inflation (YoY)": {},
+        "Headline inflation (MoM)": {},
+        "Food inflation": {},
+    }
 
-def test_wfp_inflation_load_available_countries_no_cached(mock_request_countries, wfp_inflation):
+
+def test_wfp_inflation_load_available_countries_no_cached(
+    mock_request_countries, wfp_inflation
+):
     """
     Test that WFPInflation's `load_available_countries` method successfully loads countries when no cached data is available.
     """
@@ -198,52 +189,57 @@ def test_wfp_inflation_load_available_countries_no_cached(mock_request_countries
     wfp_inflation.load_available_countries()
 
     # Assertions
-    assert len(wfp_inflation._countries) == 2     
+    assert len(wfp_inflation._countries) == 2
     assert wfp_inflation._countries["VEN"] == {
-            'entity_code': 1, 
-            'data_type': None, 
-            'country_name': 'Venezuela'
-        }
+        "entity_code": 1,
+        "data_type": None,
+        "country_name": "Venezuela",
+    }
     assert wfp_inflation._countries["LBN"] == {
-            'entity_code': 2, 
-            'data_type': 'ACTUAL DATA', 
-            'country_name': 'Lebanon'
-        }
+        "entity_code": 2,
+        "data_type": "ACTUAL DATA",
+        "country_name": "Lebanon",
+    }
 
 
-def test_wfp_inflation_load_available_countries_timeout(mock_request_countries, wfp_inflation):
+def test_wfp_inflation_load_available_countries_timeout(
+    mock_request_countries, wfp_inflation
+):
     """
     Test that WFPInflation's `load_available_countries` method raises DataExtractionError for `requests.get` timeouts.
     """
     # Mock request with timeout
-    with mock.patch(
-        "requests.get", side_effect=requests.exceptions.Timeout
-    ):  
+    with mock.patch("requests.get", side_effect=requests.exceptions.Timeout):
         # Assert that DataExtrationError is raised when `load_available_countries` method is called
         with pytest.raises(
-            DataExtractionError, 
-            match="Request timed out while getting country IDs after 3 attempts"
-        ): 
+            DataExtractionError,
+            match="Request timed out while getting country IDs after 3 attempts",
+        ):
             wfp_inflation.load_available_countries()
 
 
-def test_wfp_inflation_load_available_countries_exception(mock_request_countries, wfp_inflation):
+def test_wfp_inflation_load_available_countries_exception(
+    mock_request_countries, wfp_inflation
+):
     """
     Test that WFPInflation's `load_available_countries` method raises DataExtractionError for `requests.get` exceptions.
     """
     # Mock request with network error
     with mock.patch(
-        "requests.get", side_effect=requests.exceptions.RequestException("Network error")
-    ): 
+        "requests.get",
+        side_effect=requests.exceptions.RequestException("Network error"),
+    ):
         # Assert that DataExtrationError is raised when `load_available_countries` method is called
         with pytest.raises(
-            DataExtractionError, 
-            match="Error getting country IDs after 3 attempts: Network error"
-        ): 
+            DataExtractionError,
+            match="Error getting country IDs after 3 attempts: Network error",
+        ):
             wfp_inflation.load_available_countries()
 
 
-def test_wfp_inflation_load_available_countries_chached(mock_cached_countries, wfp_inflation):
+def test_wfp_inflation_load_available_countries_chached(
+    mock_cached_countries, wfp_inflation
+):
     """
     Test that WFPInflation's `load_available_countries` method uses cached countries without making a request.
     """
@@ -262,18 +258,20 @@ def test_wfp_inflation_load_available_countries_chached(mock_cached_countries, w
 @pytest.mark.parametrize(
     "indicator_code, expected_json",
     [
-        (100, {"adm0Code": 1, "economicIndicatorIds": [100]}), # Single 
-        ([100, 200], {"adm0Code": 1, "economicIndicatorIds": [100, 200]}), # Multiple
+        (100, {"adm0Code": 1, "economicIndicatorIds": [100]}),  # Single
+        ([100, 200], {"adm0Code": 1, "economicIndicatorIds": [100, 200]}),  # Multiple
     ],
 )
-def test_wfp_inflation_extract_data(mock_response_inflation, wfp_inflation, indicator_code, expected_json):
+def test_wfp_inflation_extract_data(
+    mock_response_inflation, wfp_inflation, indicator_code, expected_json
+):
     """
     Test that WFPInflation's `extract_data` method processes single and multiple indicators correctly.
     """
     # Call `extract_data` method
     country_code = 1
     result = wfp_inflation.extract_data(country_code, indicator_code)
-    
+
     # Assertions
     assert isinstance(result, io.BytesIO)
     assert result.getvalue() == b"mocked response data"
@@ -284,22 +282,27 @@ def test_wfp_inflation_extract_data(mock_response_inflation, wfp_inflation, indi
         timeout=wfp_inflation._timeout,
     )
 
+
 def test_wfp_inflation_extract_data_timeout(mock_response_inflation, wfp_inflation):
     """
     Test that WFPInflation's `extract_data` method raises DataExtractionError for `requests.post` timeouts.
     """
     country_code = 1
     indicator_code = 100
-    
+
     # Mock response with timeout
     mock_response_inflation.side_effect = requests.exceptions.Timeout
-    
+
     # Assert that DataExtrationError is raised when `extract_data` method is called
-    with pytest.raises(DataExtractionError, match="Request timed out while getting inflation data"):
+    with pytest.raises(
+        DataExtractionError, match="Request timed out while getting inflation data"
+    ):
         wfp_inflation.extract_data(country_code, indicator_code)
 
 
-def test_wfp_inflation_extract_data_request_exception(mock_response_inflation, wfp_inflation):
+def test_wfp_inflation_extract_data_request_exception(
+    mock_response_inflation, wfp_inflation
+):
     """
     Test that WFPInflation's `extract_data` method raises DataExtractionError for `requests.post` exceptions.
     """
@@ -307,10 +310,14 @@ def test_wfp_inflation_extract_data_request_exception(mock_response_inflation, w
     indicator_code = 100
 
     # Mock response with error
-    mock_response_inflation.side_effect = requests.exceptions.RequestException("Mocked request error")
-    
+    mock_response_inflation.side_effect = requests.exceptions.RequestException(
+        "Mocked request error"
+    )
+
     # Assert that DataExtrationError is raised when `extract_data` method is called
-    with pytest.raises(DataExtractionError, match="Error getting inflation data: Mocked request error"):
+    with pytest.raises(
+        DataExtractionError, match="Error getting inflation data: Mocked request error"
+    ):
         wfp_inflation.extract_data(country_code, indicator_code)
 
 
@@ -353,9 +360,11 @@ def test_wfp_inflation_format_data_exception(wfp_inflation):
     invalid_data = io.BytesIO(b"Invalid,CSV,Data")
     indicator_name = "Inflation"
     iso3_code = "TST"
-    
+
     # Assert that DataFormattingError is raised when `format_data` method is called
-    with pytest.raises(DataFormattingError, match="Error formatting data for country - TST:"):
+    with pytest.raises(
+        DataFormattingError, match="Error formatting data for country - TST:"
+    ):
         wfp_inflation.format_data(invalid_data, indicator_name, iso3_code)
 
 
@@ -364,7 +373,10 @@ def test_wfp_inflation_load_data_all_countries_loaded(wfp_inflation_pre_load):
     Test that WFPInflation's `load_data` method does nothing and logs nothing when all countries are already loaded.
     """
     # Add data to class
-    wfp_inflation_pre_load._data["Headline inflation (YoY)"] = {"USA": mock.Mock(), "CAN": mock.Mock()}
+    wfp_inflation_pre_load._data["Headline inflation (YoY)"] = {
+        "USA": mock.Mock(),
+        "CAN": mock.Mock(),
+    }
 
     # Mock logs
     with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger:
@@ -393,21 +405,32 @@ def test_wfp_inflation_load_data_successful(wfp_inflation_pre_load):
     """
     # Mock data
     mock_extracted_data = "mocked data"
-    mock_formatted_data = pd.DataFrame({"value": [1]}) 
+    mock_formatted_data = pd.DataFrame({"value": [1]})
 
     # Mock logs, `extract_data` and `format_data` methods
-    with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger, \
-         mock.patch.object(wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data) as mock_extract, \
-         mock.patch.object(wfp_inflation_pre_load, "format_data", return_value=mock_formatted_data) as mock_format:
-        
+    with mock.patch(
+        "bblocks_data_importers.config.logger.info"
+    ) as mock_logger, mock.patch.object(
+        wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data
+    ) as mock_extract, mock.patch.object(
+        wfp_inflation_pre_load, "format_data", return_value=mock_formatted_data
+    ) as mock_format:
+
         # Call `load_data` method
         wfp_inflation_pre_load.load_data("Headline inflation (YoY)", ["USA"])
 
         # Assertions
         mock_extract.assert_called_once_with(1, 116)
-        mock_format.assert_called_once_with(mock_extracted_data, "Headline inflation (YoY)", "USA")
-        assert wfp_inflation_pre_load._data["Headline inflation (YoY)"]["USA"] is not None
-        mock_logger.assert_any_call("Data imported successfully for indicator: Headline inflation (YoY)")
+        mock_format.assert_called_once_with(
+            mock_extracted_data, "Headline inflation (YoY)", "USA"
+        )
+        assert (
+            wfp_inflation_pre_load._data["Headline inflation (YoY)"]["USA"] is not None
+        )
+        mock_logger.assert_any_call(
+            "Data imported successfully for indicator: Headline inflation (YoY)"
+        )
+
 
 def test_wfp_inflation_load_data_empty_data(wfp_inflation_pre_load):
     """
@@ -418,18 +441,26 @@ def test_wfp_inflation_load_data_empty_data(wfp_inflation_pre_load):
     mock_empty_df = pd.DataFrame()
 
     # Mock logs, `extract_data` and `format_data` methods
-    with mock.patch("bblocks_data_importers.config.logger.warning") as mock_warning, \
-         mock.patch.object(wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data) as mock_extract, \
-         mock.patch.object(wfp_inflation_pre_load, "format_data", return_value=mock_empty_df) as mock_format:
+    with mock.patch(
+        "bblocks_data_importers.config.logger.warning"
+    ) as mock_warning, mock.patch.object(
+        wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data
+    ) as mock_extract, mock.patch.object(
+        wfp_inflation_pre_load, "format_data", return_value=mock_empty_df
+    ) as mock_format:
 
         # Call `load_data` method
         wfp_inflation_pre_load.load_data("Headline inflation (YoY)", ["USA"])
 
         # Assertions
         mock_extract.assert_called_once_with(1, 116)
-        mock_format.assert_called_once_with(mock_extracted_data, "Headline inflation (YoY)", "USA")
+        mock_format.assert_called_once_with(
+            mock_extracted_data, "Headline inflation (YoY)", "USA"
+        )
         assert wfp_inflation_pre_load._data["Headline inflation (YoY)"]["USA"] is None
-        mock_warning.assert_any_call("No Headline inflation (YoY) data found for country - USA")
+        mock_warning.assert_any_call(
+            "No Headline inflation (YoY) data found for country - USA"
+        )
 
 
 def test_wfp_inflation_available_indicators_with_data(wfp_inflation_post_load):
@@ -479,14 +510,18 @@ def test_wfp_inflation_get_data_all_indicators_and_countries(wfp_inflation_post_
     """
     Test that WFPInflation's `get_data` method returns all available data when no indicators or countries are specified.
     """
-    with mock.patch.object(wfp_inflation_post_load, "load_available_countries") as mock_load:
+    with mock.patch.object(
+        wfp_inflation_post_load, "load_available_countries"
+    ) as mock_load:
         # Call `get_data` method
         result = wfp_inflation_post_load.get_data()
 
         # Assert that all data is returned
         expected = pd.concat(
-            [wfp_inflation_post_load._data["Headline inflation (YoY)"]["USA"], 
-             wfp_inflation_post_load._data["Headline inflation (YoY)"]["CAN"]],
+            [
+                wfp_inflation_post_load._data["Headline inflation (YoY)"]["USA"],
+                wfp_inflation_post_load._data["Headline inflation (YoY)"]["CAN"],
+            ],
             ignore_index=True,
         )
         pd.testing.assert_frame_equal(result, expected)
@@ -495,7 +530,9 @@ def test_wfp_inflation_get_data_all_indicators_and_countries(wfp_inflation_post_
         mock_load.assert_not_called()
 
 
-def test_wfp_inflation_get_data_specific_indicator_and_countries(wfp_inflation_post_load):
+def test_wfp_inflation_get_data_specific_indicator_and_countries(
+    wfp_inflation_post_load,
+):
     """
     Test that WFPInflation's `get_data` emthod returns data for a specific indicator and specified countries.
     """
@@ -530,13 +567,14 @@ def test_wfp_inflation_get_data_no_valid_countries(wfp_inflation_post_load):
     """
     # Mock the `convert_countries_to_unique_list` function
     with mock.patch(
-        "bblocks_data_importers.utilities.convert_countries_to_unique_list", return_value=[]
+        "bblocks_data_importers.utilities.convert_countries_to_unique_list",
+        return_value=[],
     ) as mock_convert:
         # Assertions
         with pytest.raises(ValueError, match="No valid countries found"):
             wfp_inflation_post_load.get_data(countries=["InvalidCountry"])
-            
-        #mock_convert.assert_called_once_with(["InvalidCountry"], to="ISO3")
+
+        # mock_convert.assert_called_once_with(["InvalidCountry"], to="ISO3")
 
 
 def test_wfp_inflation_get_data_no_data_found(wfp_inflation_post_load):
@@ -622,10 +660,10 @@ def test_wfp_inflation_clear_cache(wfp_inflation_post_load):
 
         # Assertions
         assert wfp_inflation_post_load._data == {
-                "Headline inflation (YoY)": {},
-                "Headline inflation (MoM)": {},
-                "Food inflation": {},
-            }
+            "Headline inflation (YoY)": {},
+            "Headline inflation (MoM)": {},
+            "Food inflation": {},
+        }
         assert wfp_inflation_post_load._countries == None
         assert WFP._cached_countries == None
 
@@ -633,6 +671,7 @@ def test_wfp_inflation_clear_cache(wfp_inflation_post_load):
 
 
 # WFPFoodSecurity
+
 
 def test_wfp_foodsecurity_init():
     """
@@ -645,61 +684,62 @@ def test_wfp_foodsecurity_init():
     assert wfp_foodsecurity_importer._timeout == 20
     assert wfp_foodsecurity_importer._retries == 2
     assert wfp_foodsecurity_importer._countries == None
-    assert wfp_foodsecurity_importer._data == {
-        "national": {}, "subnational": {}
-        }
-    
+    assert wfp_foodsecurity_importer._data == {"national": {}, "subnational": {}}
 
-def test_wfp_foodsecurity_load_available_countries_no_cached(mock_request_countries, wfp_foodsecurity):
+
+def test_wfp_foodsecurity_load_available_countries_no_cached(
+    mock_request_countries, wfp_foodsecurity
+):
     """
     Test that WFPFoodSecurity's `load_available_countries` method successfully loads countries when no cached data is available.
     """
     # Call `load_available_countries` method
     wfp_foodsecurity._load_available_countries()
 
-    # Assertions   
+    # Assertions
     assert wfp_foodsecurity._countries == {
-        "LBN" : {
-            'entity_code': 2, 
-            'data_type': 'ACTUAL DATA', 
-            'country_name': 'Lebanon'
-        }
+        "LBN": {"entity_code": 2, "data_type": "ACTUAL DATA", "country_name": "Lebanon"}
     }
 
 
-def test_wfp_foodsecurity_load_available_countries_timeout(mock_request_countries, wfp_foodsecurity):
+def test_wfp_foodsecurity_load_available_countries_timeout(
+    mock_request_countries, wfp_foodsecurity
+):
     """
     Test that WFPFoodSecurity's `load_available_countries` method raises DataExtractionError for `requests.get` timeouts.
     """
     # Mock request with timeout
-    with mock.patch(
-        "requests.get", side_effect=requests.exceptions.Timeout
-    ):  
+    with mock.patch("requests.get", side_effect=requests.exceptions.Timeout):
         # Assert that DataExtrationError is raised when `load_available_countries` method is called
         with pytest.raises(
-            DataExtractionError, 
-            match="Request timed out while getting country IDs after 3 attempts"
-        ): 
+            DataExtractionError,
+            match="Request timed out while getting country IDs after 3 attempts",
+        ):
             wfp_foodsecurity._load_available_countries()
 
 
-def test_wfp_foodsecurity_load_available_countries_exception(mock_request_countries, wfp_foodsecurity):
+def test_wfp_foodsecurity_load_available_countries_exception(
+    mock_request_countries, wfp_foodsecurity
+):
     """
     Test that WFPFoodSecurity's `load_available_countries` method raises DataExtractionError for `requests.get` exceptions.
     """
     # Mock request with network error
     with mock.patch(
-        "requests.get", side_effect=requests.exceptions.RequestException("Network error")
-    ): 
+        "requests.get",
+        side_effect=requests.exceptions.RequestException("Network error"),
+    ):
         # Assert that DataExtrationError is raised when `load_available_countries` method is called
         with pytest.raises(
-            DataExtractionError, 
-            match="Error getting country IDs after 3 attempts: Network error"
-        ): 
+            DataExtractionError,
+            match="Error getting country IDs after 3 attempts: Network error",
+        ):
             wfp_foodsecurity._load_available_countries()
 
 
-def test_wfp_foodsecurity_load_available_countries_chached(mock_cached_countries, wfp_foodsecurity):
+def test_wfp_foodsecurity_load_available_countries_chached(
+    mock_cached_countries, wfp_foodsecurity
+):
     """
     Test that WFPFoodSecurity's `load_available_countries` method uses cached countries without making a request.
     """
@@ -895,7 +935,12 @@ def test_wfp_foodsecurity_parse_subnational_data_success():
             Fields.value_lower: [15, 25, 35, 45],
             "region_name": ["Region A", "Region A", "Region B", "Region B"],
             Fields.iso3_code: ["USA", "USA", "USA", "USA"],
-            Fields.country_name: ["United States", "United States", "United States", "United States"],
+            Fields.country_name: [
+                "United States",
+                "United States",
+                "United States",
+                "United States",
+            ],
             Fields.indicator_name: [
                 "people with insufficient food consumption",
                 "people with insufficient food consumption",
@@ -959,7 +1004,10 @@ def test_wfp_foodsecurity_load_data_all_countries_loaded(wfp_foodsecurity_pre_lo
     """
     Test that WFPFoodSecurity's `_load_data` method does nothing if all specified countries are already loaded.
     """
-    wfp_foodsecurity_pre_load._data["national"] = {"USA": mock.Mock(), "CAN": mock.Mock()}
+    wfp_foodsecurity_pre_load._data["national"] = {
+        "USA": mock.Mock(),
+        "CAN": mock.Mock(),
+    }
 
     with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger:
         wfp_foodsecurity_pre_load._load_data(["USA", "CAN"], level="national")
@@ -983,10 +1031,15 @@ def test_wfp_foodsecurity_load_data_success_national(wfp_foodsecurity_pre_load):
     mock_response = {"fcsGraph": [{"x": "2023-10-01", "fcs": 20}]}
     mock_parsed_df = pd.DataFrame({"value": [20]})
 
-    with mock.patch.object(wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response) as mock_extract, \
-         mock.patch.object(wfp_foodsecurity_pre_load, "_parse_national_data", return_value=mock_parsed_df) as mock_parse, \
-         mock.patch("bblocks_data_importers.config.logger.info") as mock_logger, \
-         mock.patch.object(DataFrameValidator, "validate") as mock_validate:
+    with mock.patch.object(
+        wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response
+    ) as mock_extract, mock.patch.object(
+        wfp_foodsecurity_pre_load, "_parse_national_data", return_value=mock_parsed_df
+    ) as mock_parse, mock.patch(
+        "bblocks_data_importers.config.logger.info"
+    ) as mock_logger, mock.patch.object(
+        DataFrameValidator, "validate"
+    ) as mock_validate:
 
         wfp_foodsecurity_pre_load._load_data(["USA"], level="national")
 
@@ -1010,14 +1063,28 @@ def test_wfp_foodsecurity_load_data_success_subnational(wfp_foodsecurity_pre_loa
     Test that WFPFoodSecurity's `_load_data` method successfully processes and loads subnational data for a country.
     """
     mock_response = {
-        "features": [{"properties": {"Name": "Region A", "fcsGraph": [{"x": "2023-10-01", "fcs": 20}]}}],
+        "features": [
+            {
+                "properties": {
+                    "Name": "Region A",
+                    "fcsGraph": [{"x": "2023-10-01", "fcs": 20}],
+                }
+            }
+        ],
     }
     mock_parsed_df = pd.DataFrame({"value": [20]})
 
-    with mock.patch.object(wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response) as mock_extract, \
-         mock.patch.object(wfp_foodsecurity_pre_load, "_parse_subnational_data", return_value=mock_parsed_df) as mock_parse, \
-         mock.patch("bblocks_data_importers.config.logger.info") as mock_logger, \
-         mock.patch.object(DataFrameValidator, "validate") as mock_validate:
+    with mock.patch.object(
+        wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response
+    ) as mock_extract, mock.patch.object(
+        wfp_foodsecurity_pre_load,
+        "_parse_subnational_data",
+        return_value=mock_parsed_df,
+    ) as mock_parse, mock.patch(
+        "bblocks_data_importers.config.logger.info"
+    ) as mock_logger, mock.patch.object(
+        DataFrameValidator, "validate"
+    ) as mock_validate:
 
         wfp_foodsecurity_pre_load._load_data(["USA"], level="subnational")
 
@@ -1044,16 +1111,23 @@ def test_wfp_foodsecurity_load_data_validation_error(wfp_foodsecurity_pre_load):
     mock_response = {"fcsGraph": [{"x": "2023-10-01", "fcs": 20}]}
     mock_parsed_df = pd.DataFrame({"value": [20]})
 
-    with mock.patch.object(wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response), \
-         mock.patch.object(wfp_foodsecurity_pre_load, "_parse_national_data", return_value=mock_parsed_df), \
-         mock.patch("bblocks_data_importers.config.logger.info"), \
-         mock.patch.object(DataFrameValidator, "validate", side_effect=ValueError("Validation error")):
+    with mock.patch.object(
+        wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response
+    ), mock.patch.object(
+        wfp_foodsecurity_pre_load, "_parse_national_data", return_value=mock_parsed_df
+    ), mock.patch(
+        "bblocks_data_importers.config.logger.info"
+    ), mock.patch.object(
+        DataFrameValidator, "validate", side_effect=ValueError("Validation error")
+    ):
 
         with pytest.raises(ValueError, match="Validation error"):
             wfp_foodsecurity_pre_load._load_data(["USA"], level="national")
 
 
-def test_wfp_foodsecurity_available_countries_with_loaded_countries(wfp_foodsecurity_post_load):
+def test_wfp_foodsecurity_available_countries_with_loaded_countries(
+    wfp_foodsecurity_post_load,
+):
     """
     Test that WFPFoodSecurity's `available_countries` method correctly returns a DataFrame when `_countries` is already loaded.
     """
@@ -1074,7 +1148,9 @@ def test_wfp_foodsecurity_available_countries_with_loaded_countries(wfp_foodsecu
     pd.testing.assert_frame_equal(result_df, expected_df, check_dtype=False)
 
 
-def test_wfp_foodsecurity_available_countries_with_unloaded_countries(wfp_foodsecurity_post_load):
+def test_wfp_foodsecurity_available_countries_with_unloaded_countries(
+    wfp_foodsecurity_post_load,
+):
     """
     Test that WFPFoodSecurity's `available_countries` method calls `_load_available_countries` if `_countries` is None.
     """
@@ -1089,8 +1165,16 @@ def test_wfp_foodsecurity_available_countries_with_unloaded_countries(wfp_foodse
             wfp_foodsecurity_post_load,
             "_countries",
             {
-                "USA": {"entity_code": 1, "data_type": "National", "country_name": "United States"},
-                "CAN": {"entity_code": 2, "data_type": "Subnational", "country_name": "Canada"},
+                "USA": {
+                    "entity_code": 1,
+                    "data_type": "National",
+                    "country_name": "United States",
+                },
+                "CAN": {
+                    "entity_code": 2,
+                    "data_type": "Subnational",
+                    "country_name": "Canada",
+                },
             },
         ),
     ) as mock_load:
@@ -1136,7 +1220,9 @@ def test_wfp_foodsecurity_get_data_all_countries_national(wfp_foodsecurity_post_
     pd.testing.assert_frame_equal(result, expected_df)
 
 
-def test_wfp_foodsecurity_get_data_specific_countries_national(wfp_foodsecurity_post_load):
+def test_wfp_foodsecurity_get_data_specific_countries_national(
+    wfp_foodsecurity_post_load,
+):
     """
     Test that WFPFoodSecurity's `get_data` method returns data for specific countries at the national level.
     """
@@ -1161,10 +1247,13 @@ def test_wfp_foodsecurity_get_data_invalid_countries(wfp_foodsecurity_post_load)
     Test that WFPFoodSecurity's `get_data` method raises a ValueError for invalid countries.
     """
     with mock.patch(
-        "bblocks_data_importers.utilities.convert_countries_to_unique_list", return_value=[]
+        "bblocks_data_importers.utilities.convert_countries_to_unique_list",
+        return_value=[],
     ):
         with pytest.raises(ValueError, match="No valid countries found"):
-            wfp_foodsecurity_post_load.get_data(countries=["InvalidCountry"], level="national")
+            wfp_foodsecurity_post_load.get_data(
+                countries=["InvalidCountry"], level="national"
+            )
 
 
 def test_wfp_foodsecurity_get_data_no_data_found(wfp_foodsecurity_post_load):
@@ -1174,11 +1263,16 @@ def test_wfp_foodsecurity_get_data_no_data_found(wfp_foodsecurity_post_load):
     wfp_foodsecurity_post_load._data["national"] = {}
 
     # Mock `_load_data` to simulate loading with no results
-    with mock.patch.object(wfp_foodsecurity_post_load, "_load_data") as mock_load, \
-         mock.patch("bblocks_data_importers.config.logger.warning") as mock_warning:
+    with mock.patch.object(
+        wfp_foodsecurity_post_load, "_load_data"
+    ) as mock_load, mock.patch(
+        "bblocks_data_importers.config.logger.warning"
+    ) as mock_warning:
 
         # Call the method
-        result = wfp_foodsecurity_post_load.get_data(countries=["USA"], level="national")
+        result = wfp_foodsecurity_post_load.get_data(
+            countries=["USA"], level="national"
+        )
 
         # Assertions
         # Assert an empty DataFrame is returned
@@ -1188,7 +1282,9 @@ def test_wfp_foodsecurity_get_data_no_data_found(wfp_foodsecurity_post_load):
         mock_load.assert_called_once_with(["USA"], "national")
 
         # Assert warning log is called
-        mock_warning.assert_called_once_with("No data found for the requested countries")
+        mock_warning.assert_called_once_with(
+            "No data found for the requested countries"
+        )
 
 
 def test_wfp_foodsecurity_get_data_subnational_level(wfp_foodsecurity_post_load):
@@ -1279,22 +1375,27 @@ def test_wfp_foodsecurity_get_data_load_countries_when_none(wfp_foodsecurity_pos
                 "CAN": {"entity_code": 2, "name": "Canada"},
             },
         ),
-    ) as mock_load_countries, \
-    mock.patch.object(
+    ) as mock_load_countries, mock.patch.object(
         wfp_foodsecurity_post_load,
         "_load_data",
-        side_effect=lambda countries, level: wfp_foodsecurity_post_load._data[level].update(
+        side_effect=lambda countries, level: wfp_foodsecurity_post_load._data[
+            level
+        ].update(
             {
-                "USA": pd.DataFrame({
-                    "date": ["2023-10-01", "2023-10-02"],
-                    "value": [20, 30],
-                    "iso3_code": ["USA", "USA"],
-                }),
-                "CAN": pd.DataFrame({
-                    "date": ["2023-10-01", "2023-10-02"],
-                    "value": [40, 50],
-                    "iso3_code": ["CAN", "CAN"],
-                }),
+                "USA": pd.DataFrame(
+                    {
+                        "date": ["2023-10-01", "2023-10-02"],
+                        "value": [20, 30],
+                        "iso3_code": ["USA", "USA"],
+                    }
+                ),
+                "CAN": pd.DataFrame(
+                    {
+                        "date": ["2023-10-01", "2023-10-02"],
+                        "value": [40, 50],
+                        "iso3_code": ["CAN", "CAN"],
+                    }
+                ),
             }
         ),
     ) as mock_load_data:
@@ -1308,11 +1409,13 @@ def test_wfp_foodsecurity_get_data_load_countries_when_none(wfp_foodsecurity_pos
         mock_load_data.assert_called_once_with(["USA", "CAN"], "national")
 
         # Expected DataFrame
-        expected = pd.DataFrame({
-            "date": ["2023-10-01", "2023-10-02", "2023-10-01", "2023-10-02"],
-            "value": [20, 30, 40, 50],
-            "iso3_code": ["USA", "USA", "CAN", "CAN"],
-        })
+        expected = pd.DataFrame(
+            {
+                "date": ["2023-10-01", "2023-10-02", "2023-10-01", "2023-10-02"],
+                "value": [20, 30, 40, 50],
+                "iso3_code": ["USA", "USA", "CAN", "CAN"],
+            }
+        )
 
         # Assert the result matches the expected DataFrame
         pd.testing.assert_frame_equal(result, expected)
