@@ -806,7 +806,7 @@ class TestInflation:
             # Ensure `load_data` was called with the resolved ISO3 codes
             mock_load_data.assert_called_once_with(
                 indicator_name="Headline inflation (YoY)",
-                iso3_codes=["CAN", "USA"],
+                iso3_codes=["USA", "CAN"],
             )
 
     def test_clear_cache(self, wfp_inflation_post_load):
@@ -1716,7 +1716,7 @@ class TestFoodSecurity:
             # mock_convert.assert_called_once_with(["United States", "CAN"], to="ISO3")
 
             # Ensure `_load_data` was called with the resolved ISO3 codes
-            mock_load_data.assert_called_once_with(["CAN", "USA"], "national")
+            mock_load_data.assert_called_once_with(["USA", "CAN"], "national")
 
     def test_clear_cache(self, wfp_foodsecurity_post_load):
         """
