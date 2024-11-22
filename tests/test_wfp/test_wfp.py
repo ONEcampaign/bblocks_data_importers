@@ -765,21 +765,21 @@ class TestInflation:
         """
         # Mock `_data` to include data for both countries
         wfp_inflation_post_load._data["Headline inflation (YoY)"] = {
-            "USA": pd.DataFrame({"date": ["2023-10-01"], "value": [10]}),
-            "CAN": pd.DataFrame({"date": ["2023-10-01"], "value": [20]}),
+            "CAN": pd.DataFrame({"date": ["2023-10-01"], "value": [10]}),
+            "USA": pd.DataFrame({"date": ["2023-10-01"], "value": [20]}),
         }
 
         # Mock `convert_countries_to_unique_list` and `load_data`
         with mock.patch(
             "bblocks_data_importers.utilities.convert_countries_to_unique_list",
-            return_value=["USA", "CAN"],
+            return_value=["CAN", "USA"],
         ) as mock_convert, mock.patch.object(
             wfp_inflation_post_load, "load_data"
         ) as mock_load_data:
             # Call `get_data` with mixed country formats
             result = wfp_inflation_post_load.get_data(
                 indicators="Headline inflation (YoY)",
-                countries=["United States", "CAN"],
+                countries=["CAN", "United States"],
             )
 
             # Expected DataFrame
@@ -801,12 +801,12 @@ class TestInflation:
             pd.testing.assert_frame_equal(result, expected_df)
 
             # Ensure `convert_countries_to_unique_list` was called with mixed formats
-            # mock_convert.assert_called_once_with(["United States", "CAN"], to="ISO3")
+            # mock_convert.assert_called_once_with(["CAN", "United States"], to="ISO3")
 
             # Ensure `load_data` was called with the resolved ISO3 codes
             mock_load_data.assert_called_once_with(
                 indicator_name="Headline inflation (YoY)",
-                iso3_codes=["USA", "CAN"],
+                iso3_codes=["CAN", "USA"],
             )
 
     def test_clear_cache(self, wfp_inflation_post_load):
@@ -1677,21 +1677,21 @@ class TestFoodSecurity:
         """
         # Mock `_data` to include data for both countries
         wfp_foodsecurity_post_load._data["national"] = {
-            "USA": pd.DataFrame({"date": ["2023-10-01"], "value": [10]}),
-            "CAN": pd.DataFrame({"date": ["2023-10-01"], "value": [20]}),
+            "CAN": pd.DataFrame({"date": ["2023-10-01"], "value": [10]}),
+            "USA": pd.DataFrame({"date": ["2023-10-01"], "value": [20]}),
         }
 
         # Mock `convert_countries_to_unique_list` and `_load_data`
         with mock.patch(
             "bblocks_data_importers.utilities.convert_countries_to_unique_list",
-            return_value=["USA", "CAN"],  # Correct the target path here
+            return_value=["CAN", "USA"],  # Correct the target path here
         ) as mock_convert, mock.patch.object(
             wfp_foodsecurity_post_load, "_load_data"
         ) as mock_load_data:
 
             # Call `get_data` with mixed country formats
             result = wfp_foodsecurity_post_load.get_data(
-                countries=["United States", "CAN"], level="national"
+                countries=["CAN", "United States"], level="national"
             )
 
             # Expected DataFrame
@@ -1713,10 +1713,10 @@ class TestFoodSecurity:
             pd.testing.assert_frame_equal(result, expected_df)
 
             # Ensure `convert_countries_to_unique_list` was called with mixed formats
-            # mock_convert.assert_called_once_with(["United States", "CAN"], to="ISO3")
+            # mock_convert.assert_called_once_with(["CAN", "United States"], to="ISO3")
 
             # Ensure `_load_data` was called with the resolved ISO3 codes
-            mock_load_data.assert_called_once_with(["USA", "CAN"], "national")
+            mock_load_data.assert_called_once_with(["CAN", "USA"], "national")
 
     def test_clear_cache(self, wfp_foodsecurity_post_load):
         """
