@@ -215,7 +215,7 @@ def test_extract_countries_exception(mock_request_countries):
             extract_countries()
 
 
-def test_extract_countries_chached(mock_cached_countries):
+def test_extract_countries_cached(mock_cached_countries):
     """
     Test that `extract_countries` function uses cached countries without making a request.
     """
@@ -242,6 +242,7 @@ def test_extract_countries_chached(mock_cached_countries):
 
 
 class TestInflation:
+    """Test class for the WFPInflation class."""
 
     def test_init(self, wfp_inflation):
         """
@@ -261,7 +262,7 @@ class TestInflation:
             "Food inflation": {},
         }
 
-    def test_share_chached_countries(self):
+    def test_share_cached_countries(self):
         """
         Test that the global `_cached_countries` variable is shared with the WFPInflation class.
         """
@@ -786,6 +787,7 @@ class TestInflation:
 
 
 class TestFoodSecurity:
+    """Test class for the WFPFoodSecurity class."""
 
     def test_init(self):
         """
@@ -818,7 +820,7 @@ class TestFoodSecurity:
             }
         }
 
-    def test_load_available_countries_chached(
+    def test_load_available_countries_cached(
         self, mock_cached_countries, wfp_foodsecurity
     ):
         """
@@ -834,7 +836,7 @@ class TestFoodSecurity:
             assert wfp_foodsecurity._countries["VNM"]["country_name"] == "Vietnam"
             mock_get.assert_not_called()
 
-    def test_share_chached_countries(self):
+    def test_share_cached_countries(self):
         """
         Test that the global `_cached_countries` variable is shared with the WFPFoodSecurity class.
         """
