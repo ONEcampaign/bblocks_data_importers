@@ -764,12 +764,11 @@ class TestInflation:
         Test that `get_data` handles a mix of ISO3 codes and full country names correctly.
         """
         # Mock `convert_countries_to_unique_list` and `_load_data`
-        with mock.patch.object(
-            wfp_inflation_post_load, "load_data"
-        ):
+        with mock.patch.object(wfp_inflation_post_load, "load_data"):
             # Call `get_data` with mixed country formats
             wfp_inflation_post_load.get_data(
-                countries=["United States", "CAN"], indicators="Headline inflation (YoY)"
+                countries=["United States", "CAN"],
+                indicators="Headline inflation (YoY)",
             )
 
             result = wfp_inflation_post_load._countries
@@ -1638,16 +1637,13 @@ class TestFoodSecurity:
 
             # Ensure `_load_data` is called with the country wrapped in a list
             mock_load_data.assert_called_once_with(["USA"], "national")
-            
 
     def test_get_data_mixed_country_formats(self, wfp_foodsecurity_post_load):
         """
         Test that `get_data` handles a mix of ISO3 codes and full country names correctly.
         """
         # Mock `convert_countries_to_unique_list` and `_load_data`
-        with mock.patch.object(
-            wfp_foodsecurity_post_load, "_load_data"
-        ):
+        with mock.patch.object(wfp_foodsecurity_post_load, "_load_data"):
             # Call `get_data` with mixed country formats
             wfp_foodsecurity_post_load.get_data(
                 countries=["CAN", "United States"], level="national"
@@ -1657,7 +1653,6 @@ class TestFoodSecurity:
 
             assert "USA" in result
             assert "CAN" in result
-
 
     def test_clear_cache(self, wfp_foodsecurity_post_load):
         """
