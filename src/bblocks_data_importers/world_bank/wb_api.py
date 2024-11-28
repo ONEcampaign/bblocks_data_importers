@@ -240,6 +240,9 @@ class WorldBank(DataImporter):
             and len(self.config["economies"]) == 1
         ):
             self._raw_data["data"]["economy"] = self.config["economies"][0]
+            self._raw_data["data"]["Country"] = wbgapi.economy.info(
+                id=self.config["economies"][0]
+            ).items[0]["value"]
         elif isinstance(self.config["economies"], str):
             self._raw_data["economy"] = self.config["economies"]
 
@@ -269,6 +272,10 @@ class WorldBank(DataImporter):
         """
         # Ensure series is a list
         series = [series] if isinstance(series, str) else series
+
+        # validate config
+        if config is None:
+            config = {}
 
         # Check that all configuration keys are valid
         if not set(config.keys()).issubset(self._valid_config_keys):
