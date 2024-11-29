@@ -106,7 +106,7 @@ class WorldBank(DataImporter):
             "years": "all",
             "database": 2,
             "most_recent_non_empty_value": False,
-            "most_recent_value": False,
+            "most_recent_value": None,
             "api_params": {},
         }
 
@@ -144,23 +144,24 @@ class WorldBank(DataImporter):
 
         self.config["years"] = years
 
-    def set_most_recent_non_empty_value(self, value: bool) -> None:
-        """Set whether to fetch the most recent non-empty value.
+    def set_most_recent_non_empty_value(self, values: int) -> None:
+        """Set the number of most recent non-empty values to fetch.
 
         Args:
-            value (bool): Whether to fetch the most recent non-empty value.
+            value (int): How many most recent non-empty values to fetch.
 
         """
-        self.config["most_recent_non_empty_value"] = value
+        self.config["most_recent_non_empty_value"] = values
 
-    def set_most_recent_value(self, value: bool) -> None:
+    def set_most_recent_values_to_get(self, values: int) -> None:
         """Set whether to fetch the most recent value.
 
         Args:
-            value (bool): Whether to fetch the most recent value.
+            value (int): How many most recent values to fetch.
 
         """
-        self.config["most_recent_value"] = value
+
+        self.config["most_recent_value"] = values
 
     def set_api_params(self, params: dict) -> None:
         """Set additional parameters for the API request.
@@ -277,31 +278,53 @@ class WorldBank(DataImporter):
         """Get a mapping of World Bank economy codes to names."""
         return self.get_economies_metadata(labels=False)["name"].to_dict()
 
+    def add_entity_names(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Add entity names to the data.
+
+        Args:
+            data (pd.DataFrame): The data to add entity names to.
+
+        Returns:
+            pd.DataFrame: The data with entity names added.
+        """
+        # insert entity names right after entity codes
+        mapping = self.wb_codes_to_names_mapping()
+
+        # Find the index of entity_code
+        idx = data.columns.get_loc(Fields.entity_code)
+
+        # Insert entity_name column
+        data.insert(idx + 1, Fields.entity_name, data[Fields.entity_code].map(mapping))
+
+        return data
+
     def _clean_data(self) -> None:
         """Clean the raw data by renaming columns, melting, and enforcing types."""
 
         # Drop duplicate time column
-        data = self._raw_data["data"].drop(columns=["Time"], errors="ignore")
+        data = self._raw_data["data"].drop(columns=["index"], errors="ignore")
 
         # rename columns
-        data.rename(
-            columns={
-                "time": Fields.year,
-                "economy": Fields.entity_code,
-                "Country": Fields.country_name,
-                "counterpart_area": Fields.counterpart_code,
-                "Counterpart-Area": Fields.counterpart_name,
-            },
-            inplace=True,
+        data = (
+            data.rename(
+                columns={
+                    "time": Fields.year,
+                    "economy": Fields.entity_code,
+                    "counterpart_area": Fields.counterpart_code,
+                    "series": Fields.indicator_code,
+                },
+            )
+            .set_index([Fields.year, Fields.entity_code, Fields.indicator_code])
+            .reset_index()
         )
 
-        if self.config["database"] == 6:
-            idx = Fields.get_ids_idx()
-        else:
-            idx = Fields.get_base_idx()
+        # Add entity names
+        data = self.add_entity_names(data)
 
-        data = data.melt(
-            id_vars=idx, var_name=Fields.indicator_code, value_name=Fields.value
+        idx = (
+            Fields.get_ids_idx()
+            if self.config["database"] == 6
+            else Fields.get_base_idx()
         )
 
         # Enforce types
@@ -341,7 +364,7 @@ class WorldBank(DataImporter):
         self._raw_data["config"] = self.config
 
         # Fetch the indicator data from World Bank API, clean and structure it
-        self._raw_data["data"] = wbgapi.data.DataFrame(
+        self._raw_data["data"] = wbgapi.data.FlatFrame(
             series=series,
             db=self.config["database"],
             economy=self.config["economies"],
@@ -349,29 +372,9 @@ class WorldBank(DataImporter):
             mrnev=self.config["most_recent_non_empty_value"],
             mrv=self.config["most_recent_value"],
             params=self.config["api_params"],
-            columns="series",
             skipBlanks=True,
-            numericTimeKeys=True,
-            labels=True,
+            labels=False,
         ).reset_index()
-
-        # If only one year is requested, the response will not include the year column
-        # In this case, add the year to the DataFrame
-        if len(self.config["years"]) == 1:
-            self._raw_data["data"]["time"] = list(self.config["years"])[0]
-
-        # If only one economy is requested, the response will not include the economy column
-        # In this case, add the economy to the DataFrame
-        if (
-            isinstance(self.config["economies"], list)
-            and len(self.config["economies"]) == 1
-        ):
-            self._raw_data["data"]["economy"] = self.config["economies"][0]
-            self._raw_data["data"]["Country"] = wbgapi.economy.info(
-                id=self.config["economies"][0]
-            ).items[0]["value"]
-        elif isinstance(self.config["economies"], str):
-            self._raw_data["economy"] = self.config["economies"]
 
         logger.info("Data successfully fetched from World Bank API")
 
