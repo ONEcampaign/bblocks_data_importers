@@ -1,13 +1,13 @@
 [![PyPI](https://img.shields.io/pypi/v/bblocks_data_importers.svg)](https://pypi.org/project/bblocks_data_importers/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/bblocks_data_importers.svg)](https://pypi.org/project/bblocks_data_importers/)
-[![Documentation Status](https://readthedocs.org/projects/bblocks_data_importers/badge/?version=latest)](https://bblocks_data_importers.readthedocs.io/en/latest/?badge=latest)
+[![Documentation Status](https://readthedocs.org/projects/bblocks-data-importers/badge/?version=latest)](https://bblocks-data-importers.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/ONEcampaign/bblocks_data_importers/branch/main/graph/badge.svg?token=YN8S1719NH)](https://codecov.io/gh/ONEcampaign/bblocks_data_importers)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 
 # bblocks_data_importers
 
-A package to import data
+A package to import data from major humanitarian, development and financial institutions.
 
 ## Installation
 
@@ -15,9 +15,25 @@ A package to import data
 $ pip install bblocks_data_importers
 ```
 
-## Usage
+## Example Usage
 
-- TODO
+Import the package and use the various importer objects to access data from different sources.
+
+```python
+import bblocks_data_importers as bbdata
+```
+
+To access data from the IMF's World Economic Outlook use a WEO object:
+
+```python
+weo = bbdata.WEO() # Create a WEO object
+df = weo.get_data() # Get the data as a pandas DataFrame
+```
+
+Available importers include:
+- `WEO` to access the IMF's World Economic Outlook
+- `GHED` to access WHO's Global Health Expenditure Database
+
 
 ## Contributing
 

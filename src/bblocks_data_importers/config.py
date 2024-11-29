@@ -71,6 +71,8 @@ class Fields:
 
     # value fields
     value = "value"
+    value_upper = "value_upper"
+    value_lower = "value_lower"
 
     # country, region and other entity names
     country_name = "country_name"
@@ -84,12 +86,17 @@ class Fields:
     counterpart_code = "counterpart_code"
     counterpart_name = "counterpart_name"
 
-    # other fields
+    # time fields
     year = "year"
+    date = "date"
+
+    # other fields
     indicator_code = "indicator_code"
     indicator_name = "indicator_name"
     unit = "unit"
     currency = "currency"
+    source = "source"
+    data_type = "data_type"
 
     @classmethod
     def get_base_idx(cls):
@@ -104,3 +111,9 @@ class Fields:
             cls.counterpart_code,
             cls.counterpart_name,
         ]
+    
+class Units:
+    """A class to store the units of measurement for the data"""
+
+    percent = "percent"
+
