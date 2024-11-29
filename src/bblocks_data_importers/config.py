@@ -68,7 +68,6 @@ weo_version = Literal["latest"] | tuple[Literal["April", "October"], int]
 
 
 class Fields:
-
     # value fields
     value = "value"
     value_upper = "value_upper"
@@ -111,9 +110,9 @@ class Fields:
             cls.counterpart_code,
             cls.counterpart_name,
         ]
-    
+
+
 class Units:
     """A class to store the units of measurement for the data"""
 
     percent = "percent"
-
