@@ -35,6 +35,7 @@ class Paths:
 
     project = Path(__file__).resolve().parent.parent
     data = project / "bblocks_data_importers" / ".data"
+    wb_importer = project / "bblocks_data_importers" / "world_bank"
 
 
 class DataExtractionError(Exception):
@@ -80,6 +81,8 @@ class Fields:
     iso2_code = "iso2_code"
     iso3_code = "iso3_code"
     entity_code = "entity_code"
+    counterpart_code = "counterpart_code"
+    counterpart_name = "counterpart_name"
 
     # other fields
     year = "year"
@@ -87,3 +90,17 @@ class Fields:
     indicator_name = "indicator_name"
     unit = "unit"
     currency = "currency"
+
+    @classmethod
+    def get_base_idx(cls):
+        return [cls.year, cls.entity_code, cls.country_name]
+
+    @classmethod
+    def get_ids_idx(cls):
+        return [
+            cls.year,
+            cls.entity_code,
+            cls.country_name,
+            cls.counterpart_code,
+            cls.counterpart_name,
+        ]
