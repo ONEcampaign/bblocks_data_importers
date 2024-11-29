@@ -1,5 +1,6 @@
 import pytest
 
+from bblocks_data_importers.world_bank.ids import InternationalDebtStatistics
 from bblocks_data_importers.world_bank.wb_api import WorldBank
 
 
@@ -58,3 +59,27 @@ def test_get_african_countries():
     wb = WorldBank()
     countries = wb.get_african_countries()
     assert 50 < len(countries) < 60
+
+
+def test_get_data_ids_data():
+    wb = InternationalDebtStatistics()
+    wb.set_economies("GTM")
+    wb.set_years(2024)
+    debt_service = wb.debt_service_indicators(detailed_category=True)
+    assert len(debt_service) > 0
+    data = wb.get_data(series=list(debt_service))
+
+    assert "counterpart_code" in data.columns
+    assert "counterpart_name" in data.columns
+    assert "counterpart_entity_code" in data.columns
+    assert "DT.AMT.BLAT.CD" in data["indicator_code"].unique()
+
+
+def test_get_data_ids_debt_stocks_data():
+    wb = InternationalDebtStatistics()
+    wb.set_economies("GTM")
+    wb.set_years(2021)
+
+    data = wb.get_debt_stocks_data(detailed_category=False)
+
+    assert "Private" in data["indicator"].unique()
