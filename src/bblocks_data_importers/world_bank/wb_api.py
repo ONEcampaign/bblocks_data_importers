@@ -70,6 +70,15 @@ class WorldBank(DataImporter):
         set_api_params(params: dict) -> None:
             Sets additional parameters for the World Bank API request.
 
+        search_indicators(query: str) -> dict:
+            Searches for indicators by name and returns a dictionary with the indicator IDs and names.
+
+        get_countries_by_income_level() -> dict:
+            Returns a dictionary of countries by income level.
+
+        get_economies_metadata(id: str | list = "all", labels: bool = True, skip_aggregates: bool = False) -> pd.DataFrame:
+            Returns metadata for the specified economies.
+
         clear_cache() -> None:
             Clears the cache of loaded data and configurations.
     """
@@ -109,6 +118,7 @@ class WorldBank(DataImporter):
 
         """
         self.config["database"] = database
+        self.api.db = database
 
     def set_economies(self, economies: str | list[str]) -> None:
         """Set the economies to fetch data for.
@@ -117,6 +127,9 @@ class WorldBank(DataImporter):
             economies (str | list[str]): The economies to fetch data for.
 
         """
+        if isinstance(economies, str) and economies.lower() != "all":
+            economies = [economies]
+
         self.config["economies"] = economies
 
     def set_years(self, years: str | int | list[int] | Iterable) -> None:
@@ -126,6 +139,9 @@ class WorldBank(DataImporter):
             years (str | int | list[int] | Iterable): The years to fetch data for.
 
         """
+        if isinstance(years, int):
+            years = [years]
+
         self.config["years"] = years
 
     def set_most_recent_non_empty_value(self, value: bool) -> None:
@@ -155,6 +171,112 @@ class WorldBank(DataImporter):
         """
         self.config["api_params"] = params
 
+    def search_indicators(self, query: str) -> dict:
+        """Search for indicators by name. It looks in the currently selected database.
+
+        Args:
+            query (str): The query to search for.
+
+        Returns:
+            dict: A dictionary with the indicator IDs as keys and their names as values.
+        """
+
+        return self.api.series.Series(q=f"!{query}").to_dict()
+
+    def get_countries_by_income_level(self) -> dict:
+        """Get a dictionary of countries by income level."""
+
+        income_levels = self.api.income.Series().to_dict()
+
+        return {
+            value: self.api.income.members(id=key)
+            for key, value in income_levels.items()
+        }
+
+    def get_countries_by_lending_type(self) -> dict:
+        """Get a dictionary of countries by lending type."""
+
+        lending_types = self.api.lending.Series().to_dict()
+
+        return {
+            value: self.api.lending.members(id=key)
+            for key, value in lending_types.items()
+        }
+
+    def get_hipc_countries(self) -> list[str]:
+        """Get a list of Heavily Indebted Poor Countries (HIPC)."""
+        return list(self.api.region.members(id="HPC"))
+
+    def get_ldc_countries(self) -> list[str]:
+        """Get a list of Least Developed Countries (LDC)."""
+        return list(self.api.region.members(id="LDC"))
+
+    def get_countries_by_region(self) -> dict:
+        """Get a dictionary of countries by region.
+
+        There are over 40 regions in the World Bank API. This method may take
+        a while to run if all regions are fetched.
+        """
+
+        logger.info(
+            "Fetching countries by region. There are over 40 regions, so this may take a while."
+        )
+
+        regions = self.api.region.Series().to_dict()
+
+        return {
+            value: self.api.region.members(id=key) for key, value in regions.items()
+        }
+
+    def get_african_countries(self) -> list[str]:
+        """Get a list of African economies."""
+        return list(self.api.region.members(id="AFR"))
+
+    def get_sub_saharan_african_countries(self) -> list[str]:
+        """Get a list of Sub-Saharan African economies."""
+        return list(self.api.region.members(id="SSF"))
+
+    def get_sub_saharan_african_countries_excluding_high_income(self) -> list[str]:
+        """Get a list of Sub-Saharan African economies excluding high-income countries."""
+        return list(self.api.region.members(id="SSA"))
+
+    def get_wb_fragile_and_conflict_affected_countries(self) -> list[str]:
+        """Get a list of fragile and conflict-affected economies."""
+        return list(self.api.region.members(id="FCS"))
+
+    def get_economies_metadata(
+        self, id: str | list = "all", labels: bool = True, skip_aggregates: bool = False
+    ) -> pd.DataFrame:
+        """Get metadata for the specified economies.
+
+        Args:
+            id (str | list): The ID(s) of the economies to fetch metadata for. Default is 'all'.
+            labels (bool): Whether produce the dataframe with codes or labels.
+            skip_aggregates (bool): Whether to skip groupings of countries.
+
+        Returns:
+            pd.DataFrame: A DataFrame with the metadata for the specified economies.
+
+        """
+        return self.api.economy.DataFrame(
+            id=id, labels=labels, skipAggs=skip_aggregates
+        )
+
+    def get_indicator_metadata(self, indicator: str):
+        """Get metadata for the specified indicator.
+
+        Args:
+            indicator (str): The indicator code to fetch metadata for.
+
+        Returns:
+            dict: A dictionary with the metadata for the specified indicator.
+        """
+        return self.api.series.metadata.get(id=indicator).metadata
+
+    def wb_codes_to_names_mapping(self) -> dict:
+        """Get a mapping of World Bank economy codes to names."""
+        return self.get_economies_metadata(labels=False)["name"].to_dict()
+
     def _clean_data(self) -> None:
         """Clean the raw data by renaming columns, melting, and enforcing types."""
 
@@ -167,12 +289,17 @@ class WorldBank(DataImporter):
                 "time": Fields.year,
                 "economy": Fields.entity_code,
                 "Country": Fields.country_name,
+                "counterpart_area": Fields.counterpart_code,
+                "Counterpart-Area": Fields.counterpart_name,
             },
             inplace=True,
         )
 
-        # melt the DataFrame
-        idx = [Fields.year, Fields.entity_code, Fields.country_name]
+        if self.config["database"] == 6:
+            idx = Fields.get_ids_idx()
+        else:
+            idx = Fields.get_base_idx()
+
         data = data.melt(
             id_vars=idx, var_name=Fields.indicator_code, value_name=Fields.value
         )
@@ -231,7 +358,7 @@ class WorldBank(DataImporter):
         # If only one year is requested, the response will not include the year column
         # In this case, add the year to the DataFrame
         if len(self.config["years"]) == 1:
-            self._raw_data["time"] = list(self.config["years"])[0]
+            self._raw_data["data"]["time"] = list(self.config["years"])[0]
 
         # If only one economy is requested, the response will not include the economy column
         # In this case, add the economy to the DataFrame
