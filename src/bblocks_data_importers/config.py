@@ -99,17 +99,11 @@ class Fields:
 
     @classmethod
     def get_base_idx(cls):
-        return [cls.year, cls.entity_code, cls.country_name]
+        return [cls.year, cls.entity_code, cls.entity_name]
 
     @classmethod
     def get_ids_idx(cls):
-        return [
-            cls.year,
-            cls.entity_code,
-            cls.country_name,
-            cls.counterpart_code,
-            cls.counterpart_name,
-        ]
+        return [cls.year, cls.entity_code, cls.entity_name, cls.counterpart_code]
 
 
 class Units:
