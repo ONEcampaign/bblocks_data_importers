@@ -167,12 +167,15 @@ class InternationalDebtStatistics(WorldBank):
 
         return data
 
-    @wraps(WorldBank.get_data)
-    def get_data(self, series: str | list[str], config: Optional[dict] = None):
+    def add_counterpart_iso3_codes(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Add counterpart ISO3 codes to the data.
 
-        # Get data
-        data = super().get_data(series, config)
+        Args:
+            data: The data to add counterpart ISO3 codes to.
 
+        Returns:
+            The data with counterpart ISO3 codes added.
+        """
         # Insert counterpart_entity_code column right after counterpart_code
         mapping = self.counterpart_names_to_entity_codes()
 
@@ -182,6 +185,41 @@ class InternationalDebtStatistics(WorldBank):
         # Insert counterpart_name column
         data.insert(
             idx + 1, "counterpart_entity_code", data["counterpart_code"].map(mapping)
+        )
+
+        return data
+
+    def add_counterpart_names(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Add counterpart names to the data.
+
+        Args:
+            data: The data to add counterpart names to.
+
+        Returns:
+            The data with counterpart names added.
+        """
+        # Insert counterpart_entity_code column right after counterpart_code
+        mapping = self.api.Series(
+            self.api.source.features("counterpart_area")
+        ).to_dict()
+
+        # Find the index of counterpart_code
+        idx = data.columns.get_loc("counterpart_code")
+
+        # Insert counterpart_name column
+        data.insert(idx + 1, "counterpart_name", data["counterpart_code"].map(mapping))
+
+        return data
+
+    @wraps(WorldBank.get_data)
+    def get_data(self, series: str | list[str], config: Optional[dict] = None):
+
+        # Get data
+        data = (
+            super()
+            .get_data(series, config)
+            .pipe(self.add_counterpart_names)
+            .pipe(self.add_counterpart_iso3_codes)
         )
 
         return data
