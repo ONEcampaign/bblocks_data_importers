@@ -389,8 +389,8 @@ class WorldBank(DataImporter):
     def get_data(
         self,
         series: str | list[str],
-        years: Optional[Literal["all"] | int | list[int] | Iterable] = "all",
-        economies: Optional[str | list[str] | Literal["all"]] = "all",
+        years: Optional[Literal["all"] | int | list[int] | Iterable] = None,
+        economies: Optional[str | list[str] | Literal["all"]] = None,
         config: Optional[dict] = None,
     ) -> pd.DataFrame:
         """Fetches and returns data for the specified indicator series.
@@ -418,8 +418,10 @@ class WorldBank(DataImporter):
             economies = [economies]
 
         # Set config overrides
-        config["economies"] = economies
-        config["years"] = years
+        if years is not None:
+            config["years"] = years
+        if economies is not None:
+            config["economies"] = economies
 
         # Check that all configuration keys are valid
         if not set(config.keys()).issubset(self._valid_config_keys):
