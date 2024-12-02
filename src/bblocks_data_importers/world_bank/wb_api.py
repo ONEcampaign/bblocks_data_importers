@@ -10,7 +10,7 @@ First instantiate an importer object:
 >>> wb = WorldBank()
 """
 
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Literal
 
 import pandas as pd
 import wbgapi
@@ -387,13 +387,21 @@ class WorldBank(DataImporter):
         logger.info("Cache cleared")
 
     def get_data(
-        self, series: str | list[str], config: Optional[dict] = None
+        self,
+        series: str | list[str],
+        years: Optional[Literal["all"] | int | list[int] | Iterable] = "all",
+        economies: Optional[str | list[str] | Literal["all"]] = "all",
+        config: Optional[dict] = None,
     ) -> pd.DataFrame:
         """Fetches and returns data for the specified indicator series.
 
         Args:
             series (str | list[str]): The indicator code(s) to retrieve.
             Can be a single string or a list of strings.
+            years (Optional[str | int | list[int] | Iterable]): The years to fetch data for.
+            Default is 'all'.
+            economies (Optional[str | list[str] | Literal["all"]]): The economies to fetch data for.
+            Default is 'all'.
             config (Optional[dict]): Optional configuration settings for fetching data,
             such as API parameters.
 
@@ -403,9 +411,15 @@ class WorldBank(DataImporter):
         # Ensure series is a list
         series = [series] if isinstance(series, str) else series
 
-        # validate config
         if config is None:
             config = {}
+
+        if isinstance(economies, str) and economies.lower() != "all":
+            economies = [economies]
+
+        # Set config overrides
+        config["economies"] = economies
+        config["years"] = years
 
         # Check that all configuration keys are valid
         if not set(config.keys()).issubset(self._valid_config_keys):

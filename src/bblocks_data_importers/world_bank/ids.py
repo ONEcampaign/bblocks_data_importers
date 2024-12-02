@@ -69,6 +69,12 @@ class InternationalDebtStatistics(WorldBank):
         super().__init__()
         self.set_database(6)
 
+    def set_database(self, database: int) -> None:
+        """Overrides the database to be used. This cannot be done with the IDS class."""
+        raise ValueError(
+            "The database cannot be changed for the International Debt Statistics database."
+        )
+
     @property
     def latest_update(self):
         return self.api.source.info(id=self.config["database"]).items[0]["lastupdated"]
