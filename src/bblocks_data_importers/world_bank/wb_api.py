@@ -21,7 +21,7 @@ from bblocks_data_importers.data_validators import DataFrameValidator
 from bblocks_data_importers.utilities import convert_dtypes
 
 
-class WorldBank():
+class WorldBank:
     """World Bank Data Importer.
 
     This class provides a simplified interface for fetching and managing data from the World Bank databases.
