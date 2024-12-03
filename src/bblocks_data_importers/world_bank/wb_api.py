@@ -195,13 +195,7 @@ class WorldBank(DataImporter):
             dict | Featureset: A dictionary or Featureset object with the available databases.
             Featureset objects show up nicely on the console and contain additional information.
         """
-        if as_dict:
-            return self.api.source.Series().to_dict()
-
-        # Otherwise print and return the featureset
-        dbs = self.api.source.info()
-        print(dbs)
-        return dbs
+        return self.api.source.Series().to_dict() if as_dict else self.api.source.info()
 
     def get_countries_by_income_level(self) -> dict:
         """Get a dictionary of countries by income level."""
