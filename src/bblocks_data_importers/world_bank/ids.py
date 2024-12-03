@@ -68,6 +68,7 @@ class InternationalDebtStatistics(WorldBank):
     def __init__(self):
         super().__init__()
         self.set_database(6)
+        self.config["api_params"]["per_page"] = 50_000_000
 
     @property
     def latest_update(self):
@@ -78,7 +79,9 @@ class InternationalDebtStatistics(WorldBank):
         return self.api.series.Series().to_dict()
 
     @staticmethod
-    def debt_service_indicators(detailed_category: bool = False):
+    def debt_service_indicators(
+        detailed_category: bool = False,
+    ):
         """Fetch debt service indicators.
 
         Args:
@@ -127,11 +130,22 @@ class InternationalDebtStatistics(WorldBank):
             k: names_to_iso3.get(v) for k, v in codes_to_names.items()
         } | additional_mapping
 
-    def get_debt_service_data(self, detailed_category: bool = False):
+    def get_debt_service_data(
+        self,
+        detailed_category: bool = False,
+        years: Optional[Literal["all"] | int | list[int] | Iterable] = None,
+        economies: Optional[str | list[str] | Literal["all"]] = None,
+    ):
         """Get debt service data.
 
         Args:
             detailed_category: whether to return detailed categories or not.
+            years: Optional[Literal["all"] | int | list[int] | Iterable]: Optionally, set the years to
+             fetch data for. Specifying years here will override the instance configuration.
+             All years are fetched by default
+            economies (Optional[str | list[str] | Literal["all"]]): Optionally, set the economies to
+                fetch data for. Specifying economies here will override the instance configuration.
+                All economies are fetched by default.
 
         Returns:
             A DataFrame with debt service data.
@@ -140,18 +154,29 @@ class InternationalDebtStatistics(WorldBank):
         indicators = self.debt_service_indicators(detailed_category)
 
         data = (
-            self.get_data(list(indicators))
+            self.get_data(list(indicators), years=years, economies=economies)
             .assign(indicator=lambda d: d["indicator_code"].map(indicators))
             .pipe(_group_by_indicator, remove_from_index=["indicator_code"])
         )
 
         return data
 
-    def get_debt_stocks_data(self, detailed_category: bool = False):
+    def get_debt_stocks_data(
+        self,
+        detailed_category: bool = False,
+        years: Optional[Literal["all"] | int | list[int] | Iterable] = None,
+        economies: Optional[str | list[str] | Literal["all"]] = None,
+    ):
         """Get debt stocks data.
 
         Args:
             detailed_category: whether to return detailed categories or not.
+            years: Optional[Literal["all"] | int | list[int] | Iterable]: Optionally, set the years to
+             fetch data for. Specifying years here will override the instance configuration.
+             All years are fetched by default
+            economies (Optional[str | list[str] | Literal["all"]]): Optionally, set the economies to
+                fetch data for. Specifying economies here will override the instance configuration.
+                All economies are fetched by default.
 
         Returns:
             A DataFrame with debt stocks data.
@@ -160,7 +185,7 @@ class InternationalDebtStatistics(WorldBank):
         indicators = self.debt_stocks_indicators(detailed_category)
 
         data = (
-            self.get_data(list(indicators))
+            self.get_data(list(indicators), years=years, economies=economies)
             .assign(indicator=lambda d: d["indicator_code"].map(indicators))
             .pipe(_group_by_indicator, remove_from_index=["indicator_code"])
         )
@@ -222,9 +247,10 @@ class InternationalDebtStatistics(WorldBank):
         # Get data
         data = (
             super()
-            .get_data(series, config)
+            .get_data(series=series, years=years, economies=economies, config=config)
             .pipe(self.add_counterpart_names)
             .pipe(self.add_counterpart_iso3_codes)
         )
 
         return data
+ids = InternationalDebtStatistics().get_data("DT.CUR.EURO.ZS")
