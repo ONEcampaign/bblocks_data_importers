@@ -1,6 +1,6 @@
 import json
 from functools import wraps
-from typing import Optional
+from typing import Optional, Literal, Iterable
 
 import pandas as pd
 
@@ -212,8 +212,13 @@ class InternationalDebtStatistics(WorldBank):
         return data
 
     @wraps(WorldBank.get_data)
-    def get_data(self, series: str | list[str], config: Optional[dict] = None):
-
+    def get_data(
+        self,
+        series: str | list[str],
+        years: Optional[Literal["all"] | int | list[int] | Iterable] = None,
+        economies: Optional[str | list[str] | Literal["all"]] = None,
+        config: Optional[dict] = None,
+    ):
         # Get data
         data = (
             super()

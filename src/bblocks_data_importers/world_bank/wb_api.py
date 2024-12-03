@@ -411,10 +411,12 @@ class WorldBank(DataImporter):
         Args:
             series (str | list[str]): The indicator code(s) to retrieve.
             Can be a single string or a list of strings.
-            years (Optional[str | int | list[int] | Iterable]): The years to fetch data for.
-            Default is 'all'.
-            economies (Optional[str | list[str] | Literal["all"]]): The economies to fetch data for.
-            Default is 'all'.
+            years Optional[Literal["all"] | int | list[int] | Iterable]: Optionally, set the years to
+             fetch data for. Specifying years here will override the instance configuration.
+             All years are fetched by default
+            economies (Optional[str | list[str] | Literal["all"]]): Optionally, set the economies to
+                fetch data for. Specifying economies here will override the instance configuration.
+                All economies are fetched by default.
             config (Optional[dict]): Optional configuration settings for fetching data,
             such as API parameters.
 
