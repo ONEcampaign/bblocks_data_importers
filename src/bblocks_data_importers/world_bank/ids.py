@@ -253,4 +253,3 @@ class InternationalDebtStatistics(WorldBank):
         )
 
         return data
-ids = InternationalDebtStatistics().get_data("DT.CUR.EURO.ZS")

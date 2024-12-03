@@ -16,13 +16,12 @@ import pandas as pd
 import wbgapi
 from wbgapi import Featureset
 
-from bblocks_data_importers.protocols import DataImporter
 from bblocks_data_importers.config import Fields, logger
 from bblocks_data_importers.data_validators import DataFrameValidator
 from bblocks_data_importers.utilities import convert_dtypes
 
 
-class WorldBank(DataImporter):
+class WorldBank():
     """World Bank Data Importer.
 
     This class provides a simplified interface for fetching and managing data from the World Bank databases.
@@ -411,7 +410,7 @@ class WorldBank(DataImporter):
         Args:
             series (str | list[str]): The indicator code(s) to retrieve.
             Can be a single string or a list of strings.
-            years Optional[Literal["all"] | int | list[int] | Iterable]: Optionally, set the years to
+            years: Optional[Literal["all"] | int | list[int] | Iterable]: Optionally, set the years to
              fetch data for. Specifying years here will override the instance configuration.
              All years are fetched by default
             economies (Optional[str | list[str] | Literal["all"]]): Optionally, set the economies to
