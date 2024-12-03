@@ -14,6 +14,7 @@ from typing import Iterable, Optional, Literal
 
 import pandas as pd
 import wbgapi
+from wbgapi import Featureset
 
 from bblocks_data_importers.protocols import DataImporter
 from bblocks_data_importers.config import Fields, logger
@@ -183,6 +184,24 @@ class WorldBank(DataImporter):
         """
 
         return self.api.series.Series(q=f"!{query}").to_dict()
+
+    def get_available_databases(self, as_dict: bool = True) -> dict | Featureset:
+        """Get a dictionary of available World Bank databases.
+
+        Args:
+            as_dict (bool): Whether to return the data as a dictionary or a Featureset object.
+
+        Returns:
+            dict | Featureset: A dictionary or Featureset object with the available databases.
+            Featureset objects show up nicely on the console and contain additional information.
+        """
+        if as_dict:
+            return self.api.source.Series().to_dict()
+
+        # Otherwise print and return the featureset
+        dbs = self.api.source.info()
+        print(dbs)
+        return dbs
 
     def get_countries_by_income_level(self) -> dict:
         """Get a dictionary of countries by income level."""
