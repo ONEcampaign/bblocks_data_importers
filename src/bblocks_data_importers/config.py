@@ -35,6 +35,7 @@ class Paths:
 
     project = Path(__file__).resolve().parent.parent
     data = project / "bblocks_data_importers" / ".data"
+    wb_importer = project / "bblocks_data_importers" / "world_bank"
 
 
 class DataExtractionError(Exception):
@@ -67,7 +68,6 @@ weo_version = Literal["latest"] | tuple[Literal["April", "October"], int]
 
 
 class Fields:
-
     # value fields
     value = "value"
     value_upper = "value_upper"
@@ -82,6 +82,8 @@ class Fields:
     iso2_code = "iso2_code"
     iso3_code = "iso3_code"
     entity_code = "entity_code"
+    counterpart_code = "counterpart_code"
+    counterpart_name = "counterpart_name"
 
     # time fields
     year = "year"
@@ -94,6 +96,14 @@ class Fields:
     currency = "currency"
     source = "source"
     data_type = "data_type"
+
+    @classmethod
+    def get_base_idx(cls):
+        return [cls.year, cls.entity_code, cls.entity_name]
+
+    @classmethod
+    def get_ids_idx(cls):
+        return [cls.year, cls.entity_code, cls.entity_name, cls.counterpart_code]
 
 
 class Units:
