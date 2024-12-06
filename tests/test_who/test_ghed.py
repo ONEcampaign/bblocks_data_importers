@@ -198,7 +198,7 @@ def test_format_data_missing_columns(mock_raw_data):
 
     # format the raw data to remove a required column
     raw_df = pd.read_excel(mock_raw_data, sheet_name="Data")
-    raw_df.drop(columns=["country"], inplace=True)
+    raw_df.drop(columns=["location"], inplace=True)
     modified_raw_data = io.BytesIO()
     with pd.ExcelWriter(modified_raw_data, engine="xlsxwriter") as writer:
         raw_df.to_excel(writer, sheet_name="Data")
