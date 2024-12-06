@@ -135,8 +135,8 @@ class GHED(DataImporter):
         return (
             pd.read_excel(self._raw_data, sheet_name="Data", dtype_backend="pyarrow")
             .drop(columns=["region", "income"])
-            .melt(id_vars=["country", "code", "year"], var_name="indicator_code")
-            .rename(columns={"country": Fields.country_name, "code": Fields.iso3_code})
+            .melt(id_vars=["location", "code", "year"], var_name="indicator_code")
+            .rename(columns={"location": Fields.country_name, "code": Fields.iso3_code})
             .pipe(convert_dtypes)
         )
 
@@ -189,7 +189,7 @@ class GHED(DataImporter):
         """
 
         cols = {
-            "country": Fields.country_name,
+            "location": Fields.country_name,
             "code": Fields.iso3_code,
             "variable name": Fields.indicator_name,
             "variable code": Fields.indicator_code,
@@ -197,7 +197,7 @@ class GHED(DataImporter):
             "Comments": "comments",
             "Data type": "data_type",
             "Methods of estimation": "methods_of_estimation",
-            "Country footnote": "country_footnote",
+            "Countries and territories footnote": "country_footnote",
         }
 
         try:
