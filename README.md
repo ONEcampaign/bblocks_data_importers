@@ -33,6 +33,11 @@ df = weo.get_data() # Get the data as a pandas DataFrame
 Available importers include:
 - `WEO` to access the IMF's World Economic Outlook
 - `GHED` to access WHO's Global Health Expenditure Database
+- `WFPFoodSecurity` and `WFPInflation` to access the World Food Programme's Food Security and Inflation data
+- `WorldBank` to access the World Bank data
+- `InternationalDebtStatistics` to access the World Bank's International Debt Statistics
+
+Read the documentation for more details on each importer [here](https://bblocks-data-importers.readthedocs.io/en/latest/Importers/index.html)
 
 
 ## Contributing
