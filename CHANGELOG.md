@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.2.0
+- fix field names in WEO importer - changed misleading column name `estimates_start_year` to `last_actual_date`
+
 ## v0.1.1 (6/12/2024)
 - Fix bug in `GHED` importer from changed column names in December 2024 GHED data update
 
