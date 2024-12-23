@@ -87,7 +87,7 @@ def test_format_data(mock_weo_data):
         "concept_code": Fields.indicator_code,
         "concept_label": Fields.indicator_name,
         "unit_label": Fields.unit,
-        "lastactualdate": "estimates_start_year",
+        "lastactualdate": "last_actual_date",
     }
 
     # Check that the columns have been renamed and are in lowercase
