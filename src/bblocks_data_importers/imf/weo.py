@@ -80,7 +80,7 @@ class WEO(DataImporter):
                     "CONCEPT_CODE": Fields.indicator_code,
                     "CONCEPT_LABEL": Fields.indicator_name,
                     "UNIT_LABEL": Fields.unit,
-                    "LASTACTUALDATE": "estimates_start_year",
+                    "LASTACTUALDATE": "last_actual_date",
                 }
             )
             # convert other columns to lowercase
