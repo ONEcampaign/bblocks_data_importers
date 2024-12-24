@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bblocks_data_importers"
-version = "0.2.0"
+version = "0.2.1"
 description = "A package to import data"
 authors = ["The ONE Campaign", "Luca Picci", "Jorge Rivera"]
 license = "MIT"
