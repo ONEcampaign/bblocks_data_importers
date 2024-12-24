@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.2.1
+- Made pyarrow versions more flexible for broader compatibility
+
 ## v0.2.0
 - fix field names in WEO importer - changed misleading column name `estimates_start_year` to `last_actual_date`
 
