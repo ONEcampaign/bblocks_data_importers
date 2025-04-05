@@ -1,4 +1,7 @@
-"""Human Development Index (HDI) data importer."""
+"""Human Development Index (HDI) data importer.
+
+
+"""
 
 import pandas as pd
 import requests
@@ -127,9 +130,10 @@ class HumanDevelopmentIndex(DataImporter):
         logger.info("Extracting HDI metadata")
 
         metadata_df = read_hdi_metadata(timeout=self._timeout)
+        metadata_df = clean_metadata(metadata_df)
 
-        # DataFrameValidator().validate(metadata_df, ['indicator_name', 'indicator_code'])
-        self._metadata_df = clean_metadata(metadata_df)
+        DataFrameValidator().validate(metadata_df, ['indicator_name', 'indicator_code'])
+        self._metadata_df = metadata_df
 
     def _extract_data(self) -> None:
         """Extract HDI data from the source."""
@@ -140,9 +144,11 @@ class HumanDevelopmentIndex(DataImporter):
         if self._metadata_df is None:
             self._extract_metadata()
 
-        # DataFrameValidator().validate(df, ['indicator_code', 'indicator_name', 'year', 'value', 'entity_code', 'entity_name'])
+        df = clean_data(df, self._metadata_df)
 
-        self._data_df = clean_data(df, self._metadata_df)
+        DataFrameValidator().validate(df, ['indicator_code', 'indicator_name', 'year', 'value', 'entity_code', 'entity_name'])
+
+        self._data_df = df
 
 
     def get_metadata(self) -> pd.DataFrame:
