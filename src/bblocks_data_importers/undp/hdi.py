@@ -7,6 +7,8 @@ import numpy as np
 
 from bblocks_data_importers.config import logger, DataExtractionError, Fields
 from bblocks_data_importers.protocols import DataImporter
+from bblocks_data_importers.data_validators import DataFrameValidator
+from bblocks_data_importers.utilities import convert_dtypes
 
 
 DATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv"
@@ -81,6 +83,8 @@ def clean_metadata(metadata_df: pd.DataFrame) -> pd.DataFrame:
                         "Time series": Fields.time_range,
                         "Note": Fields.notes
                         })
+    .assign(time_range = lambda d: d.time_range.astype(str))
+            .pipe(convert_dtypes)
      )
 
 
@@ -97,12 +101,13 @@ def clean_data(data_df: pd.DataFrame, metadata_df: pd.DataFrame) -> pd.DataFrame
     """
 
     return (data_df
-            .rename(columns = {'iso3': Fields.entity_code, "country": Fields.entity_name, "region": Fields.region_code})
-            .melt(id_vars = [Fields.entity_code, Fields.entity_name, Fields.region_code], var_name = Fields.indicator_code, value_name = Fields.value)
+            .rename(columns = {'iso3': Fields.entity_code, "country": Fields.entity_name, "region": Fields.region_code, "hdicode": "hdi_group"})
+            .melt(id_vars = [Fields.entity_code, Fields.entity_name, Fields.region_code, "hdi_group"], var_name = Fields.indicator_code, value_name = Fields.value)
             .assign(split=lambda d: d.indicator_code.apply(lambda x: x.rsplit('_', 1) if '_' in x else [x, np.nan]))
             .assign(indicator_code=lambda x: x['split'].str[0], year=lambda x: x['split'].str[1])
             .drop(columns=['split'])
             .assign(indicator_name= lambda d: d.indicator_code.map(metadata_df.set_index("indicator_code")['indicator_name'].to_dict()))
+            .pipe(convert_dtypes)
             )
 
 
@@ -121,6 +126,8 @@ class HumanDevelopmentIndex(DataImporter):
         logger.info("Extracting HDI metadata")
 
         metadata_df = read_hdi_metadata(timeout=self._timeout)
+
+        # DataFrameValidator().validate(metadata_df, ['indicator_name', 'indicator_code'])
         self._metadata_df = clean_metadata(metadata_df)
 
     def _extract_data(self) -> None:
@@ -131,6 +138,8 @@ class HumanDevelopmentIndex(DataImporter):
         df = read_hdi_data(timeout=self._timeout)
         if self._metadata_df is None:
             self._extract_metadata()
+
+        # DataFrameValidator().validate(df, ['indicator_code', 'indicator_name', 'year', 'value', 'entity_code', 'entity_name'])
 
         self._data_df = clean_data(df, self._metadata_df)
 
