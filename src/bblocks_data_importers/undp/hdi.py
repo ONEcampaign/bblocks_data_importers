@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 import io
 
-from bblocks_data_importers.config import logger, DataExtractionError
+from bblocks_data_importers.config import logger, DataExtractionError, Fields
 
 
 DATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv"
@@ -60,3 +60,25 @@ def read_hdi_metadata(*, timeout: int=30) -> pd.DataFrame:
 
     except pd.errors.ParserError as e:
         raise DataExtractionError(f"Error reading HDI metadata: {e}") from e
+
+
+def clean_metadata(metadata_df: pd.DataFrame) -> pd.DataFrame:
+    """ Clean the HDI metadata DataFrame.
+
+    Args:
+        metadata_df (pd.DataFrame): The HDI metadata DataFrame.
+
+    Returns:
+        The cleaned HDI metadata DataFrame.
+    """
+
+    return (metadata_df
+     .dropna(subset="Time series")
+     .rename(columns = {'Full name': Fields.indicator_name,
+                        "Short name": Fields.indicator_code,
+                        "Time series": Fields.time_range,
+                        "Note": Fields.notes
+                        })
+     )
+
+

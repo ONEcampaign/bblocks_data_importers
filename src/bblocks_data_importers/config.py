@@ -96,6 +96,8 @@ class Fields:
     currency = "currency"
     source = "source"
     data_type = "data_type"
+    time_range = "time_range"
+    notes = "notes"
 
     @classmethod
     def get_base_idx(cls):
