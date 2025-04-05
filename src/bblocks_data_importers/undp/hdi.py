@@ -34,7 +34,7 @@ def _request_hdi_data(url, *, timeout: int) -> requests.Response:
         response.raise_for_status()
         return response
 
-    except requests.RequestException as e:
+    except Exception as e:
         raise DataExtractionError(f"Error requesting HDI data: {e}") from e
 
 
@@ -62,7 +62,7 @@ def read_hdi_metadata(*, timeout: int=30) -> pd.DataFrame:
         metadata = pd.read_excel(io.BytesIO(response.content))
         return metadata
 
-    except pd.errors.ParserError as e:
+    except (pd.errors.ParserError, ValueError) as e:
         raise DataExtractionError(f"Error reading HDI metadata: {e}") from e
 
 
@@ -104,7 +104,8 @@ def clean_data(data_df: pd.DataFrame, metadata_df: pd.DataFrame) -> pd.DataFrame
             .rename(columns = {'iso3': Fields.entity_code, "country": Fields.entity_name, "region": Fields.region_code, "hdicode": "hdi_group"})
             .melt(id_vars = [Fields.entity_code, Fields.entity_name, Fields.region_code, "hdi_group"], var_name = Fields.indicator_code, value_name = Fields.value)
             .assign(split=lambda d: d.indicator_code.apply(lambda x: x.rsplit('_', 1) if '_' in x else [x, np.nan]))
-            .assign(indicator_code=lambda x: x['split'].str[0], year=lambda x: x['split'].str[1])
+            .assign(indicator_code=lambda x: x['split'].str[0],
+                    year=lambda x: x['split'].str[1].astype("int", errors="ignore"))
             .drop(columns=['split'])
             .assign(indicator_name= lambda d: d.indicator_code.map(metadata_df.set_index("indicator_code")['indicator_name'].to_dict()))
             .pipe(convert_dtypes)
