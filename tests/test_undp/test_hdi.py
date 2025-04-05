@@ -35,12 +35,17 @@ def mock_hdi_metadata_content():
     Mock Excel content for HDI metadata.
     Typically includes columns like 'Full name', 'Short name', 'Time series', 'Note'.
     """
-    metadata_df = pd.DataFrame({
-        "Full name": ["Human Development Index", "Inequality Index"],
-        "Short name": ["HDI", "INEQUALITY_INDEX"],
-        "Time series": ["1990-2023", "1990-2023"],
-        "Note": ["Composite index of life, ed, GNI", "Measures inequality dimension"]
-    })
+    metadata_df = pd.DataFrame(
+        {
+            "Full name": ["Human Development Index", "Inequality Index"],
+            "Short name": ["HDI", "INEQUALITY_INDEX"],
+            "Time series": ["1990-2023", "1990-2023"],
+            "Note": [
+                "Composite index of life, ed, GNI",
+                "Measures inequality dimension",
+            ],
+        }
+    )
 
     excel_buffer = BytesIO()
     with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
@@ -51,26 +56,33 @@ def mock_hdi_metadata_content():
 @pytest.fixture
 def mock_hdi_df():
     """A pandas DataFrame that simulates the raw HDI data *before* cleaning."""
-    return pd.DataFrame({
-        "iso3": ["ABC", "XYZ"],
-        "country": ["Testland", "Mockland"],
-        "region": ["TestRegion", "MockRegion"],
-        "hdicode": ["High", "Low"],
-        "HDI_2000": [0.5, 0.3],
-        "HDI_2001": [0.505, 0.305],
-        "INEQUALITY_INDEX_2000": [0.1, 0.2],
-    })
+    return pd.DataFrame(
+        {
+            "iso3": ["ABC", "XYZ"],
+            "country": ["Testland", "Mockland"],
+            "region": ["TestRegion", "MockRegion"],
+            "hdicode": ["High", "Low"],
+            "HDI_2000": [0.5, 0.3],
+            "HDI_2001": [0.505, 0.305],
+            "INEQUALITY_INDEX_2000": [0.1, 0.2],
+        }
+    )
 
 
 @pytest.fixture
 def mock_metadata_df():
     """A pandas DataFrame that simulates the metadata *before* cleaning."""
-    return pd.DataFrame({
-        "Full name": ["Human Development Index", "Inequality Index"],
-        "Short name": ["HDI", "INEQUALITY_INDEX"],
-        "Time series": ["1990-2023", "1990-2023"],
-        "Note": ["Composite index of life, ed, GNI", "Measures inequality dimension"]
-    })
+    return pd.DataFrame(
+        {
+            "Full name": ["Human Development Index", "Inequality Index"],
+            "Short name": ["HDI", "INEQUALITY_INDEX"],
+            "Time series": ["1990-2023", "1990-2023"],
+            "Note": [
+                "Composite index of life, ed, GNI",
+                "Measures inequality dimension",
+            ],
+        }
+    )
 
 
 # ------------------------------------------------------------------------------
@@ -93,7 +105,9 @@ def test_request_hdi_data_success(mock_hdi_csv_content):
 def test_request_hdi_data_failure():
     """hdi._request_hdi_data should raise DataExtractionError when requests.get fails."""
     with mock.patch("requests.get", side_effect=Exception("Network error")):
-        with pytest.raises(DataExtractionError, match="Error requesting HDI data: Network error"):
+        with pytest.raises(
+            DataExtractionError, match="Error requesting HDI data: Network error"
+        ):
             hdi._request_hdi_data(hdi.DATA_URL, timeout=5)
 
 
@@ -102,7 +116,9 @@ def test_read_hdi_data_success(mock_hdi_csv_content):
     hdi.read_hdi_data should return a DataFrame with correct shape/columns
     when it successfully reads CSV data.
     """
-    with mock.patch("bblocks_data_importers.undp.hdi._request_hdi_data") as mock_request:
+    with mock.patch(
+        "bblocks_data_importers.undp.hdi._request_hdi_data"
+    ) as mock_request:
         mock_response = mock.Mock()
         mock_response.content = mock_hdi_csv_content
         mock_request.return_value = mock_response
@@ -112,7 +128,15 @@ def test_read_hdi_data_success(mock_hdi_csv_content):
         assert isinstance(df, pd.DataFrame)
         # 2 rows, 7 columns
         assert df.shape == (2, 7)
-        expected_cols = ["iso3", "country", "region", "hdicode", "HDI_2000", "HDI_2001", "INEQUALITY_INDEX_2000"]
+        expected_cols = [
+            "iso3",
+            "country",
+            "region",
+            "hdicode",
+            "HDI_2000",
+            "HDI_2001",
+            "INEQUALITY_INDEX_2000",
+        ]
         for col in expected_cols:
             assert col in df.columns
 
@@ -124,11 +148,12 @@ def test_read_hdi_data_parser_error():
 
     # 2) Patch _request_hdi_data so it returns this mock response
     with mock.patch(
-            "bblocks_data_importers.undp.hdi._request_hdi_data",
-            return_value=mock_response
+        "bblocks_data_importers.undp.hdi._request_hdi_data", return_value=mock_response
     ):
         # 3) Force pandas.read_csv to raise a ParserError
-        with mock.patch("pandas.read_csv", side_effect=pd.errors.ParserError("Invalid CSV")):
+        with mock.patch(
+            "pandas.read_csv", side_effect=pd.errors.ParserError("Invalid CSV")
+        ):
             # 4) Now your code attempts read_csv -> hits the mock side_effect -> raises
             with pytest.raises(DataExtractionError, match="Error reading HDI data:"):
                 hdi.read_hdi_data()
@@ -136,7 +161,9 @@ def test_read_hdi_data_parser_error():
 
 def test_read_hdi_metadata_success(mock_hdi_metadata_content):
     """hdi.read_hdi_metadata should return a DataFrame with correct shape/columns on success."""
-    with mock.patch("bblocks_data_importers.undp.hdi._request_hdi_data") as mock_request:
+    with mock.patch(
+        "bblocks_data_importers.undp.hdi._request_hdi_data"
+    ) as mock_request:
         mock_response = mock.Mock()
         mock_response.content = mock_hdi_metadata_content
         mock_request.return_value = mock_response
@@ -153,7 +180,9 @@ def test_read_hdi_metadata_success(mock_hdi_metadata_content):
 
 def test_read_hdi_metadata_parser_error():
     """If the Excel is malformed, hdi.read_hdi_metadata should raise DataExtractionError."""
-    with mock.patch("bblocks_data_importers.undp.hdi._request_hdi_data") as mock_request:
+    with mock.patch(
+        "bblocks_data_importers.undp.hdi._request_hdi_data"
+    ) as mock_request:
         mock_response = mock.Mock()
         mock_response.content = b"NOT_AN_EXCEL_FILE"
         mock_request.return_value = mock_response
@@ -170,18 +199,30 @@ def test_clean_metadata(mock_metadata_df):
     - converts dtypes to pyarrow
     """
     # Add a row with NaN "Time series" to see if it's dropped
-    mock_metadata_df.loc[len(mock_metadata_df)] = ["Extra", "EXTRA_CODE", np.nan, "No time series here"]
+    mock_metadata_df.loc[len(mock_metadata_df)] = [
+        "Extra",
+        "EXTRA_CODE",
+        np.nan,
+        "No time series here",
+    ]
 
     cleaned = hdi.clean_metadata(mock_metadata_df)
     # One row should be dropped => we get 2 original rows left
     assert cleaned.shape[0] == 2, "Rows with NaN in 'Time series' should be dropped."
 
-    for col in [Fields.indicator_name, Fields.indicator_code, Fields.time_range, Fields.notes]:
+    for col in [
+        Fields.indicator_name,
+        Fields.indicator_code,
+        Fields.time_range,
+        Fields.notes,
+    ]:
         assert col in cleaned.columns, f"{col} not found in cleaned metadata columns."
 
     # Ensure arrow dtypes
     for dtype in cleaned.dtypes:
-        assert isinstance(dtype, pd.ArrowDtype), "Columns are not pyarrow dtypes in cleaned metadata."
+        assert isinstance(
+            dtype, pd.ArrowDtype
+        ), "Columns are not pyarrow dtypes in cleaned metadata."
 
 
 def test_clean_data(mock_hdi_df, mock_metadata_df):
@@ -224,7 +265,9 @@ def test_clean_data(mock_hdi_df, mock_metadata_df):
 
     # Check arrow dtypes
     for dtype in cleaned_df.dtypes:
-        assert isinstance(dtype, pd.ArrowDtype), "DataFrame columns are not pyarrow dtypes."
+        assert isinstance(
+            dtype, pd.ArrowDtype
+        ), "DataFrame columns are not pyarrow dtypes."
 
 
 # ------------------------------------------------------------------------------
@@ -233,14 +276,19 @@ def test_clean_data(mock_hdi_df, mock_metadata_df):
 @pytest.fixture
 def mock_read_hdi_data_func(mock_hdi_df):
     """Mocks hdi.read_hdi_data to return mock_hdi_df."""
-    with mock.patch("bblocks_data_importers.undp.hdi.read_hdi_data", return_value=mock_hdi_df):
+    with mock.patch(
+        "bblocks_data_importers.undp.hdi.read_hdi_data", return_value=mock_hdi_df
+    ):
         yield
 
 
 @pytest.fixture
 def mock_read_hdi_metadata_func(mock_metadata_df):
     """Mocks hdi.read_hdi_metadata to return mock_metadata_df."""
-    with mock.patch("bblocks_data_importers.undp.hdi.read_hdi_metadata", return_value=mock_metadata_df):
+    with mock.patch(
+        "bblocks_data_importers.undp.hdi.read_hdi_metadata",
+        return_value=mock_metadata_df,
+    ):
         yield
 
 
@@ -256,10 +304,12 @@ def test_extract_metadata(mock_read_hdi_metadata_func):
     hdi_importer = hdi.HumanDevelopmentIndex()
     hdi_importer._extract_metadata()
 
-    assert hdi_importer._metadata_df is not None, "Metadata DataFrame should be set after _extract_metadata()."
-    assert Fields.indicator_name in hdi_importer._metadata_df.columns, (
-        "Expected column from cleaned metadata not found."
-    )
+    assert (
+        hdi_importer._metadata_df is not None
+    ), "Metadata DataFrame should be set after _extract_metadata()."
+    assert (
+        Fields.indicator_name in hdi_importer._metadata_df.columns
+    ), "Expected column from cleaned metadata not found."
 
 
 def test_extract_data(mock_read_hdi_data_func, mock_read_hdi_metadata_func):
@@ -270,11 +320,13 @@ def test_extract_data(mock_read_hdi_data_func, mock_read_hdi_metadata_func):
     hdi_importer = hdi.HumanDevelopmentIndex()
     hdi_importer._extract_data()
 
-    assert hdi_importer._data_df is not None, "Data DataFrame should be set after _extract_data()."
+    assert (
+        hdi_importer._data_df is not None
+    ), "Data DataFrame should be set after _extract_data()."
     assert hdi_importer._metadata_df is not None, "Metadata should also be loaded."
-    assert Fields.entity_code in hdi_importer._data_df.columns, (
-        "Cleaned data missing expected columns."
-    )
+    assert (
+        Fields.entity_code in hdi_importer._data_df.columns
+    ), "Cleaned data missing expected columns."
 
 
 def test_get_metadata_cached(mock_read_hdi_metadata_func):
@@ -326,7 +378,9 @@ def test_get_data_not_cached(mock_read_hdi_data_func, mock_read_hdi_metadata_fun
     assert hdi_importer._data_df is not None, "Data was not loaded."
     assert isinstance(data, pd.DataFrame), "Expected a DataFrame from get_data."
     # Confirm metadata also gets loaded
-    assert hdi_importer._metadata_df is not None, "Metadata should also be loaded by get_data."
+    assert (
+        hdi_importer._metadata_df is not None
+    ), "Metadata should also be loaded by get_data."
 
 
 def test_clear_cache(mock_read_hdi_data_func, mock_read_hdi_metadata_func):
@@ -340,5 +394,9 @@ def test_clear_cache(mock_read_hdi_data_func, mock_read_hdi_metadata_func):
     assert hdi_importer._metadata_df is not None
 
     hdi_importer.clear_cache()
-    assert hdi_importer._data_df is None, "_data_df should be None after clearing cache."
-    assert hdi_importer._metadata_df is None, "_metadata_df should be None after clearing cache."
+    assert (
+        hdi_importer._data_df is None
+    ), "_data_df should be None after clearing cache."
+    assert (
+        hdi_importer._metadata_df is None
+    ), "_metadata_df should be None after clearing cache."

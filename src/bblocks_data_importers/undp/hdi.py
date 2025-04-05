@@ -31,12 +31,13 @@ from bblocks_data_importers.data_validators import DataFrameValidator
 from bblocks_data_importers.utilities import convert_dtypes
 
 
-DATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv" # HDI data URL TODO: add functionality to dinamically get the latest URL as url link will likely change in the future
-METADATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_metadata.xlsx" # HDI metadata URL TODO: add functionality to dinamically get the latest URL as url link will likely change in the future
-DATA_ENCODING = "latin1" # Encoding used by the HDI data
+DATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv"  # HDI data URL TODO: add functionality to dinamically get the latest URL as url link will likely change in the future
+METADATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_metadata.xlsx"  # HDI metadata URL TODO: add functionality to dinamically get the latest URL as url link will likely change in the future
+DATA_ENCODING = "latin1"  # Encoding used by the HDI data
+
 
 def _request_hdi_data(url: str, *, timeout: int) -> requests.Response:
-    """ Request the HDI data from the URL.
+    """Request the HDI data from the URL.
 
     Args:
         url: URL to request the HDI data from.
@@ -58,7 +59,7 @@ def _request_hdi_data(url: str, *, timeout: int) -> requests.Response:
 
 
 def read_hdi_data(*, encoding: str = DATA_ENCODING, timeout: int = 30) -> pd.DataFrame:
-    """ Read the HDI data from the response.
+    """Read the HDI data from the response.
     Args:
         encoding: Encoding used by the HDI data.
         timeout: Timeout for the request in seconds
@@ -78,8 +79,8 @@ def read_hdi_data(*, encoding: str = DATA_ENCODING, timeout: int = 30) -> pd.Dat
         raise DataExtractionError(f"Error reading HDI data: {e}") from e
 
 
-def read_hdi_metadata(*, timeout: int=30) -> pd.DataFrame:
-    """ Read the HDI metadata from the response.
+def read_hdi_metadata(*, timeout: int = 30) -> pd.DataFrame:
+    """Read the HDI metadata from the response.
 
     Args:
         timeout: Timeout for the request in seconds
@@ -100,7 +101,7 @@ def read_hdi_metadata(*, timeout: int=30) -> pd.DataFrame:
 
 
 def clean_metadata(metadata_df: pd.DataFrame) -> pd.DataFrame:
-    """ Clean the HDI metadata DataFrame.
+    """Clean the HDI metadata DataFrame.
 
     - Drop irrelevant columns (where "Time series" is NaN)
     - Rename columns to match the Fields class
@@ -114,21 +115,23 @@ def clean_metadata(metadata_df: pd.DataFrame) -> pd.DataFrame:
         The cleaned HDI metadata DataFrame.
     """
 
-    return (metadata_df
-     .dropna(subset="Time series")
-     .rename(columns = {'Full name': Fields.indicator_name,
-                        "Short name": Fields.indicator_code,
-                        "Time series": Fields.time_range,
-                        "Note": Fields.notes
-                        })
-    .assign(time_range = lambda d: d.time_range.astype(str))
-            .pipe(convert_dtypes)
-     )
-
+    return (
+        metadata_df.dropna(subset="Time series")
+        .rename(
+            columns={
+                "Full name": Fields.indicator_name,
+                "Short name": Fields.indicator_code,
+                "Time series": Fields.time_range,
+                "Note": Fields.notes,
+            }
+        )
+        .assign(time_range=lambda d: d.time_range.astype(str))
+        .pipe(convert_dtypes)
+    )
 
 
 def clean_data(data_df: pd.DataFrame, metadata_df: pd.DataFrame) -> pd.DataFrame:
-    """ Clean the HDI data DataFrame.
+    """Clean the HDI data DataFrame.
 
     - Rename columns to match the Fields class
     - Melt the DataFrame to long format
@@ -144,16 +147,42 @@ def clean_data(data_df: pd.DataFrame, metadata_df: pd.DataFrame) -> pd.DataFrame
         The cleaned HDI data DataFrame.
     """
 
-    return (data_df
-            .rename(columns = {'iso3': Fields.entity_code, "country": Fields.entity_name, "region": Fields.region_code, "hdicode": "hdi_group"})
-            .melt(id_vars = [Fields.entity_code, Fields.entity_name, Fields.region_code, "hdi_group"], var_name = Fields.indicator_code, value_name = Fields.value)
-            .assign(split=lambda d: d.indicator_code.apply(lambda x: x.rsplit('_', 1) if '_' in x else [x, np.nan]))
-            .assign(indicator_code=lambda x: x['split'].str[0],
-                    year=lambda x: x['split'].str[1].astype("int", errors="ignore"))
-            .drop(columns=['split'])
-            .assign(indicator_name= lambda d: d.indicator_code.map(metadata_df.set_index("indicator_code")['indicator_name'].to_dict()))
-            .pipe(convert_dtypes)
+    return (
+        data_df.rename(
+            columns={
+                "iso3": Fields.entity_code,
+                "country": Fields.entity_name,
+                "region": Fields.region_code,
+                "hdicode": "hdi_group",
+            }
+        )
+        .melt(
+            id_vars=[
+                Fields.entity_code,
+                Fields.entity_name,
+                Fields.region_code,
+                "hdi_group",
+            ],
+            var_name=Fields.indicator_code,
+            value_name=Fields.value,
+        )
+        .assign(
+            split=lambda d: d.indicator_code.apply(
+                lambda x: x.rsplit("_", 1) if "_" in x else [x, np.nan]
             )
+        )
+        .assign(
+            indicator_code=lambda x: x["split"].str[0],
+            year=lambda x: x["split"].str[1].astype("int", errors="ignore"),
+        )
+        .drop(columns=["split"])
+        .assign(
+            indicator_name=lambda d: d.indicator_code.map(
+                metadata_df.set_index("indicator_code")["indicator_name"].to_dict()
+            )
+        )
+        .pipe(convert_dtypes)
+    )
 
 
 class HumanDevelopmentIndex(DataImporter):
@@ -182,36 +211,48 @@ class HumanDevelopmentIndex(DataImporter):
     """
 
     def __init__(self, *, timeout: int = 30):
-        self._timeout = timeout # Timeout for the request in seconds
+        self._timeout = timeout  # Timeout for the request in seconds
         self._data_df: pd.DataFrame | None = None
         self._metadata_df: pd.DataFrame | None = None
-
 
     def _extract_metadata(self):
         """Extract HDI metadata"""
 
         logger.info("Extracting HDI metadata")
 
-        metadata_df = read_hdi_metadata(timeout=self._timeout) # Read the HDI metadata from the source
-        metadata_df = clean_metadata(metadata_df) # Clean the HDI metadata
-        DataFrameValidator().validate(metadata_df, ['indicator_name', 'indicator_code']) # Validate the HDI metadata
-        self._metadata_df = metadata_df # Save the HDI metadata to the object
+        metadata_df = read_hdi_metadata(
+            timeout=self._timeout
+        )  # Read the HDI metadata from the source
+        metadata_df = clean_metadata(metadata_df)  # Clean the HDI metadata
+        DataFrameValidator().validate(
+            metadata_df, ["indicator_name", "indicator_code"]
+        )  # Validate the HDI metadata
+        self._metadata_df = metadata_df  # Save the HDI metadata to the object
 
     def _extract_data(self) -> None:
         """Extract HDI data"""
 
         logger.info("Extracting HDI data")
 
-        df = read_hdi_data(timeout=self._timeout) # Read the HDI data from the source
+        df = read_hdi_data(timeout=self._timeout)  # Read the HDI data from the source
 
         # Check if the HDI metadata is already extracted, if not then extract it
         if self._metadata_df is None:
             self._extract_metadata()
 
-        df = clean_data(df, self._metadata_df) # Clean the HDI data
-        DataFrameValidator().validate(df, ['indicator_code', 'indicator_name', 'year', 'value', 'entity_code', 'entity_name']) # Validate the HDI data
-        self._data_df = df # Save the HDI data to the object
-
+        df = clean_data(df, self._metadata_df)  # Clean the HDI data
+        DataFrameValidator().validate(
+            df,
+            [
+                "indicator_code",
+                "indicator_name",
+                "year",
+                "value",
+                "entity_code",
+                "entity_name",
+            ],
+        )  # Validate the HDI data
+        self._data_df = df  # Save the HDI data to the object
 
     def get_metadata(self) -> pd.DataFrame:
         """Get the HDI metadata
@@ -246,4 +287,3 @@ class HumanDevelopmentIndex(DataImporter):
         self._metadata_df = None
 
         logger.info("Cache cleared")
-
