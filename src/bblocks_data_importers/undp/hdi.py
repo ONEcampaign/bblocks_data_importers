@@ -1,6 +1,23 @@
 """Human Development Index (HDI) data importer.
 
+The Human Development Index (HDI) is a summary measure of average achievement in key dimensions of human development
 
+More information and access to the raw data can be found at: https://hdr.undp.org/
+
+This importer provides functionality to easily access the latest HDI data.
+
+Usage:
+First instantiate an importer object:
+>>> hdi = HumanDevelopmentIndex()
+
+get the latest data:
+>>> data = hdi.get_data()
+
+To get the metadata, call:
+>>> metadata = hdi.get_metadata()
+
+The data is cached to avoid downloading it multiple times. To clear the cache, call:
+>>> hdi.clear_cache()
 """
 
 import pandas as pd
@@ -14,16 +31,16 @@ from bblocks_data_importers.data_validators import DataFrameValidator
 from bblocks_data_importers.utilities import convert_dtypes
 
 
-DATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv"
-METADATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_metadata.xlsx"
+DATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv" # HDI data URL TODO: add functionality to dinamically get the latest URL as url link will likely change in the future
+METADATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_metadata.xlsx" # HDI metadata URL TODO: add functionality to dinamically get the latest URL as url link will likely change in the future
 DATA_ENCODING = "latin1" # Encoding used by the HDI data
 
-def _request_hdi_data(url, *, timeout: int) -> requests.Response:
+def _request_hdi_data(url: str, *, timeout: int) -> requests.Response:
     """ Request the HDI data from the URL.
 
     Args:
-        url (str): URL to request the HDI data from.
-        timeout (int): Timeout for the request in seconds
+        url: URL to request the HDI data from.
+        timeout: Timeout for the request in seconds
 
     Returns:
         Response object containing the HDI data.
@@ -32,7 +49,6 @@ def _request_hdi_data(url, *, timeout: int) -> requests.Response:
     logger.debug("Requesting HDI data")
 
     try:
-
         response = requests.get(url, timeout=timeout)
         response.raise_for_status()
         return response
@@ -41,8 +57,15 @@ def _request_hdi_data(url, *, timeout: int) -> requests.Response:
         raise DataExtractionError(f"Error requesting HDI data: {e}") from e
 
 
-def read_hdi_data(*, encoding = DATA_ENCODING, timeout: int = 30) -> pd.DataFrame:
-    """ Read the HDI data from the response."""
+def read_hdi_data(*, encoding: str = DATA_ENCODING, timeout: int = 30) -> pd.DataFrame:
+    """ Read the HDI data from the response.
+    Args:
+        encoding: Encoding used by the HDI data.
+        timeout: Timeout for the request in seconds
+
+    Returns:
+        The raw HDI data DataFrame.
+    """
 
     logger.debug("Reading HDI data")
 
@@ -51,12 +74,19 @@ def read_hdi_data(*, encoding = DATA_ENCODING, timeout: int = 30) -> pd.DataFram
         data = pd.read_csv(io.BytesIO(response.content), encoding=encoding)
         return data
 
-    except pd.errors.ParserError as e:
+    except (pd.errors.ParserError, ValueError) as e:
         raise DataExtractionError(f"Error reading HDI data: {e}") from e
 
 
 def read_hdi_metadata(*, timeout: int=30) -> pd.DataFrame:
-    """ Read the HDI metadata from the response."""
+    """ Read the HDI metadata from the response.
+
+    Args:
+        timeout: Timeout for the request in seconds
+
+    Returns:
+        The raw HDI metadata DataFrame
+    """
 
     logger.debug("Reading HDI metadata")
 
@@ -72,8 +102,13 @@ def read_hdi_metadata(*, timeout: int=30) -> pd.DataFrame:
 def clean_metadata(metadata_df: pd.DataFrame) -> pd.DataFrame:
     """ Clean the HDI metadata DataFrame.
 
+    - Drop irrelevant columns (where "Time series" is NaN)
+    - Rename columns to match the Fields class
+    - Convert the "Time series" column to string
+    - Convert the DataFrame to the correct dtypes
+
     Args:
-        metadata_df (pd.DataFrame): The HDI metadata DataFrame.
+        metadata_df: The HDI metadata DataFrame.
 
     Returns:
         The cleaned HDI metadata DataFrame.
@@ -95,9 +130,15 @@ def clean_metadata(metadata_df: pd.DataFrame) -> pd.DataFrame:
 def clean_data(data_df: pd.DataFrame, metadata_df: pd.DataFrame) -> pd.DataFrame:
     """ Clean the HDI data DataFrame.
 
+    - Rename columns to match the Fields class
+    - Melt the DataFrame to long format
+    - Split the indicator code and year into separate columns
+    - Map the indicator code to the indicator name
+    - Convert the DataFrame to the correct dtypes
+
     Args:
-        data_df (pd.DataFrame): The HDI data DataFrame.
-        metadata_df (pd.DataFrame): The HDI metadata DataFrame.
+        data_df: The HDI data DataFrame.
+        metadata_df: The HDI metadata DataFrame.
 
     Returns:
         The cleaned HDI data DataFrame.
@@ -116,46 +157,69 @@ def clean_data(data_df: pd.DataFrame, metadata_df: pd.DataFrame) -> pd.DataFrame
 
 
 class HumanDevelopmentIndex(DataImporter):
-    """A class to import Human Development Index (HDI) data from UNDP."""
+    """A class to import Human Development Index (HDI) data from UNDP.
+
+    This class provides methods to access HDI data and metadata.
+    The Human Development Index (HDI) is a summary measure of average achievement in key dimensions of human development
+    More information and access to the raw data can be found at: https://hdr.undp.org/
+
+    Attributes:
+        timeout: Timeout for the request in seconds (Optional). By default, it is set to 30 seconds.
+
+    Usage:
+
+    First instantiate an importer object:
+    >>> hdi = HumanDevelopmentIndex()
+
+    get the latest data:
+    >>> data = hdi.get_data()
+
+    To get the metadata, call:
+    >>> metadata = hdi.get_metadata()
+
+    The data is cached to avoid downloading it multiple times. To clear the cache, call:
+    >>> hdi.clear_cache()
+    """
 
     def __init__(self, *, timeout: int = 30):
-        self._timeout = timeout
+        self._timeout = timeout # Timeout for the request in seconds
         self._data_df: pd.DataFrame | None = None
         self._metadata_df: pd.DataFrame | None = None
 
 
     def _extract_metadata(self):
-        """Extract HDI metadata from the source."""
+        """Extract HDI metadata"""
 
         logger.info("Extracting HDI metadata")
 
-        metadata_df = read_hdi_metadata(timeout=self._timeout)
-        metadata_df = clean_metadata(metadata_df)
-
-        DataFrameValidator().validate(metadata_df, ['indicator_name', 'indicator_code'])
-        self._metadata_df = metadata_df
+        metadata_df = read_hdi_metadata(timeout=self._timeout) # Read the HDI metadata from the source
+        metadata_df = clean_metadata(metadata_df) # Clean the HDI metadata
+        DataFrameValidator().validate(metadata_df, ['indicator_name', 'indicator_code']) # Validate the HDI metadata
+        self._metadata_df = metadata_df # Save the HDI metadata to the object
 
     def _extract_data(self) -> None:
-        """Extract HDI data from the source."""
+        """Extract HDI data"""
 
         logger.info("Extracting HDI data")
 
-        df = read_hdi_data(timeout=self._timeout)
+        df = read_hdi_data(timeout=self._timeout) # Read the HDI data from the source
+
+        # Check if the HDI metadata is already extracted, if not then extract it
         if self._metadata_df is None:
             self._extract_metadata()
 
-        df = clean_data(df, self._metadata_df)
-
-        DataFrameValidator().validate(df, ['indicator_code', 'indicator_name', 'year', 'value', 'entity_code', 'entity_name'])
-
-        self._data_df = df
+        df = clean_data(df, self._metadata_df) # Clean the HDI data
+        DataFrameValidator().validate(df, ['indicator_code', 'indicator_name', 'year', 'value', 'entity_code', 'entity_name']) # Validate the HDI data
+        self._data_df = df # Save the HDI data to the object
 
 
     def get_metadata(self) -> pd.DataFrame:
         """Get the HDI metadata
 
+        This method will return the HDI metadata DataFrame with indicator names, codes, and time ranges and any notes
+
         Returns:
-            The HDI metadata DataFrame.
+            The HDI metadata DataFrame
         """
 
         if self._metadata_df is None:
@@ -164,6 +228,8 @@ class HumanDevelopmentIndex(DataImporter):
 
     def get_data(self) -> pd.DataFrame:
         """Get the HDI data
+
+        This method will return the HDI data DataFrame
 
         Returns:
             The HDI data DataFrame.
