@@ -36,6 +36,7 @@ Available importers include:
 - `WFPFoodSecurity` and `WFPInflation` to access the World Food Programme's Food Security and Inflation data
 - `WorldBank` to access the World Bank data
 - `InternationalDebtStatistics` to access the World Bank's International Debt Statistics
+- `HumanDevelopmentIndex` to access the UNDP's Human Development Index
 
 Read the documentation for more details on each importer [here](https://bblocks-data-importers.readthedocs.io/en/latest/Importers/index.html)
 
