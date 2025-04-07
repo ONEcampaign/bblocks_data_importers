@@ -6,5 +6,6 @@ from bblocks_data_importers.imf.weo import WEO
 from bblocks_data_importers.wfp.wfp import WFPFoodSecurity, WFPInflation
 from bblocks_data_importers.world_bank.wb_api import WorldBank
 from bblocks_data_importers.world_bank.ids import InternationalDebtStatistics
+from bblocks_data_importers.undp.hdi import HumanDevelopmentIndex
 
 __version__ = version("bblocks_data_importers")

@@ -73,17 +73,16 @@ class Fields:
     value_upper = "value_upper"
     value_lower = "value_lower"
 
-    # country, region and other entity names
+    # country, region and other entity names and codes
     country_name = "country_name"
     region_name = "region_name"
-    entity_name = "entity_name"
-
-    # country, region and other entity codes
+    entity_name = "entity_name"  # The name of the entity (country or region) to be used when entities are mixed
     iso2_code = "iso2_code"
     iso3_code = "iso3_code"
     entity_code = "entity_code"
     counterpart_code = "counterpart_code"
     counterpart_name = "counterpart_name"
+    region_code = "region_code"
 
     # time fields
     year = "year"
@@ -96,6 +95,8 @@ class Fields:
     currency = "currency"
     source = "source"
     data_type = "data_type"
+    time_range = "time_range"
+    notes = "notes"
 
     @classmethod
     def get_base_idx(cls):
