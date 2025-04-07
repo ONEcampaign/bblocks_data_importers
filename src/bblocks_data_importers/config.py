@@ -76,7 +76,7 @@ class Fields:
     # country, region and other entity names and codes
     country_name = "country_name"
     region_name = "region_name"
-    entity_name = "entity_name" # The name of the entity (country or region) to be used when entities are mixed
+    entity_name = "entity_name"  # The name of the entity (country or region) to be used when entities are mixed
     iso2_code = "iso2_code"
     iso3_code = "iso3_code"
     entity_code = "entity_code"
