@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.3.0 (7/4/2025)
+- New data importer - `HumanDevelopmentIndex` for UNDP Human Development Index data
+
 ## v0.2.1
 - Made pyarrow versions more flexible for broader compatibility
 
