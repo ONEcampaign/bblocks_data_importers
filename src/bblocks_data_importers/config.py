@@ -97,6 +97,13 @@ class Fields:
     data_type = "data_type"
     time_range = "time_range"
     notes = "notes"
+    quantity = "quantity"
+
+    # trade-related fields
+    exporter = "exporter"
+    importer = "importer"
+    product_code = "product_code"
+    product_name = "product_name"
 
     @classmethod
     def get_base_idx(cls):
