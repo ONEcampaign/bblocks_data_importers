@@ -103,7 +103,7 @@ class Fields:
     exporter = "exporter"
     importer = "importer"
     product_code = "product_code"
-    product_name = "product_name"
+    product_description = "product_description"
 
     @classmethod
     def get_base_idx(cls):
