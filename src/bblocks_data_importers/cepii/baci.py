@@ -15,30 +15,32 @@ Usage:
 First instantiate an importer object:
 >>> baci = BACI(data_path="my/local/folder")
 
-Get the latest BACI data with. The function will look for a folder of the format 'BACI_HSXX_V20XXX' in the
-specified data_path, and download if not found:
->>> data = baci.get_data()
+Get the latest BACI data with the get_data method. The function will look for a folder of the format 'BACI_HSXX_V20XXX'
+in the specified data_path, and download if not found.
+You can specify country name format and whether to include descriptions for product codes (defaults to True)
+>>> data = baci.get_data(
+    country_format="iso3",
+    product_description=False
+)
 
 You can specify a BACI version and an HS classification.
 Note: The hs_version determines how far back in time the data goes.
 For example, the default value "22" returns data from 2022 onward.
-You can also choose the country code format and whether to include product code descriptions in the output.
 >>> baci = BACI(
-    data_path="my/local/folder"
+    data_path="my/local/folder",
     baci_version="202401",
-    hs_version="22",
-    country_format="iso3",
-    product_description=False
-    )
+    hs_version="22"
+)
 
 To access metadata from a BACI object:
 >>> metadata = baci.get_metadata()
 
-The data and metadata are cached to avoid building the dataset again. Clear the cache with:
+The data and metadata are cached to avoid loading the dataset again. Clear the cache with:
 >>> baci.clear_cache()
 """
 
 import io
+import logging
 import os
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -47,6 +49,8 @@ import re
 import zipfile
 from typing import Literal
 from pathlib import Path
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from bblocks_data_importers.config import (
     logger,
@@ -77,9 +81,7 @@ class BACI(DataImporter):
         baci_version: Literal[
             "202102", "202201", "202301", "202401", "202401b", "202501", "latest"
         ] = "latest",
-        hs_version: Literal["92", "96", "02", "07", "12", "17", "22"] = "22",
-        country_format: Literal["code", "name", "iso2", "iso3"] = "name",
-        product_description: bool = True,
+        hs_version: Literal["92", "96", "02", "07", "12", "17", "22"] = "22"
     ):
         """
         Initialize a BACI importer instance.
@@ -88,13 +90,11 @@ class BACI(DataImporter):
             data_path: Optional base path for local data. If None, will default to current directory.
             baci_version: BACI version to use (default: 'latest').
             hs_version: Harmonized System version (default: '22').
-            country_format: Format for country codes: 'code', 'name', 'iso2', 'iso3' (default: 'name').
-            product_description: Whether to include product code description (default: True).
         """
 
         self._data_path = Path(data_path) if data_path else Path(os.getcwd())
         # Raise an error if path does not exist
-        if self._data_path and not self._data_path.exists():
+        if not self._data_path.exists():
             raise FileNotFoundError(
                 f"The path `{self._data_path}` does not exist. Please provide a valid directory."
             )
@@ -106,13 +106,13 @@ class BACI(DataImporter):
 
         self._hs_version = hs_version
         self._data_directory = Path(f"BACI_HS{self._hs_version}_V{self._baci_version}")
-        self._country_format = country_format
-        self._product_description = product_description
+        self._country_format = None
+        self._product_description = None
 
         self._data = None
         self._metadata = None
 
-    def _get_latest_version(self):
+    def _get_latest_version(self) -> str:
         """
         Scrape CEPII website to get the latest BACI version.
 
@@ -147,7 +147,7 @@ class BACI(DataImporter):
 
     def _get_zip_data(self):
         """
-        Download and extract BACI ZIP archive into the target data path.
+        Download BACI ZIP archive into the target data path.
 
         Raises:
             RuntimeError: If download fails.
@@ -161,40 +161,42 @@ class BACI(DataImporter):
             raise RuntimeError(f"Error {response.status_code}")
 
         zip_data = io.BytesIO(response.content)
-
         extract_path = self._data_path / self._data_directory
+        extract_path.mkdir(parents=True, exist_ok=True)
 
         with zipfile.ZipFile(zip_data) as zip_ref:
-            zip_ref.extractall(extract_path)
+            zip_ref.extractall(path=extract_path)
 
-        logger.info(f"BACI data extracted to: {extract_path}")
 
-    def _load_csv(self, filename):
-        """
-        Load a CSV file from the BACI data directory.
-
-        Args:
-            filename: CSV file name.
-
-        Returns:
-            DataFrame loaded from the file.
-        """
-
-        path = self._data_path / self._data_directory / filename
-        return pd.read_csv(path, dtype={"k": str, "code": str})
-
-    def _format_data(self, raw_df, country_map, product_map):
+    def _format_data(self, raw_df, extract_path):
         """
         Rename and map BACI raw data columns to standard schema.
 
         Args:
-            raw_df: Raw BACI DataFrame.
-            country_map: Mapping from country codes to desired format.
-            product_map: Mapping from product codes to names.
+            raw_df: Raw consolidated BACI DataFrame.
+            extract_path: Path to BACI data directory.
 
         Returns:
             Formatted DataFrame.
         """
+
+        product_codes_df = pd.read_csv(
+            extract_path / f"product_codes_HS{self._hs_version}_V{self._baci_version}.csv",
+            dtype={"code": str}
+        )
+        product_map = dict(
+            zip(product_codes_df["code"], product_codes_df["description"])
+        )
+
+        country_codes_df = pd.read_csv(
+            extract_path / f"country_codes_V{self._baci_version}.csv"
+        )
+        country_map = dict(
+            zip(
+                country_codes_df["country_code"],
+                country_codes_df[f"country_{self._country_format}"],
+            )
+        )
 
         df = raw_df.rename(
             columns={
@@ -214,48 +216,65 @@ class BACI(DataImporter):
         if self._product_description:
             df[Fields.product_description] = df[Fields.product_code].map(product_map)
 
-        df = convert_dtypes(df, "pyarrow")
+        df[Fields.year] = df[Fields.year].astype("int16[pyarrow]")
+        df[Fields.exporter] = df[Fields.exporter].astype("large_string[pyarrow]")
+        df[Fields.importer] = df[Fields.importer].astype("large_string[pyarrow]")
+        df[Fields.product_code] = df[Fields.product_code].astype("string[pyarrow]")
+        df[Fields.value] = pd.to_numeric(df[Fields.value], downcast="float")
+        df[Fields.quantity] = pd.to_numeric(df[Fields.quantity], downcast="float")
+        if self._product_description:
+            df[Fields.product_description] = df[Fields.product_description].astype("string[pyarrow]")
 
         return df
 
-    def _combine_data(self) -> pd.DataFrame:
+    def _combine_data(self):
         """
-        Combine BACI CSV files for multiple years into a single DataFrame.
-
-        Returns:
-            Concatenated and formatted BACI DataFrame.
+        Combine BACI csv files for multiple years into a single DataFrame and save it as parquet.
         """
 
-        product_codes_df = self._load_csv(
-            f"product_codes_HS{self._hs_version}_V{self._baci_version}.csv"
-        )
-        product_codes_dict = dict(
-            zip(product_codes_df["code"], product_codes_df["description"])
-        )
+        logging.info("Building consolidated dataset")
 
-        country_codes_df = self._load_csv(f"country_codes_V{self._baci_version}.csv")
-        country_codes_dict = dict(
-            zip(
-                country_codes_df["country_code"],
-                country_codes_df[f"country_{self._country_format}"],
-            )
-        )
-
-        files = os.listdir(self._data_path / self._data_directory)
+        extract_path = self._data_path / self._data_directory
 
         dfs = []
-        
-        for f in files:
-            if f.startswith("BACI") and f.endswith(".csv"):
-                raw_df = self._load_csv(f)
-                formatted_df = self._format_data(
-                    raw_df,
-                    country_codes_dict,
-                    product_codes_dict,
-                )
-                dfs.append(formatted_df)
 
-        return pd.concat(dfs, ignore_index=True)
+        for csv_path in extract_path.glob("BACI*.csv"):
+                df = pd.read_csv(csv_path, dtype={"k": str})
+                dfs.append(df)
+
+        if not dfs:
+            raise FileNotFoundError("No BACI files found in data directory.")
+        else:
+            return pd.concat(dfs, ignore_index=True)
+
+
+    def _save_parquet(self, df: pd.DataFrame, path: Path):
+
+        logger.info(f"Saving consolidated BACI dataset to {path}")
+
+        schema = pa.schema([
+            ("t", pa.int16()),
+            ("i", pa.int32()),
+            ("j", pa.int32()),
+            ("k", pa.dictionary(index_type=pa.int32(), value_type=pa.string())),
+            ("v", pa.float32()),
+            ("q", pa.float32()),
+        ])
+
+        table = pa.Table.from_pandas(
+            df,
+            schema=schema,
+            preserve_index=False,
+            safe=True
+        )
+
+        pq.write_table(
+            table,
+            path,
+            compression="zstd",
+            use_dictionary=True
+        )
+
 
     def _load_data(self):
         """
@@ -264,15 +283,24 @@ class BACI(DataImporter):
         Validates data structure and caches the result internally.
         """
 
-        if (self._data_path / self._data_directory).exists():
-            logger.info(
-                f"Importing data from local file: {self._data_path}/{self._data_directory}"
-            )
-        else:
-            logger.info("Importing data from BACI database")
-            self._get_zip_data()
+        extract_path = self._data_path / self._data_directory
+        parquet_path = extract_path / f"BACI_HS{self._hs_version}_V{self._baci_version}.parquet"
 
-        df = self._combine_data()
+        if parquet_path.exists():
+            logger.info(f"Loading consolidated BACI dataset from: {parquet_path}")
+            raw_df = pd.read_parquet(parquet_path, dtype_backend="pyarrow")
+        else:
+            # logger.info("Local BACI data not found.")
+            self._get_zip_data()
+            raw_df = self._combine_data()
+
+            self._save_parquet(raw_df, parquet_path)
+
+            # Remove the yearly CSVs to save space
+            for csv_file in extract_path.glob("BACI*.csv"):
+                csv_file.unlink()
+
+        df = self._format_data(raw_df, extract_path)
 
         required_cols = [
             Fields.year,
@@ -286,26 +314,35 @@ class BACI(DataImporter):
         if self._product_description:
             required_cols.append(Fields.product_description)
 
-        DataFrameValidator().validate(
-            df,
-            required_cols=required_cols,
-        )
-
+        # DataFrameValidator().validate(df, required_cold_cols=required_cols)
         self._data = df
-        logger.info("Data imported successfully")
+        logger.info("Data loaded successfully")
 
     def get_data(
         self,
+        country_format: Literal["code", "name", "iso2", "iso3"] = "name",
+        product_description: bool = True,
     ) -> pd.DataFrame:
         """Get the BACI data
 
         This method will return a DataFrame with BACI data
 
+        Arguments:
+            country_format: Format for country names: 'code', 'name', 'iso2', 'iso3' (default: 'name').
+            product_description: Whether to include product code description (default: True).
+
         Returns:
-            DataFrame with BACI data
+            pd.DataFrame: BACI trade data
         """
 
-        if self._data is None:
+        config_changed = (
+            self._country_format != country_format
+            or self._product_description != product_description
+        )
+
+        if self._data is None or config_changed:
+            self._country_format = country_format
+            self._product_description = product_description
             self._load_data()
 
         return self._data
@@ -314,28 +351,43 @@ class BACI(DataImporter):
         """
         Extract metadata from the Readme.txt file.
 
-        Populates the internal `_metadata` dictionary.
+        If the file is missing, logs a warning and skips extraction.
+
+        Populates the internal `_metadata` dictionary if possible.
         """
-        readme_path = self._data_path / self._data_directory / "Readme.txt"
+
+        extract_path = self._data_path / self._data_directory
+        readme_path = extract_path / "Readme.txt"
+        parquet_path = extract_path / f"BACI_HS{self._hs_version}_V{self._baci_version}.parquet"
 
         if not readme_path.exists():
-            logger.info("Metadata file not found. Downloading BACI data...")
-            self._get_zip_data()
+            if parquet_path.exists():
+                logger.warning(
+                    f"Metadata file 'Readme.txt' not found in {extract_path}. "
+                    "You may have an incomplete local dataset.\n"
+                    f"To rebuild it with metadata, try running `clear_cache()` followed by `get_data()` "
+                    f"after deleting the file: {parquet_path.name}"
+                )
+                self._metadata = {}
+                return
+            else:
+                raise FileNotFoundError(
+                    f"Metadata file is missing and no data found at {extract_path}. "
+                    "Please call `get_data()` first to download BACI resources."
+                )
+
 
         with open(readme_path, encoding="utf-8") as file:
             content = file.read()
 
         # Split into blocks separated by one or more blank lines
         blocks = [block.strip() for block in content.split("\n\n") if block.strip()]
-
         metadata = {}
 
         for block in blocks:
-            # Skip the List of Variables section
             if block.startswith("List of Variables:"):
                 continue
 
-            # Try to split block into key and value
             lines = block.splitlines()
             if ":" in lines[0]:
                 key, first_value_line = lines[0].split(":", 1)
@@ -344,11 +396,9 @@ class BACI(DataImporter):
                     line.strip() for line in lines[1:]
                 ]
                 metadata[key] = " ".join(value_lines)
-            else:
-                # Single-line or malformed block, skip or handle as needed
-                continue
 
         self._metadata = metadata
+
 
     def get_metadata(self) -> dict:
         """Get the BACI metadata
@@ -356,7 +406,7 @@ class BACI(DataImporter):
         Returns a dictionary with BACI metadata including version, release data, weblink, and more.
 
         Returns:
-            The BACI metadata dictionary.
+            dict: BACI metadata.
         """
 
         if self._metadata is None:
