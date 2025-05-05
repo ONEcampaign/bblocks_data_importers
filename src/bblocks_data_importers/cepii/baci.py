@@ -17,20 +17,22 @@ First instantiate an importer object:
 
 Get the latest BACI data with the get_data method. The function will look for a folder of the format 'BACI_HSXX_V20XXX'
 in the specified data_path, and download if not found.
-You can specify country name format and whether to include descriptions for product codes (defaults to True)
+You can specify country name format, whether to include descriptions for product codes (defaults to True), or the years
+included in the data.
 >>> data = baci.get_data(
-    country_format="iso3",
-    product_description=False
-)
+...     country_format="iso3",
+...     product_description=False,
+...     years=[2022, 2023]
+... )
 
 You can specify a BACI version and an HS classification.
 Note: The hs_version determines how far back in time the data goes.
 For example, the default value "22" returns data from 2022 onward.
 >>> baci = BACI(
-    data_path="my/local/folder",
-    baci_version="202401",
-    hs_version="22"
-)
+...     data_path="my/local/folder",
+...     baci_version="202401",
+...     hs_version="22"
+... )
 
 To access metadata from a BACI object:
 >>> metadata = baci.get_metadata()
@@ -50,7 +52,8 @@ import zipfile
 from typing import Literal
 from pathlib import Path
 import pyarrow as pa
-import pyarrow.parquet as pq
+import pyarrow.csv as pv
+from pyarrow import dataset as ds
 
 from bblocks_data_importers.config import (
     logger,
@@ -72,6 +75,7 @@ class BACI(DataImporter):
         _country_format (str): Country code format (e.g., 'name', 'iso2').
         _product_description (bool): Whether to include product code description.
         _data (DataFrame | None): Cached BACI data.
+        _loaded_years (list | None):
         _metadata (dict | None): Cached metadata from Readme.txt.
     """
 
@@ -110,6 +114,7 @@ class BACI(DataImporter):
         self._product_description = None
 
         self._data = None
+        self._loaded_years = None
         self._metadata = None
 
     def _get_latest_version(self) -> str:
@@ -216,67 +221,82 @@ class BACI(DataImporter):
         if self._product_description:
             df[Fields.product_description] = df[Fields.product_code].map(product_map)
 
-        df[Fields.year] = df[Fields.year].astype("int16[pyarrow]")
-        df[Fields.exporter] = df[Fields.exporter].astype("large_string[pyarrow]")
-        df[Fields.importer] = df[Fields.importer].astype("large_string[pyarrow]")
-        df[Fields.product_code] = df[Fields.product_code].astype("string[pyarrow]")
-        df[Fields.value] = pd.to_numeric(df[Fields.value], downcast="float")
-        df[Fields.quantity] = pd.to_numeric(df[Fields.quantity], downcast="float")
-        if self._product_description:
-            df[Fields.product_description] = df[Fields.product_description].astype("string[pyarrow]")
-
-        return df
+        return convert_dtypes(df)
 
     def _combine_data(self):
         """
-        Combine BACI csv files for multiple years into a single DataFrame and save it as parquet.
+        Combine BACI CSV files for multiple years into a single PyArrow Table.
+
+        Returns:
+            pyarrow.Table: Consolidated BACI data.
         """
 
-        logging.info("Building consolidated dataset")
+        logger.info("Building consolidated dataset")
 
         extract_path = self._data_path / self._data_directory
+        tables = []
 
-        dfs = []
+        column_types = {
+            "t": pa.int16(),
+            "i": pa.int32(),
+            "j": pa.int32(),
+            "k": pa.string(),
+            "v": pa.float32(),
+            "q": pa.float32(),
+        }
 
         for csv_path in extract_path.glob("BACI*.csv"):
-                df = pd.read_csv(csv_path, dtype={"k": str})
-                dfs.append(df)
+            table = pv.read_csv(
+                csv_path,
+                read_options=pv.ReadOptions(autogenerate_column_names=False),
+                convert_options=pv.ConvertOptions(column_types=column_types)
+            )
+            tables.append(table)
 
-        if not dfs:
-            raise FileNotFoundError("No BACI files found in data directory.")
-        else:
-            return pd.concat(dfs, ignore_index=True)
+        if not tables:
+            raise FileNotFoundError("No BACI CSV files found in data directory.")
 
+        return pa.concat_tables(tables)
 
-    def _save_parquet(self, df: pd.DataFrame, path: Path):
+    def _save_parquet(self, table: pa.Table, path: Path):
+        """
+        Save the provided PyArrow Table to partitioned Parquet format.
 
+        Args:
+            table (pa.Table): Consolidated trade data.
+            path (Path): Destination directory for Parquet files.
+        """
         logger.info(f"Saving consolidated BACI dataset to {path}")
 
-        schema = pa.schema([
-            ("t", pa.int16()),
-            ("i", pa.int32()),
-            ("j", pa.int32()),
-            ("k", pa.dictionary(index_type=pa.int32(), value_type=pa.string())),
-            ("v", pa.float32()),
-            ("q", pa.float32()),
-        ])
-
-        table = pa.Table.from_pandas(
-            df,
-            schema=schema,
-            preserve_index=False,
-            safe=True
+        ds.write_dataset(
+            data=table,
+            base_dir=str(path),
+            format="parquet",
+            partitioning=["t"],
+            existing_data_behavior="overwrite_or_ignore",
         )
 
-        pq.write_table(
-            table,
-            path,
-            compression="zstd",
-            use_dictionary=True
-        )
+    def _load_parquet_dataset(self, parquet_dir: Path, filter_years: list[int] | None = None):
+        dataset = ds.dataset(str(parquet_dir), format="parquet", partitioning=["t"])
 
+        if filter_years:
+            logger.info(f"Filtering for years: {filter_years}")
+            filter_expr = ds.field("t").isin(filter_years)
+            table = dataset.to_table(filter=filter_expr)
+        else:
+            table = dataset.to_table()
 
-    def _load_data(self):
+        return table.to_pandas(types_mapper=pd.ArrowDtype)
+
+    def _is_valid_parquet_dir(self, path: Path) -> bool:
+        return path.exists() and any(path.rglob("*.parquet"))
+
+    @staticmethod
+    def _cleanup_csvs(path: Path):
+        for f in path.glob("BACI*.csv"):
+            f.unlink()
+
+    def _load_data(self, filter_years: list[int] | None = None):
         """
         Load BACI data from local directory or download if not available.
 
@@ -284,21 +304,17 @@ class BACI(DataImporter):
         """
 
         extract_path = self._data_path / self._data_directory
-        parquet_path = extract_path / f"BACI_HS{self._hs_version}_V{self._baci_version}.parquet"
+        parquet_dir = extract_path / "parquet"
 
-        if parquet_path.exists():
-            logger.info(f"Loading consolidated BACI dataset from: {parquet_path}")
-            raw_df = pd.read_parquet(parquet_path, dtype_backend="pyarrow")
+        if self._is_valid_parquet_dir(parquet_dir):
+            logger.info(f"Loading consolidated BACI dataset from: {parquet_dir}")
+            raw_df = self._load_parquet_dataset(parquet_dir, filter_years)  # Already a DataFrame
         else:
-            # logger.info("Local BACI data not found.")
             self._get_zip_data()
-            raw_df = self._combine_data()
-
-            self._save_parquet(raw_df, parquet_path)
-
-            # Remove the yearly CSVs to save space
-            for csv_file in extract_path.glob("BACI*.csv"):
-                csv_file.unlink()
+            table = self._combine_data()  # PyArrow Table
+            self._save_parquet(table, parquet_dir)
+            self._cleanup_csvs(extract_path)
+            raw_df = table.to_pandas(types_mapper=pd.ArrowDtype)
 
         df = self._format_data(raw_df, extract_path)
 
@@ -316,12 +332,14 @@ class BACI(DataImporter):
 
         # DataFrameValidator().validate(df, required_cold_cols=required_cols)
         self._data = df
+        self._loaded_years = filter_years
         logger.info("Data loaded successfully")
 
     def get_data(
-        self,
-        country_format: Literal["code", "name", "iso2", "iso3"] = "name",
-        product_description: bool = True,
+            self,
+            country_format: Literal["code", "name", "iso2", "iso3"] = "name",
+            product_description: bool = True,
+            years: list[int] | None = None
     ) -> pd.DataFrame:
         """Get the BACI data
 
@@ -330,6 +348,7 @@ class BACI(DataImporter):
         Arguments:
             country_format: Format for country names: 'code', 'name', 'iso2', 'iso3' (default: 'name').
             product_description: Whether to include product code description (default: True).
+            years: Years to include in the data (default: None).
 
         Returns:
             pd.DataFrame: BACI trade data
@@ -340,10 +359,14 @@ class BACI(DataImporter):
             or self._product_description != product_description
         )
 
-        if self._data is None or config_changed:
+        if (
+                self._data is None or
+                config_changed or
+                self._loaded_years != years
+        ):
             self._country_format = country_format
             self._product_description = product_description
-            self._load_data()
+            self._load_data(filter_years=years)
 
         return self._data
 
@@ -358,7 +381,7 @@ class BACI(DataImporter):
 
         extract_path = self._data_path / self._data_directory
         readme_path = extract_path / "Readme.txt"
-        parquet_path = extract_path / f"BACI_HS{self._hs_version}_V{self._baci_version}.parquet"
+        parquet_path = extract_path / "parquet"
 
         if not readme_path.exists():
             if parquet_path.exists():
