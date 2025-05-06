@@ -12,17 +12,18 @@ automatically download and extract data if not already available locally, and re
 
 Usage:
 
-First instantiate an importer object:
+First, initiate a BACI object. It is recommended that you specify a path to save the data. Otherwise, the data will be
+saved to the current directory.
 >>> baci = BACI(data_path="my/local/folder")
 
 Get the latest BACI data with the get_data method. The function will look for a folder of the format 'BACI_HSXX_V20XXX'
 in the specified data_path, and download if not found.
-You can specify country name format, whether to include descriptions for product codes (defaults to True), or the years
-included in the data.
+You can specify country name format, whether to include descriptions for product codes (defaults to True), or filter the
+years included in the data.
 >>> data = baci.get_data(
 ...     country_format="iso3",
 ...     product_description=False,
-...     years=[2022, 2023]
+...     years=[2023]
 ... )
 
 You can specify a BACI version and an HS classification.
