@@ -3,7 +3,6 @@
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import re
 import zipfile
 import io
 import pandas as pd
@@ -39,6 +38,7 @@ def raw_df() -> pd.DataFrame:
 # ---------- INIT ---------- #
 
 def test_init_raises_if_path_does_not_exist(tmp_path):
+    """ Tests whether an error is raised after initialisation if path doesn't exist' """
     with pytest.raises(FileNotFoundError):
         BACI(data_path=tmp_path / "not_here")
 
@@ -47,6 +47,7 @@ def test_init_raises_if_path_does_not_exist(tmp_path):
 
 @patch("bblocks_data_importers.cepii.baci.requests.get")
 def test_get_latest_version_success(mock_get, tmp_path):
+    """ Tests whether last version is fetched correctly """
     mock_get.return_value.status_code = 200
     mock_get.return_value.text = "<div id='telechargement'><p>This is the 202401 version</p></div>"
     baci = BACI(data_path=tmp_path, baci_version="latest")
@@ -54,6 +55,7 @@ def test_get_latest_version_success(mock_get, tmp_path):
 
 @patch("bblocks_data_importers.cepii.baci.requests.get")
 def test_get_latest_version_div_missing(mock_get, tmp_path):
+    """ Tests whether an error is raised if no version is fetched correctly """
     mock_get.return_value.status_code = 200
     mock_get.return_value.text = "<div id='not_telechargement'></div>"
     with pytest.raises(RuntimeError, match="HTML object not present"):
@@ -61,12 +63,14 @@ def test_get_latest_version_div_missing(mock_get, tmp_path):
 
 @patch("bblocks_data_importers.cepii.baci.requests.get")
 def test_get_latest_version_http_error(mock_get, tmp_path):
+    """ Tests whether an error is raised with http error """
     mock_get.return_value.status_code = 503
     with pytest.raises(RuntimeError, match="Error 503"):
         BACI(data_path=tmp_path, baci_version="latest")
 
 @patch("bblocks_data_importers.cepii.baci.requests.get")
 def test_get_latest_version_unparsable(mock_get, tmp_path):
+    """ Tests if an error is raised when parsing an unparsable html page """
     mock_get.return_value.status_code = 200
     mock_get.return_value.text = "<div id='telechargement'><p>No version here</p></div>"
     with pytest.raises(RuntimeError, match="Latest BACI version not found"):
@@ -77,6 +81,7 @@ def test_get_latest_version_unparsable(mock_get, tmp_path):
 
 @patch("bblocks_data_importers.cepii.baci.requests.get")
 def test_download_and_extract_creates_file(mock_get, baci, data_dir):
+    """ Tests if a csv file is created after download"""
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w") as z:
         z.writestr("file.csv", "col1,col2\n1,2")
@@ -90,6 +95,7 @@ def test_download_and_extract_creates_file(mock_get, baci, data_dir):
 
 @patch("bblocks_data_importers.cepii.baci.requests.get")
 def test_download_and_extract_http_error(mock_get, baci):
+    """ Tests if an http error is raised during download """
     mock_get.return_value.status_code = 404
     with pytest.raises(RuntimeError, match="Error 404"):
         baci._download_and_extract()
@@ -98,6 +104,7 @@ def test_download_and_extract_http_error(mock_get, baci):
 # ---------- FORMAT ---------- #
 
 def test_format_data_maps_fields(baci, tmp_path, raw_df):
+    """ Tests if data maps are correctly formatted """
     baci._country_format = "name"
     baci._product_description = True
 
@@ -114,6 +121,7 @@ def test_format_data_maps_fields(baci, tmp_path, raw_df):
 # ---------- COMBINE ---------- #
 
 def test_combine_data_returns_table(baci, data_dir):
+    """ Tests if combined data returns table """
     pd.DataFrame({
         "t": [2022], "i": [1], "j": [2], "k": ["010101"], "v": [1.0], "q": [1.0]
     }).to_csv(data_dir / "BACI.csv", index=False)
@@ -124,6 +132,7 @@ def test_combine_data_returns_table(baci, data_dir):
     assert table.num_columns == 6
 
 def test_combine_data_raises_if_none_found(baci, data_dir):
+    """ Tests if error is raised when no files are found """
     with pytest.raises(FileNotFoundError, match="No BACI CSV files found"):
         baci._combine_data()
 
@@ -131,6 +140,7 @@ def test_combine_data_raises_if_none_found(baci, data_dir):
 # ---------- CLEANUP ---------- #
 
 def test_cleanup_csvs_removes_baci_only(tmp_path):
+    """ Tests if cleanup removes files of expected format """
     (tmp_path / "BACI_foo.csv").write_text("x")
     (tmp_path / "BACI_bar.csv").write_text("x")
     (tmp_path / "unrelated.csv").write_text("x")
@@ -144,6 +154,7 @@ def test_cleanup_csvs_removes_baci_only(tmp_path):
 
 @patch("bblocks_data_importers.cepii.baci.ds.dataset")
 def test_load_parquet_dataset_applies_filter(mock_dataset, baci, tmp_path):
+    """ Tests whether filters are applied correctly """
     mock_ds = MagicMock()
     mock_ds.to_table.return_value.to_pandas.return_value = "filtered_df"
     mock_dataset.return_value = mock_ds
@@ -154,6 +165,7 @@ def test_load_parquet_dataset_applies_filter(mock_dataset, baci, tmp_path):
 
 @patch("bblocks_data_importers.cepii.baci.ds.dataset")
 def test_load_parquet_dataset_no_filter(mock_dataset, baci, tmp_path):
+    """ Tests whether parquet is loaded correctly when no filter is provided """
     mock_ds = MagicMock()
     mock_ds.to_table.return_value.to_pandas.return_value = "full_df"
     mock_dataset.return_value = mock_ds
@@ -166,6 +178,7 @@ def test_load_parquet_dataset_no_filter(mock_dataset, baci, tmp_path):
 
 @patch("bblocks_data_importers.cepii.baci.DataFrameValidator")
 def test_load_data_uses_existing_parquet(mock_val, baci, tmp_path):
+    """ Tests that existing parquet files are loaded correctly """
     path = tmp_path / "BACI_HS22_V202401/parquet"
     path.mkdir(parents=True)
     (path / "file.parquet").touch()
@@ -182,6 +195,7 @@ def test_load_data_uses_existing_parquet(mock_val, baci, tmp_path):
 
 @patch("bblocks_data_importers.cepii.baci.DataFrameValidator")
 def test_load_data_triggers_download(mock_val, baci, tmp_path):
+    """ Tests that load_data triggers downloading if no local parquet files are found """
     (tmp_path / "BACI_HS22_V202401").mkdir()
     baci._download_and_extract = MagicMock()
     baci._combine_data = MagicMock(return_value=pa.table({
@@ -199,12 +213,14 @@ def test_load_data_triggers_download(mock_val, baci, tmp_path):
 # ---------- GET DATA ---------- #
 
 def test_get_data_loads_on_first_call(baci):
+    """ Tests that get_data loads files if no cached data is found """
     baci._data = None
     baci._load_data = MagicMock()
     baci._data = "mocked"
     assert baci.get_data(country_format="iso3", product_description=False, years=[2022]) == "mocked"
 
 def test_get_data_uses_cached_data(baci):
+    """ Tests that get_data uses cached data when available"""
     baci._data = "cached"
     baci._country_format = "iso3"
     baci._product_description = False
@@ -218,6 +234,7 @@ def test_get_data_uses_cached_data(baci):
 # ---------- METADATA ---------- #
 
 def test_extract_metadata_warns_if_readme_missing(baci, tmp_path):
+    """ Tests whether warning is raised if readme is missing """
     path = tmp_path / "BACI_HS22_V202401/parquet"
     path.mkdir(parents=True)
     (path / "dummy.parquet").touch()
@@ -228,11 +245,13 @@ def test_extract_metadata_warns_if_readme_missing(baci, tmp_path):
         mock_logger.warning.assert_called_once()
 
 def test_extract_metadata_raises_if_no_files(baci, tmp_path):
+    """ Tests error is raised if no files are found """
     (tmp_path / "BACI_HS22_V202401").mkdir()
     with pytest.raises(FileNotFoundError):
         baci._extract_metadata()
 
 def test_extract_metadata_parses_correctly(tmp_path):
+    """ Tests that readme is parsed correctly """
     readme = tmp_path / "BACI_HS22_V202401/Readme.txt"
     readme.parent.mkdir(parents=True)
     readme.write_text(
@@ -252,6 +271,7 @@ def test_extract_metadata_parses_correctly(tmp_path):
 # ---------- CACHE ---------- #
 
 def test_clear_cache_resets_state(baci):
+    """ Tests that cache is cleared correctly"""
     baci._data = "anything"
     baci._metadata = {"foo": "bar"}
     baci.clear_cache()
