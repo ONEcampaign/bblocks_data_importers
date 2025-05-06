@@ -42,7 +42,6 @@ The data and metadata are cached to avoid loading the dataset again. Clear the c
 """
 
 import io
-import logging
 import os
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -150,7 +149,7 @@ class BACI(DataImporter):
         else:
             raise RuntimeError("Latest BACI version not found.")
 
-    def _get_zip_data(self):
+    def _download_and_extract(self):
         """
         Download BACI ZIP archive into the target data path.
 
@@ -288,8 +287,6 @@ class BACI(DataImporter):
 
         return table.to_pandas(types_mapper=pd.ArrowDtype)
 
-    def _is_valid_parquet_dir(self, path: Path) -> bool:
-        return path.exists() and any(path.rglob("*.parquet"))
 
     @staticmethod
     def _cleanup_csvs(path: Path):
@@ -306,11 +303,11 @@ class BACI(DataImporter):
         extract_path = self._data_path / self._data_directory
         parquet_dir = extract_path / "parquet"
 
-        if self._is_valid_parquet_dir(parquet_dir):
+        if (parquet_dir.exists() and any(parquet_dir.rglob("*.parquet"))):
             logger.info(f"Loading consolidated BACI dataset from: {parquet_dir}")
             raw_df = self._load_parquet_dataset(parquet_dir, filter_years)  # Already a DataFrame
         else:
-            self._get_zip_data()
+            self._download_and_extract()
             table = self._combine_data()  # PyArrow Table
             self._save_parquet(table, parquet_dir)
             self._cleanup_csvs(extract_path)
@@ -330,7 +327,7 @@ class BACI(DataImporter):
         if self._product_description:
             required_cols.append(Fields.product_description)
 
-        # DataFrameValidator().validate(df, required_cold_cols=required_cols)
+        DataFrameValidator().validate(df, required_cols=required_cols)
         self._data = df
         self._loaded_years = filter_years
         logger.info("Data loaded successfully")
@@ -368,7 +365,9 @@ class BACI(DataImporter):
             self._product_description = product_description
             self._load_data(filter_years=years)
 
-        return self._data
+        df = self._data
+
+        return df
 
     def _extract_metadata(self):
         """
