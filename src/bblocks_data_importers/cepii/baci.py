@@ -84,7 +84,7 @@ class BACI(DataImporter):
         baci_version: Literal[
             "202102", "202201", "202301", "202401", "202401b", "202501", "latest"
         ] = "latest",
-        hs_version: Literal["92", "96", "02", "07", "12", "17", "22"] = "22"
+        hs_version: Literal["92", "96", "02", "07", "12", "17", "22"] = "22",
     ):
         """
         Initialize a BACI importer instance.
@@ -171,7 +171,6 @@ class BACI(DataImporter):
         with zipfile.ZipFile(zip_data) as zip_ref:
             zip_ref.extractall(path=extract_path)
 
-
     def _format_data(self, raw_df, extract_path):
         """
         Rename and map BACI raw data columns to standard schema.
@@ -185,8 +184,9 @@ class BACI(DataImporter):
         """
 
         product_codes_df = pd.read_csv(
-            extract_path / f"product_codes_HS{self._hs_version}_V{self._baci_version}.csv",
-            dtype={"code": str}
+            extract_path
+            / f"product_codes_HS{self._hs_version}_V{self._baci_version}.csv",
+            dtype={"code": str},
         )
         product_map = dict(
             zip(product_codes_df["code"], product_codes_df["description"])
@@ -248,7 +248,7 @@ class BACI(DataImporter):
             table = pv.read_csv(
                 csv_path,
                 read_options=pv.ReadOptions(autogenerate_column_names=False),
-                convert_options=pv.ConvertOptions(column_types=column_types)
+                convert_options=pv.ConvertOptions(column_types=column_types),
             )
             tables.append(table)
 
@@ -275,7 +275,9 @@ class BACI(DataImporter):
             existing_data_behavior="overwrite_or_ignore",
         )
 
-    def _load_parquet_dataset(self, parquet_dir: Path, filter_years: list[int] | None = None):
+    def _load_parquet_dataset(
+        self, parquet_dir: Path, filter_years: list[int] | None = None
+    ):
         dataset = ds.dataset(str(parquet_dir), format="parquet", partitioning=["t"])
 
         if filter_years:
@@ -286,7 +288,6 @@ class BACI(DataImporter):
             table = dataset.to_table()
 
         return table.to_pandas(types_mapper=pd.ArrowDtype)
-
 
     @staticmethod
     def _cleanup_csvs(path: Path):
@@ -303,9 +304,11 @@ class BACI(DataImporter):
         extract_path = self._data_path / self._data_directory
         parquet_dir = extract_path / "parquet"
 
-        if (parquet_dir.exists() and any(parquet_dir.rglob("*.parquet"))):
+        if parquet_dir.exists() and any(parquet_dir.rglob("*.parquet")):
             logger.info(f"Loading consolidated BACI dataset from: {parquet_dir}")
-            raw_df = self._load_parquet_dataset(parquet_dir, filter_years)  # Already a DataFrame
+            raw_df = self._load_parquet_dataset(
+                parquet_dir, filter_years
+            )  # Already a DataFrame
         else:
             self._download_and_extract()
             table = self._combine_data()  # PyArrow Table
@@ -333,10 +336,10 @@ class BACI(DataImporter):
         logger.info("Data loaded successfully")
 
     def get_data(
-            self,
-            country_format: Literal["code", "name", "iso2", "iso3"] = "name",
-            product_description: bool = True,
-            years: list[int] | None = None
+        self,
+        country_format: Literal["code", "name", "iso2", "iso3"] = "name",
+        product_description: bool = True,
+        years: list[int] | None = None,
     ) -> pd.DataFrame:
         """Get the BACI data
 
@@ -356,11 +359,7 @@ class BACI(DataImporter):
             or self._product_description != product_description
         )
 
-        if (
-                self._data is None or
-                config_changed or
-                self._loaded_years != years
-        ):
+        if self._data is None or config_changed or self._loaded_years != years:
             self._country_format = country_format
             self._product_description = product_description
             self._load_data(filter_years=years)
@@ -398,7 +397,6 @@ class BACI(DataImporter):
                     "Please call `get_data()` first to download BACI resources."
                 )
 
-
         with open(readme_path, encoding="utf-8") as file:
             content = file.read()
 
@@ -420,7 +418,6 @@ class BACI(DataImporter):
                 metadata[key] = " ".join(value_lines)
 
         self._metadata = metadata
-
 
     def get_metadata(self) -> dict:
         """Get the BACI metadata
