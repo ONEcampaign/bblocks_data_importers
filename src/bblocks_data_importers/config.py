@@ -100,10 +100,13 @@ class Fields:
     quantity = "quantity"
 
     # trade-related fields
-    exporter = "exporter"
-    importer = "importer"
+    exporter_code = "exporter_code"
+    importer_code = "importer_code"
+    exporter_iso3 = "exporter_iso3"
+    importer_iso3 = "importer_iso3"
+    exporter_name = "exporter_name"
+    importer_name = "importer_name"
     product_code = "product_code"
-    product_description = "product_description"
 
     @classmethod
     def get_base_idx(cls):
