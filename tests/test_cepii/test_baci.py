@@ -15,6 +15,7 @@ from bblocks_data_importers.cepii.baci import BACI
 
 # ---------- FIXTURES ---------- #
 
+
 @pytest.fixture
 def baci(tmp_path) -> BACI:
     """Fixture to initialize a BACI importer with a temporary path."""
@@ -47,6 +48,7 @@ def raw_df() -> pd.DataFrame:
 
 # ---------- INIT ---------- #
 
+
 def test_init_raises_if_path_does_not_exist(tmp_path):
     """Test that FileNotFoundError is raised when given a non-existent path."""
     with pytest.raises(FileNotFoundError):
@@ -54,6 +56,7 @@ def test_init_raises_if_path_does_not_exist(tmp_path):
 
 
 # ---------- VERSION ---------- #
+
 
 @patch("bblocks_data_importers.cepii.baci.requests.get")
 def test_get_latest_version_success(mock_get, tmp_path):
@@ -94,6 +97,7 @@ def test_get_latest_version_unparsable(mock_get, tmp_path):
 
 # ---------- DOWNLOAD ---------- #
 
+
 @patch("bblocks_data_importers.cepii.baci.requests.get")
 def test_download_and_extract_creates_file(mock_get, baci, data_dir):
     """Test that a CSV file is extracted after downloading the ZIP archive."""
@@ -121,6 +125,7 @@ def test_download_and_extract_http_error(mock_get, baci):
 
 # ---------- LOAD DATA ---------- #
 
+
 @patch("bblocks_data_importers.cepii.baci.load_parquet")
 @patch("bblocks_data_importers.cepii.baci.DataFrameValidator")
 def test_load_data_from_parquet(mock_validator, mock_loader, baci, tmp_path):
@@ -136,16 +141,20 @@ def test_load_data_from_parquet(mock_validator, mock_loader, baci, tmp_path):
     mock_loader.return_value = pd.DataFrame(
         {"t": [2022], "i": [1], "j": [2], "k": ["x"], "v": [1.0], "q": [1.0]}
     )
-    baci._format_data = MagicMock(return_value=pd.DataFrame(columns=[
-        "year",
-        "exporter_iso3",
-        "importer_iso3",
-        "product_code",
-        "value",
-        "quantity",
-        "exporter_name",
-        "importer_name"
-    ]))
+    baci._format_data = MagicMock(
+        return_value=pd.DataFrame(
+            columns=[
+                "year",
+                "exporter_iso3",
+                "importer_iso3",
+                "product_code",
+                "value",
+                "quantity",
+                "exporter_name",
+                "importer_name",
+            ]
+        )
+    )
 
     baci._load_data([2022])
 
@@ -156,7 +165,9 @@ def test_load_data_from_parquet(mock_validator, mock_loader, baci, tmp_path):
     assert "exporter_name" in required
     assert "importer_name" in required
 
+
 # ---------- FORMAT DATA ---------- #
+
 
 def test_format_data_maps_iso_and_names(baci, tmp_path, raw_df):
     """Test that _format_data maps country codes to ISO3 and names if enabled."""
@@ -193,6 +204,7 @@ def test_format_data_maps_only_iso(baci, tmp_path, raw_df):
     assert "exporter_name" not in df.columns
     assert "importer_name" not in df.columns
 
+
 @patch("bblocks_data_importers.cepii.baci.DataFrameValidator")
 def test_load_data_triggers_download_if_missing(mock_validator, baci, tmp_path):
     """Test _load_data downloads data and formats it when parquet is missing."""
@@ -204,9 +216,11 @@ def test_load_data_triggers_download_if_missing(mock_validator, baci, tmp_path):
     baci._include_country_names = False
 
     baci._download_and_extract = MagicMock()
-    baci._combine_data = MagicMock(return_value=pa.table({
-        "t": [2022], "i": [1], "j": [2], "k": ["x"], "v": [1.0], "q": [1.0]
-    }))
+    baci._combine_data = MagicMock(
+        return_value=pa.table(
+            {"t": [2022], "i": [1], "j": [2], "k": ["x"], "v": [1.0], "q": [1.0]}
+        )
+    )
     baci._format_data = MagicMock(return_value="formatted")
 
     baci._load_data([2022])
@@ -217,7 +231,9 @@ def test_load_data_triggers_download_if_missing(mock_validator, baci, tmp_path):
     assert baci._data == "formatted"
     assert baci._loaded_years == [2022]
 
+
 # ---------- COMBINE ---------- #
+
 
 def test_combine_data_returns_table(baci, data_dir):
     """Test that _combine_data returns a valid PyArrow Table."""
@@ -238,7 +254,9 @@ def test_combine_data_raises_if_none_found(baci, data_dir):
     with pytest.raises(FileNotFoundError, match="No BACI CSV files found"):
         baci._combine_data()
 
+
 # ---------- GET DATA ---------- #
+
 
 def test_get_data_triggers_load_and_sets_config(baci):
     """Test get_data initializes settings and loads if not cached."""
@@ -270,6 +288,7 @@ def test_get_data_uses_cache_if_config_unchanged(baci):
 
 # ---------- METADATA ---------- #
 
+
 def test_extract_metadata_warns_on_missing_readme(baci, tmp_path):
     """Test _extract_metadata sets empty metadata and warns if Readme.txt is missing."""
     extract_path = tmp_path / "BACI_HS22_V202401"
@@ -285,11 +304,13 @@ def test_extract_metadata_warns_on_missing_readme(baci, tmp_path):
         assert baci._metadata == {}
         mock_logger.warning.assert_called_once()
 
+
 def test_extract_metadata_raises_if_not_loaded(baci):
     """Test that RuntimeError is raised if data directory is not set."""
     baci._data_directory = None
     with pytest.raises(RuntimeError, match=re.escape("Run `get_data()` first")):
         baci._extract_metadata()
+
 
 def test_extract_metadata_raises_if_completely_missing(baci, tmp_path):
     """Test _extract_metadata raises FileNotFoundError if no Readme or data found."""
@@ -343,6 +364,7 @@ def test_get_metadata_triggers_extraction(tmp_path):
 
 # ---------- CACHE ---------- #
 
+
 def test_clear_cache_resets_state(baci):
     """Test that clear_cache resets internal data and metadata."""
     baci._data = "dummy"
@@ -353,6 +375,7 @@ def test_clear_cache_resets_state(baci):
 
 
 # ---------- PRODUCT DICT ---------- #
+
 
 def test_get_product_dict_raises_if_not_loaded(baci):
     """Test that RuntimeError is raised if data directory is not set."""
@@ -378,6 +401,7 @@ def test_get_product_dict_returns_dict(baci, tmp_path):
 
 # ---------- DELETE LOCAL FILES ---------- #
 
+
 def test_delete_local_files_removes_directory(baci, tmp_path):
     """Test that delete_local_files removes the expected directory."""
     path = tmp_path / "BACI_HS22_V202401"
@@ -387,11 +411,13 @@ def test_delete_local_files_removes_directory(baci, tmp_path):
     baci.delete_local_files()
     assert not path.exists()
 
+
 def test_delete_local_files_raises_if_not_loaded(baci):
     """Test that RuntimeError is raised if data directory is not set."""
     baci._data_directory = None
     with pytest.raises(RuntimeError, match=re.escape("Run `get_data()` first")):
         baci.delete_local_files()
+
 
 def test_delete_local_files_warns_if_missing(baci, tmp_path):
     """Test that delete_local_files logs info if directory does not exist."""

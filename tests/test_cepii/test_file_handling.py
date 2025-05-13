@@ -6,7 +6,11 @@ import pyarrow as pa
 from pathlib import Path
 import shutil
 
-from bblocks_data_importers.cepii.file_handling import save_parquet, load_parquet, cleanup_csvs
+from bblocks_data_importers.cepii.file_handling import (
+    save_parquet,
+    load_parquet,
+    cleanup_csvs,
+)
 
 
 @pytest.fixture
@@ -16,17 +20,22 @@ def output_dir(tmp_path) -> Path:
     yield path
     shutil.rmtree(path, ignore_errors=True)
 
+
 @pytest.fixture
 def baci_table() -> pa.Table:
     """Fixture to create a reusable PyArrow Table for testing."""
-    return pa.table({
-        "t": pa.array([2022, 2023, 2023], type=pa.int16()),  # use consistent types for partitioning
-        "i": [1, 2, 3],
-        "j": [4, 5, 6],
-        "k": ["010101", "020202", "030303"],
-        "v": [1.0, 2.0, 3.0],
-        "q": [0.5, 0.7, 0.9],
-    })
+    return pa.table(
+        {
+            "t": pa.array(
+                [2022, 2023, 2023], type=pa.int16()
+            ),  # use consistent types for partitioning
+            "i": [1, 2, 3],
+            "j": [4, 5, 6],
+            "k": ["010101", "020202", "030303"],
+            "v": [1.0, 2.0, 3.0],
+            "q": [0.5, 0.7, 0.9],
+        }
+    )
 
 
 def test_save_parquet_creates_partitioned_files(baci_table, output_dir):
@@ -47,6 +56,7 @@ def test_load_parquet_returns_no_filtered_dataframe(baci_table, output_dir):
     assert isinstance(df, pd.DataFrame)
     assert df["t"].unique().tolist() == [2022, 2023]
     assert len(df) == 3
+
 
 def test_load_parquet_returns_filtered_dataframe(baci_table, output_dir):
     """Test that load_parquet filters correctly by year."""
