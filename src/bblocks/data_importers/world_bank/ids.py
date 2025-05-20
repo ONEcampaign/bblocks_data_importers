@@ -4,8 +4,8 @@ from typing import Optional, Literal, Iterable
 
 import pandas as pd
 
-from bblocks_data_importers.config import Paths
-from bblocks_data_importers.world_bank.wb_api import WorldBank
+from bblocks.data_importers.config import Paths
+from bblocks.data_importers.world_bank.wb_api import WorldBank
 
 
 def read_indicators_file(file: str) -> dict:

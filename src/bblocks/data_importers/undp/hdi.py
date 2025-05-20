@@ -25,10 +25,10 @@ import requests
 import io
 import numpy as np
 
-from bblocks_data_importers.config import logger, DataExtractionError, Fields
-from bblocks_data_importers.protocols import DataImporter
-from bblocks_data_importers.data_validators import DataFrameValidator
-from bblocks_data_importers.utilities import convert_dtypes
+from bblocks.data_importers.config import logger, DataExtractionError, Fields
+from bblocks.data_importers.protocols import DataImporter
+from bblocks.data_importers.data_validators import DataFrameValidator
+from bblocks.data_importers.utilities import convert_dtypes
 
 
 DATA_URL = "https://hdr.undp.org/sites/default/files/2023-24_HDR/HDR23-24_Composite_indices_complete_time_series.csv"  # HDI data URL TODO: add functionality to dinamically get the latest URL as url link will likely change in the future

@@ -4,8 +4,8 @@ import pytest
 from unittest import mock
 import pandas as pd
 
-from bblocks_data_importers.imf.weo import WEO
-from bblocks_data_importers.config import (
+from bblocks.data_importers import WEO
+from bblocks.data_importers.config import (
     Fields,
     DataExtractionError,
     DataFormattingError,
@@ -43,9 +43,10 @@ def mock_weo_data():
 @pytest.fixture
 def mock_fetch_data(mock_weo_data):
     """Fixture to mock the weo.fetch_data method"""
-    with mock.patch(
-        "imf_reader.weo.fetch_data", return_value=mock_weo_data
-    ), mock.patch("imf_reader.weo.fetch_data.last_version_fetched", ("April", 2023)):
+    with (
+        mock.patch("imf_reader.weo.fetch_data", return_value=mock_weo_data),
+        mock.patch("imf_reader.weo.fetch_data.last_version_fetched", ("April", 2023)),
+    ):
         yield
 
 
@@ -53,9 +54,10 @@ def mock_fetch_data(mock_weo_data):
 def mock_fetch_data_specific_version(mock_weo_data):
     """Fixture to mock the weo.fetch_data method for a specific version"""
 
-    with mock.patch(
-        "imf_reader.weo.fetch_data", return_value=mock_weo_data
-    ), mock.patch("imf_reader.weo.fetch_data.last_version_fetched", ("October", 2022)):
+    with (
+        mock.patch("imf_reader.weo.fetch_data", return_value=mock_weo_data),
+        mock.patch("imf_reader.weo.fetch_data.last_version_fetched", ("October", 2022)),
+    ):
         yield
 
 

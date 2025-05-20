@@ -3,7 +3,7 @@
 import pytest
 import pandas as pd
 
-from bblocks_data_importers import utilities
+from bblocks.data_importers import utilities
 
 
 def test_convert_dtypes_with_default_backend():

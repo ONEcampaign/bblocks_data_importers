@@ -3,7 +3,7 @@ from typing import Literal
 import country_converter as coco
 import logging
 
-from bblocks_data_importers.config import logger
+from bblocks.data_importers.config import logger
 
 coco_logger = coco.logging.getLogger()
 coco_logger.setLevel(logging.CRITICAL)

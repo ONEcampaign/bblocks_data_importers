@@ -18,11 +18,11 @@ jobs:
       fail-fast: false
       matrix:
         config:
+          - { os: ubuntu-latest, py: "3.13" }
           - { os: ubuntu-latest, py: "3.12" }
+          - { os: windows-latest, py: "3.11" }
+          - { os: macOS-latest, py: "3.11" }
           - { os: ubuntu-latest, py: "3.11" }
-          - { os: windows-latest, py: "3.10" }
-          - { os: macOS-latest, py: "3.10" }
-          - { os: ubuntu-latest, py: "3.10" }
 
     steps:
       - uses: actions/checkout@v2
@@ -41,15 +41,15 @@ jobs:
         run: poetry install
 
       - name: Test with pytest
-        run: poetry run pytest tests/ --cov=bblocks_data_importers --cov-report=xml
+        run: poetry run pytest tests/ --cov=./ --cov-report=xml
 
-      - name: Use Codecov to track coverage
-        uses: codecov/codecov-action@v3
+      - name: Code coverage
+        uses: codecov/codecov-action@v5
         with:
+          fail_ci_if_error: true # optional (default = false)
+          name: codecov-umbrella # optional
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.xml   # coverage report
-          fail_ci_if_error: true
-          verbose: true
+          verbose: true # optional (default = false)
 
       - name: Check code style
         run: poetry run black src tests --check
