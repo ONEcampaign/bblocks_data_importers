@@ -43,12 +43,15 @@ jobs:
       - name: Test with pytest
         run: poetry run pytest tests/ --cov=data_importers --cov-report=xml
 
-      - name: Use Codecov to track coverage
+      - name: Code coverage
         uses: codecov/codecov-action@v5
         with:
+          fail_ci_if_error: true # optional (default = false)
+          files: ./coverage1.xml,./coverage2.xml # optional
+          flags: unittests # optional
+          name: codecov-umbrella # optional
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: true
-          verbose: true
+          verbose: true # optional (default = false)
 
       - name: Check code style
         run: poetry run black src tests --check
