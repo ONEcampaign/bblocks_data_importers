@@ -14,15 +14,17 @@ from bblocks.data_importers.data_validators import DataFrameValidator
 # Disable warnings - UNAIDS does not have a valid SSL certificate
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-YEAR = 2024 # The year of the last data update - used in the URLs.
+YEAR = 2024  # The year of the last data update - used in the URLs.
 
-URLS = {"Estimates": f"https://aidsinfo.unaids.org/documents/Estimates_{YEAR}_en.zip",
-        "Laws and Policies": f"https://aidsinfo.unaids.org/documents/NCPI_{YEAR}_en.zip",
-        "Key Populations": f"https://aidsinfo.unaids.org/documents/KPAtlasDB_{YEAR}_en.zip",
-        "GAM": f"https://aidsinfo.unaids.org/documents/GAM_{YEAR}_en.zip"
-        }
+URLS = {
+    "Estimates": f"https://aidsinfo.unaids.org/documents/Estimates_{YEAR}_en.zip",
+    "Laws and Policies": f"https://aidsinfo.unaids.org/documents/NCPI_{YEAR}_en.zip",
+    "Key Populations": f"https://aidsinfo.unaids.org/documents/KPAtlasDB_{YEAR}_en.zip",
+    "GAM": f"https://aidsinfo.unaids.org/documents/GAM_{YEAR}_en.zip",
+}
 
-def get_response(url: str, verify: bool=False) -> requests.Response:
+
+def get_response(url: str, verify: bool = False) -> requests.Response:
     """Gets a response from the given URL.
 
     Args:
@@ -87,17 +89,18 @@ def format_data(df: pd.DataFrame) -> pd.DataFrame:
 
     """
 
-    cols = {'Indicator': Fields.indicator_name,
-            'Unit': Fields.unit,
-            'Subgroup': "subgroup",
-            'Area': Fields.entity_name,
-            'Area ID': Fields.entity_code,
-            'Time Period': Fields.year,
-            'Source': Fields.source,
-            'Data value': Fields.value,
-            'Formatted': "value_formatted",
-            'Footnote': Fields.footnote
-            }
+    cols = {
+        "Indicator": Fields.indicator_name,
+        "Unit": Fields.unit,
+        "Subgroup": "subgroup",
+        "Area": Fields.entity_name,
+        "Area ID": Fields.entity_code,
+        "Time Period": Fields.year,
+        "Source": Fields.source,
+        "Data value": Fields.value,
+        "Formatted": "value_formatted",
+        "Footnote": Fields.footnote,
+    }
 
     # rename the columns
     df.rename(columns=cols, inplace=True)
@@ -105,7 +108,6 @@ def format_data(df: pd.DataFrame) -> pd.DataFrame:
     df = convert_dtypes(df)
 
     return df
-
 
 
 class UNAIDS:
@@ -154,25 +156,32 @@ class UNAIDS:
 
     def __init__(self, verify_ssl: bool = False):
 
-        self._data: dict = {"Estimates": None,
-                            "Laws and Policies": None,
-                            "Key Populations": None,
-                            "GAM": None
-                            }
+        self._data: dict = {
+            "Estimates": None,
+            "Laws and Policies": None,
+            "Key Populations": None,
+            "GAM": None,
+        }
 
         self.verify_ssl = verify_ssl
         if self.verify_ssl:
-            logger.warning("SSL verification is enabled. This may cause issues requesting data from UNAIDS.")
-            logger.warning(" If you encounter SSL errors, please disable SSL verification by setting verify_ssl=False.")
+            logger.warning(
+                "SSL verification is enabled. This may cause issues requesting data from UNAIDS."
+            )
+            logger.warning(
+                " If you encounter SSL errors, please disable SSL verification by setting verify_ssl=False."
+            )
 
         else:
-            logger.warning("SSL verification is disabled. This is required to request data from UNAIDS."
-                           " Please verify your security preferences before requesting data.")
+            logger.warning(
+                "SSL verification is disabled. This is required to request data from UNAIDS."
+                " Please verify your security preferences before requesting data."
+            )
 
-
-
-
-    def _load_data(self, dataset: Literal["Estimates", "Laws and Policies", "Key Populations", "GAM"]) -> None:
+    def _load_data(
+        self,
+        dataset: Literal["Estimates", "Laws and Policies", "Key Populations", "GAM"],
+    ) -> None:
         """Load the data from UNAIDS to the object
 
         Args:
@@ -188,16 +197,33 @@ class UNAIDS:
         logger.info(f"Loading dataset: {dataset}")
 
         # pipeline to get the data
-        response = get_response(URLS[dataset], verify=self.verify_ssl) # get the response from the URL
-        df = read_csv_from_zip_response(response) # read the CSV file from the zip response
-        df = format_data(df) # format the data
+        response = get_response(
+            URLS[dataset], verify=self.verify_ssl
+        )  # get the response from the URL
+        df = read_csv_from_zip_response(
+            response
+        )  # read the CSV file from the zip response
+        df = format_data(df)  # format the data
 
         # validate the data
-        DataFrameValidator().validate(df, required_cols=[Fields.year, Fields.entity_code, Fields.entity_name,
-                                                     Fields.indicator_name, Fields.value])
+        DataFrameValidator().validate(
+            df,
+            required_cols=[
+                Fields.year,
+                Fields.entity_code,
+                Fields.entity_name,
+                Fields.indicator_name,
+                Fields.value,
+            ],
+        )
         self._data[dataset] = df
 
-    def get_data(self, dataset: Literal["Estimates", "Laws and Policies", "Key Populations", "GAM"] = "Estimates") -> pd.DataFrame:
+    def get_data(
+        self,
+        dataset: Literal[
+            "Estimates", "Laws and Policies", "Key Populations", "GAM"
+        ] = "Estimates",
+    ) -> pd.DataFrame:
         """Get UNAIDS data for a specific dataset
 
         Args:
@@ -214,10 +240,12 @@ class UNAIDS:
         """
 
         if dataset not in self._data:
-            raise ValueError(f"Invalid dataset: {dataset}. Available datasets are: {list(self._data.keys())}")
+            raise ValueError(
+                f"Invalid dataset: {dataset}. Available datasets are: {list(self._data.keys())}"
+            )
 
         if self._data[dataset] is None:
-           self._load_data(dataset)
+            self._load_data(dataset)
 
         return self._data[dataset]
 
