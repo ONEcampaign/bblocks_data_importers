@@ -41,7 +41,7 @@ jobs:
         run: poetry install
 
       - name: Test with pytest
-        run: poetry run pytest tests/ --cov=data_importers --cov-report=xml
+        run: poetry run pytest tests/ --cov=./ --cov-report=xml
 
       - name: Code coverage
         uses: codecov/codecov-action@v5
