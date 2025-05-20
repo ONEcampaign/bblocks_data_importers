@@ -44,10 +44,10 @@ jobs:
         run: poetry run pytest tests/ --cov=data_importers --cov-report=xml
 
       - name: Use Codecov to track coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.xml   # coverage report
+          files: coverage.xml   # coverage report
           fail_ci_if_error: true
           verbose: true
 
