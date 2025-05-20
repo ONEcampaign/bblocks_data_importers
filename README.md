@@ -38,7 +38,7 @@ Available importers include:
 - `WorldBank` to access the World Bank data
 - `InternationalDebtStatistics` to access the World Bank's International Debt Statistics
 - `HumanDevelopmentIndex` to access the UNDP's Human Development Index
-
+- `UNAIDS` to access the UNAIDS HIV/AIDS data
 Read the documentation for more details on each importer [here](https://bblocks-data-importers.readthedocs.io/en/latest/Importers/index.html)
 
 

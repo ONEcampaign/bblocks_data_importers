@@ -1,4 +1,11 @@
-"""UNAIDS data importer."""
+"""UNAIDS data importer.
+
+This module provides a class to import data from the UNAIDS website.
+Data is fetched from the UNAIDS website: https://aidsinfo.unaids.org/
+Bulk download urls are available in the Fact Sheets section of the website.
+
+NOTE: the AidsInfo website does not have a valid SSL certificate, so we disable the SSL verification by default.
+"""
 
 import requests
 import io
