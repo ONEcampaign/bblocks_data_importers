@@ -1,8 +1,13 @@
 [tool.poetry]
-name = "bblocks_data_importers"
+name = "bblocks-data-importers"
 version = "0.3.0"
-description = "A package to import data"
-authors = ["The ONE Campaign", "Luca Picci", "Jorge Rivera"]
+description = "Tools to import data from different sources. Part of the bblocks project."
+authors = [
+    {name = "ONE Campaign"},
+    {name = "Luca Picci",email = "lpicci96@gmail.com"},
+    {name = "Jorge Rivera", email = "jorge.rivera@one.org"},
+    {name = "Miguel Haro Ruiz", email = "Miguel.HaroRuiz@one.org"}
+]
 license = "MIT"
 readme = "README.md"
 
@@ -35,5 +40,5 @@ changelog_file = "CHANGELOG.md"
 build_command = "pip install poetry && poetry build"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
