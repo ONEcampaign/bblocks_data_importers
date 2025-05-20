@@ -488,13 +488,15 @@ class TestInflation:
         mock_formatted_data = pd.DataFrame({"value": [1]})
 
         # Mock logs, `extract_data` and `format_data` methods
-        with mock.patch(
-            "bblocks.data_importers.config.logger.info"
-        ) as mock_logger, mock.patch.object(
-            wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data
-        ) as mock_extract, mock.patch.object(
-            wfp_inflation_pre_load, "format_data", return_value=mock_formatted_data
-        ) as mock_format:
+        with (
+            mock.patch("bblocks.data_importers.config.logger.info") as mock_logger,
+            mock.patch.object(
+                wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data
+            ) as mock_extract,
+            mock.patch.object(
+                wfp_inflation_pre_load, "format_data", return_value=mock_formatted_data
+            ) as mock_format,
+        ):
 
             # Call `load_data` method
             wfp_inflation_pre_load.load_data("Headline inflation (YoY)", ["USA"])
@@ -521,13 +523,15 @@ class TestInflation:
         mock_empty_df = pd.DataFrame()
 
         # Mock logs, `extract_data` and `format_data` methods
-        with mock.patch(
-            "bblocks.data_importers.config.logger.warning"
-        ) as mock_warning, mock.patch.object(
-            wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data
-        ) as mock_extract, mock.patch.object(
-            wfp_inflation_pre_load, "format_data", return_value=mock_empty_df
-        ) as mock_format:
+        with (
+            mock.patch("bblocks.data_importers.config.logger.warning") as mock_warning,
+            mock.patch.object(
+                wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data
+            ) as mock_extract,
+            mock.patch.object(
+                wfp_inflation_pre_load, "format_data", return_value=mock_empty_df
+            ) as mock_format,
+        ):
 
             # Call `load_data` method
             wfp_inflation_pre_load.load_data("Headline inflation (YoY)", ["USA"])
@@ -562,15 +566,17 @@ class TestInflation:
         wfp_inflation_post_load._indicators = {"Headline inflation (YoY)": 116}
 
         # Mock methods for extraction and formatting
-        with mock.patch.object(
-            wfp_inflation_post_load, "extract_data", return_value="mocked raw data"
-        ) as mock_extract, mock.patch.object(
-            wfp_inflation_post_load,
-            "format_data",
-            return_value=pd.DataFrame({"date": ["2023-10-01"], "value": [2.3]}),
-        ) as mock_format, mock.patch(
-            "bblocks.data_importers.config.logger.info"
-        ) as mock_logger:
+        with (
+            mock.patch.object(
+                wfp_inflation_post_load, "extract_data", return_value="mocked raw data"
+            ) as mock_extract,
+            mock.patch.object(
+                wfp_inflation_post_load,
+                "format_data",
+                return_value=pd.DataFrame({"date": ["2023-10-01"], "value": [2.3]}),
+            ) as mock_format,
+            mock.patch("bblocks.data_importers.config.logger.info") as mock_logger,
+        ):
             # Call `load_data`
             wfp_inflation_post_load.load_data(indicator_name, ["USA", "CAN"])
 
@@ -1180,17 +1186,18 @@ class TestFoodSecurity:
         mock_response = {"fcsGraph": [{"x": "2023-10-01", "fcs": 20}]}
         mock_parsed_df = pd.DataFrame({"value": [20]})
 
-        with mock.patch.object(
-            wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response
-        ) as mock_extract, mock.patch.object(
-            wfp_foodsecurity_pre_load,
-            "_parse_national_data",
-            return_value=mock_parsed_df,
-        ) as mock_parse, mock.patch(
-            "bblocks.data_importers.config.logger.info"
-        ) as mock_logger, mock.patch.object(
-            DataFrameValidator, "validate"
-        ) as mock_validate:
+        with (
+            mock.patch.object(
+                wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response
+            ) as mock_extract,
+            mock.patch.object(
+                wfp_foodsecurity_pre_load,
+                "_parse_national_data",
+                return_value=mock_parsed_df,
+            ) as mock_parse,
+            mock.patch("bblocks.data_importers.config.logger.info") as mock_logger,
+            mock.patch.object(DataFrameValidator, "validate") as mock_validate,
+        ):
 
             wfp_foodsecurity_pre_load._load_data(["USA"], level="national")
 
@@ -1224,17 +1231,18 @@ class TestFoodSecurity:
         }
         mock_parsed_df = pd.DataFrame({"value": [20]})
 
-        with mock.patch.object(
-            wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response
-        ) as mock_extract, mock.patch.object(
-            wfp_foodsecurity_pre_load,
-            "_parse_subnational_data",
-            return_value=mock_parsed_df,
-        ) as mock_parse, mock.patch(
-            "bblocks.data_importers.config.logger.info"
-        ) as mock_logger, mock.patch.object(
-            DataFrameValidator, "validate"
-        ) as mock_validate:
+        with (
+            mock.patch.object(
+                wfp_foodsecurity_pre_load, "_extract_data", return_value=mock_response
+            ) as mock_extract,
+            mock.patch.object(
+                wfp_foodsecurity_pre_load,
+                "_parse_subnational_data",
+                return_value=mock_parsed_df,
+            ) as mock_parse,
+            mock.patch("bblocks.data_importers.config.logger.info") as mock_logger,
+            mock.patch.object(DataFrameValidator, "validate") as mock_validate,
+        ):
 
             wfp_foodsecurity_pre_load._load_data(["USA"], level="subnational")
 
@@ -1270,19 +1278,22 @@ class TestFoodSecurity:
         }
 
         # Mock methods for extraction, parsing, and validation
-        with mock.patch.object(
-            wfp_foodsecurity_post_load,
-            "_extract_data",
-            return_value={"fcsGraph": [{"x": "2023-10-01", "fcs": 2.3}]},
-        ) as mock_extract, mock.patch.object(
-            wfp_foodsecurity_post_load,
-            "_parse_national_data",
-            return_value=pd.DataFrame({"date": ["2023-10-01"], "value": [2.3]}),
-        ) as mock_parse, mock.patch.object(
-            DataFrameValidator, "validate", return_value=None
-        ) as mock_validate, mock.patch(
-            "bblocks.data_importers.config.logger.info"
-        ) as mock_logger:
+        with (
+            mock.patch.object(
+                wfp_foodsecurity_post_load,
+                "_extract_data",
+                return_value={"fcsGraph": [{"x": "2023-10-01", "fcs": 2.3}]},
+            ) as mock_extract,
+            mock.patch.object(
+                wfp_foodsecurity_post_load,
+                "_parse_national_data",
+                return_value=pd.DataFrame({"date": ["2023-10-01"], "value": [2.3]}),
+            ) as mock_parse,
+            mock.patch.object(
+                DataFrameValidator, "validate", return_value=None
+            ) as mock_validate,
+            mock.patch("bblocks.data_importers.config.logger.info") as mock_logger,
+        ):
             # Call `_load_data`
             wfp_foodsecurity_post_load._load_data(["USA", "CAN"], level)
 
@@ -1468,11 +1479,10 @@ class TestFoodSecurity:
         wfp_foodsecurity_post_load._data["national"] = {}
 
         # Mock `_load_data` to simulate loading with no results
-        with mock.patch.object(
-            wfp_foodsecurity_post_load, "_load_data"
-        ) as mock_load, mock.patch(
-            "bblocks.data_importers.config.logger.warning"
-        ) as mock_warning:
+        with (
+            mock.patch.object(wfp_foodsecurity_post_load, "_load_data") as mock_load,
+            mock.patch("bblocks.data_importers.config.logger.warning") as mock_warning,
+        ):
 
             # Call the method
             result = wfp_foodsecurity_post_load.get_data(
@@ -1567,41 +1577,44 @@ class TestFoodSecurity:
         wfp_foodsecurity_post_load._countries = None
 
         # Mock `_load_available_countries` to populate `_countries`
-        with mock.patch.object(
-            wfp_foodsecurity_post_load,
-            "_load_available_countries",
-            side_effect=lambda: setattr(
+        with (
+            mock.patch.object(
                 wfp_foodsecurity_post_load,
-                "_countries",
-                {
-                    "USA": {"entity_code": 1, "name": "United States"},
-                    "CAN": {"entity_code": 2, "name": "Canada"},
-                },
-            ),
-        ) as mock_load_countries, mock.patch.object(
-            wfp_foodsecurity_post_load,
-            "_load_data",
-            side_effect=lambda countries, level: wfp_foodsecurity_post_load._data[
-                level
-            ].update(
-                {
-                    "USA": pd.DataFrame(
-                        {
-                            "date": ["2023-10-01", "2023-10-02"],
-                            "value": [20, 30],
-                            "iso3_code": ["USA", "USA"],
-                        }
-                    ),
-                    "CAN": pd.DataFrame(
-                        {
-                            "date": ["2023-10-01", "2023-10-02"],
-                            "value": [40, 50],
-                            "iso3_code": ["CAN", "CAN"],
-                        }
-                    ),
-                }
-            ),
-        ) as mock_load_data:
+                "_load_available_countries",
+                side_effect=lambda: setattr(
+                    wfp_foodsecurity_post_load,
+                    "_countries",
+                    {
+                        "USA": {"entity_code": 1, "name": "United States"},
+                        "CAN": {"entity_code": 2, "name": "Canada"},
+                    },
+                ),
+            ) as mock_load_countries,
+            mock.patch.object(
+                wfp_foodsecurity_post_load,
+                "_load_data",
+                side_effect=lambda countries, level: wfp_foodsecurity_post_load._data[
+                    level
+                ].update(
+                    {
+                        "USA": pd.DataFrame(
+                            {
+                                "date": ["2023-10-01", "2023-10-02"],
+                                "value": [20, 30],
+                                "iso3_code": ["USA", "USA"],
+                            }
+                        ),
+                        "CAN": pd.DataFrame(
+                            {
+                                "date": ["2023-10-01", "2023-10-02"],
+                                "value": [40, 50],
+                                "iso3_code": ["CAN", "CAN"],
+                            }
+                        ),
+                    }
+                ),
+            ) as mock_load_data,
+        ):
             # Call the method
             result = wfp_foodsecurity_post_load.get_data()
 
