@@ -1,11 +1,10 @@
 """Tests for the validator class"""
 
-from bblocks_data_importers.data_validators import DataFrameValidator
-from bblocks_data_importers.config import DataValidationError
+from bblocks.data_importers.data_validators import DataFrameValidator
+from bblocks.data_importers.data_validators import DataValidationError
 
 import pytest
 import pandas as pd
-import pyarrow as pa
 
 
 @pytest.fixture

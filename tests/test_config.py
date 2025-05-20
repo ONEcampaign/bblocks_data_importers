@@ -1,6 +1,6 @@
 """Tests for the config module."""
 
-from bblocks_data_importers.config import Paths, set_data_path
+from bblocks.data_importers.config import Paths, set_data_path
 
 
 def test_paths():

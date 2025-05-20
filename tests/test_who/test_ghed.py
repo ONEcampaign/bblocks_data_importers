@@ -1,7 +1,7 @@
 """Tests for GHED module"""
 
-from bblocks_data_importers.who.ghed import GHED, URL
-from bblocks_data_importers.config import DataExtractionError, DataFormattingError
+from bblocks.data_importers.who.ghed import GHED, URL
+from bblocks.data_importers.config import DataExtractionError, DataFormattingError
 
 import pytest
 from unittest import mock
@@ -9,8 +9,6 @@ from pathlib import Path
 import io
 import requests
 import pandas as pd
-import numpy as np
-
 
 TEST_FILE_PATH = "tests/test_data/test_ghed.XLSX"
 
@@ -55,7 +53,7 @@ def test_init_without_data_file():
     assert ghed._metadata is None
 
 
-@mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
+@mock.patch("bblocks.data_importers.who.ghed.Path.exists", return_value=True)
 def test_init_with_valid_data_file(mock_exists):
     """Test initialization with a valid data file
     Passing a valid file path, so it should not raise an exception
@@ -69,7 +67,7 @@ def test_init_with_valid_data_file(mock_exists):
     assert ghed._metadata is None
 
 
-@mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=False)
+@mock.patch("bblocks.data_importers.who.ghed.Path.exists", return_value=False)
 def test_init_with_invalid_data_file(mock_exists):
     """Test initialization with an invalid data file
     Should raise a FileNotFoundError
@@ -79,7 +77,7 @@ def test_init_with_invalid_data_file(mock_exists):
     mock_exists.assert_called_once()
 
 
-@mock.patch("bblocks_data_importers.who.ghed.requests.get")
+@mock.patch("bblocks.data_importers.who.ghed.requests.get")
 def test_extract_raw_data_success(mock_get, mock_successful_response):
     """Test successful data extraction
     Should return a BytesIO object with the correct content
@@ -97,7 +95,7 @@ def test_extract_raw_data_success(mock_get, mock_successful_response):
 
 
 # Test case 2: Simulate network failure (RequestException)
-@mock.patch("bblocks_data_importers.who.ghed.requests.get")
+@mock.patch("bblocks.data_importers.who.ghed.requests.get")
 def test_extract_raw_data_request_exception(mock_get):
     """Test network failure during data extraction"""
     # Set the mock to raise a RequestException
@@ -112,7 +110,7 @@ def test_extract_raw_data_request_exception(mock_get):
 
 
 # Test case 3: Simulate non-200 status code (e.g., 404)
-@mock.patch("bblocks_data_importers.who.ghed.requests.get")
+@mock.patch("bblocks.data_importers.who.ghed.requests.get")
 def test_extract_raw_data_http_error(mock_get, mock_http_error_response):
     """Test HTTP error during data extraction"""
     # Use the fixture to set the mock response
@@ -281,7 +279,7 @@ def test_read_local_data_success(mock_raw_data):
     assert result.getvalue() == mock_raw_data.getvalue()
 
 
-@mock.patch("bblocks_data_importers.who.ghed.Path.open", side_effect=IOError)
+@mock.patch("bblocks.data_importers.who.ghed.Path.open", side_effect=IOError)
 def test_read_local_data_read_error(mock_open):
     """Test the _read_local_data method raises a DataExtractionError when the file cannot be read"""
     # Create a mock path for a corrupted or inaccessible file
@@ -295,7 +293,7 @@ def test_read_local_data_read_error(mock_open):
     mock_open.assert_called_once_with("rb")
 
 
-@mock.patch("bblocks_data_importers.who.ghed.GHED._extract_raw_data")
+@mock.patch("bblocks.data_importers.who.ghed.GHED._extract_raw_data")
 def test_load_data_no_local_file(mock_extract_raw_data, mock_raw_data):
     """Test that _extract_raw_data is called when no local file is provided"""
 
@@ -308,7 +306,7 @@ def test_load_data_no_local_file(mock_extract_raw_data, mock_raw_data):
     mock_extract_raw_data.assert_called_once()
 
 
-@mock.patch("bblocks_data_importers.who.ghed.GHED._extract_raw_data")
+@mock.patch("bblocks.data_importers.who.ghed.GHED._extract_raw_data")
 def test_load_data_invalid_data_format(mock_extract_raw_data):
     """Check that the data validation fails when the data format is invalid"""
 
@@ -319,7 +317,7 @@ def test_load_data_invalid_data_format(mock_extract_raw_data):
         ghed._load_data()
 
 
-@mock.patch("bblocks_data_importers.who.ghed.GHED._read_local_data")
+@mock.patch("bblocks.data_importers.who.ghed.GHED._read_local_data")
 def test_load_data_with_local_file(mock_read_local_data, mock_raw_data):
     """Test that _read_local_data is called when a local file is provided"""
 
@@ -357,8 +355,8 @@ def test_clear_cache():
     assert ghed._metadata is None
 
 
-@mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
-@mock.patch("bblocks_data_importers.who.ghed.open", new_callable=mock.mock_open)
+@mock.patch("bblocks.data_importers.who.ghed.Path.exists", return_value=True)
+@mock.patch("bblocks.data_importers.who.ghed.open", new_callable=mock.mock_open)
 def test_export_raw_data_success(mock_file_open, mock_path_exists):
     """Test that export_raw_data successfully saves the raw data to disk"""
 
@@ -375,8 +373,8 @@ def test_export_raw_data_success(mock_file_open, mock_path_exists):
     mock_file_open().write.assert_called_once_with(b"some raw data")
 
 
-@mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
-@mock.patch("bblocks_data_importers.who.ghed.open", new_callable=mock.mock_open)
+@mock.patch("bblocks.data_importers.who.ghed.Path.exists", return_value=True)
+@mock.patch("bblocks.data_importers.who.ghed.open", new_callable=mock.mock_open)
 def test_export_raw_data_file_exists_no_overwrite(mock_file_open, mock_path_exists):
     """Test that export_raw_data raises a FileExistsError if the file exists and overwrite is False"""
 
@@ -394,7 +392,7 @@ def test_export_raw_data_file_exists_no_overwrite(mock_file_open, mock_path_exis
     mock_file_open.assert_not_called()
 
 
-@mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=False)
+@mock.patch("bblocks.data_importers.who.ghed.Path.exists", return_value=False)
 def test_export_raw_data_directory_not_found(mock_path_exists):
     """Test that export_raw_data raises a FileNotFoundError if the directory does not exist"""
 
@@ -410,9 +408,9 @@ def test_export_raw_data_directory_not_found(mock_path_exists):
     mock_path_exists.assert_called_once_with()
 
 
-@mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
-@mock.patch("bblocks_data_importers.who.ghed.Path.exists", return_value=True)
-@mock.patch("bblocks_data_importers.who.ghed.open", new_callable=mock.mock_open)
+@mock.patch("bblocks.data_importers.who.ghed.GHED._load_data")
+@mock.patch("bblocks.data_importers.who.ghed.Path.exists", return_value=True)
+@mock.patch("bblocks.data_importers.who.ghed.open", new_callable=mock.mock_open)
 def test_export_raw_data_calls_load_data_if_raw_data_none(
     mock_file_open, mock_path_exists, mock_load_data, mock_raw_data
 ):
@@ -432,7 +430,7 @@ def test_export_raw_data_calls_load_data_if_raw_data_none(
     mock_file_open().write.assert_called_once_with(mock_raw_data.getvalue())
 
 
-@mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
+@mock.patch("bblocks.data_importers.who.ghed.GHED._load_data")
 def test_get_data_calls_load_data_if_data_none(mock_load_data):
     """Test that get_data calls _load_data if _data is None and returns a DataFrame"""
 
@@ -447,7 +445,7 @@ def test_get_data_calls_load_data_if_data_none(mock_load_data):
     assert isinstance(result, pd.DataFrame)
 
 
-@mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
+@mock.patch("bblocks.data_importers.who.ghed.GHED._load_data")
 def test_get_data_does_not_call_load_data_if_data_exists(mock_load_data):
     """Test that get_data does not call _load_data if _data is already populated"""
 
@@ -462,7 +460,7 @@ def test_get_data_does_not_call_load_data_if_data_exists(mock_load_data):
     assert result.equals(ghed._data)  # Ensure it's the same data
 
 
-@mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
+@mock.patch("bblocks.data_importers.who.ghed.GHED._load_data")
 def test_get_metadata_calls_load_data_if_metadata_none(mock_load_data):
     """Test that get_metadata calls _load_data if _metadata is None and returns a DataFrame"""
 
@@ -477,7 +475,7 @@ def test_get_metadata_calls_load_data_if_metadata_none(mock_load_data):
     assert isinstance(result, pd.DataFrame)
 
 
-@mock.patch("bblocks_data_importers.who.ghed.GHED._load_data")
+@mock.patch("bblocks.data_importers.who.ghed.GHED._load_data")
 def test_get_metadata_does_not_call_load_data_if_metadata_exists(mock_load_data):
     """Test that get_metadata does not call _load_data if _metadata is already populated"""
     ghed = GHED()

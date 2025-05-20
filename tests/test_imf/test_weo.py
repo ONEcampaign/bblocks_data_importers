@@ -4,8 +4,8 @@ import pytest
 from unittest import mock
 import pandas as pd
 
-from bblocks_data_importers.imf.weo import WEO
-from bblocks_data_importers.config import (
+from bblocks.data_importers import WEO
+from bblocks.data_importers.config import (
     Fields,
     DataExtractionError,
     DataFormattingError,

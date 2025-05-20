@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from bblocks_data_importers.config import logger, DataValidationError
+from bblocks.data_importers.config import logger, DataValidationError
 
 
 class DataFrameValidator:

@@ -33,15 +33,15 @@ import numpy as np
 from requests.exceptions import RequestException
 from pathlib import Path
 
-from bblocks_data_importers.config import (
+from bblocks.data_importers.config import (
     logger,
     DataExtractionError,
     DataFormattingError,
     Fields,
 )
-from bblocks_data_importers.protocols import DataImporter
-from bblocks_data_importers.utilities import convert_dtypes
-from bblocks_data_importers.data_validators import DataFrameValidator
+from bblocks.data_importers.protocols import DataImporter
+from bblocks.data_importers.utilities import convert_dtypes
+from bblocks.data_importers.data_validators import DataFrameValidator
 
 URL: str = "https://apps.who.int/nha/database/Home/IndicatorsDownload/en"
 

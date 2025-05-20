@@ -43,7 +43,7 @@ may change in the future and can cause unexpected behaviour.
 
 It is possible that these internal APIs may change in the future which may cause the script to break.
 If this happens, the script will need to be updated to reflect the changes in the APIs. If you encounter
-any issues with the script, please raise an issue on the GitHub repository for the bblocks_data_importers package.
+any issues with the script, please raise an issue on the GitHub repository for the data_importers package.
 
 """
 
@@ -54,19 +54,19 @@ import numpy as np
 import country_converter as coco
 from typing import Literal
 
-from bblocks_data_importers.config import (
+from bblocks.data_importers.config import (
     logger,
     DataExtractionError,
     DataFormattingError,
     Fields,
     Units,
 )
-from bblocks_data_importers.protocols import DataImporter
-from bblocks_data_importers.utilities import (
+from bblocks.data_importers.protocols import DataImporter
+from bblocks.data_importers.utilities import (
     convert_dtypes,
     convert_countries_to_unique_list,
 )
-from bblocks_data_importers.data_validators import DataFrameValidator
+from bblocks.data_importers.data_validators import DataFrameValidator
 
 
 HUNGERMAP_API: str = "https://api.hungermapdata.org/v2"

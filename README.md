@@ -12,7 +12,7 @@ A package to import data from major humanitarian, development and financial inst
 ## Installation
 
 ```bash
-$ pip install bblocks_data_importers
+$ pip install data_importers
 ```
 
 ## Example Usage
@@ -20,7 +20,8 @@ $ pip install bblocks_data_importers
 Import the package and use the various importer objects to access data from different sources.
 
 ```python
-import bblocks_data_importers as bbdata
+
+from bblocks import data_importers as bbdata
 ```
 
 To access data from the IMF's World Economic Outlook use a WEO object:

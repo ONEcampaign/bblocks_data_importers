@@ -1,7 +1,7 @@
 import pytest
 
-from bblocks_data_importers.world_bank.ids import InternationalDebtStatistics
-from bblocks_data_importers.world_bank.wb_api import WorldBank
+from bblocks.data_importers.world_bank.ids import InternationalDebtStatistics
+from bblocks.data_importers.world_bank.wb_api import WorldBank
 
 
 def test_set_database():

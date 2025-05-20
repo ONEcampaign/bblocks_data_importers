@@ -6,7 +6,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = "bblocks_data_importers"
+project = "data_importers"
 copyright = "2024, The ONE Campaign"
 author = "The ONE Campaign"
 

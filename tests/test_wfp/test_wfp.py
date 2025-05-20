@@ -6,19 +6,18 @@ import pytest
 import requests
 from unittest import mock
 
-import bblocks_data_importers.wfp.wfp as WFP
-from bblocks_data_importers.wfp.wfp import (
+from bblocks.data_importers.wfp import wfp
+from bblocks.data_importers.wfp.wfp import (
     extract_countries,
     WFPInflation,
     WFPFoodSecurity,
     Fields,
 )
-from bblocks_data_importers.config import DataExtractionError, DataFormattingError
-from bblocks_data_importers.utilities import (
+from bblocks.data_importers.config import DataExtractionError, DataFormattingError
+from bblocks.data_importers.utilities import (
     convert_dtypes,
-    convert_countries_to_unique_list,
 )
-from bblocks_data_importers.data_validators import DataFrameValidator
+from bblocks.data_importers.data_validators import DataFrameValidator
 
 
 # Fixtures
@@ -27,7 +26,7 @@ def reset_cached_countries():
     """
     Reset the global _cached_countries variable before each test.
     """
-    WFP._cached_countries = None
+    wfp._cached_countries = None
 
 
 @pytest.fixture
@@ -65,7 +64,7 @@ def mock_cached_countries():
         "VNM": {"entity_code": 1, "data_type": "PREDICTION", "country_name": "Vietnam"},
         "AFG": {"entity_code": 2, "data_type": None, "country_name": "Afghanistan"},
     }
-    WFP._cached_countries = mock_cache
+    wfp._cached_countries = mock_cache
 
 
 @pytest.fixture
@@ -271,7 +270,7 @@ class TestInflation:
         """
 
         # Mock global variable
-        WFP._cached_countries = {
+        wfp._cached_countries = {
             "VNM": {
                 "entity_code": 1,
                 "data_type": "PREDICTION",
@@ -322,9 +321,9 @@ class TestInflation:
         assert isinstance(result, io.BytesIO)
         assert result.getvalue() == b"mocked response data"
         mock_response_inflation.assert_called_once_with(
-            f"{WFP.VAM_API}/economicExplorer/TradingEconomics/InflationExport",
+            f"{wfp.VAM_API}/economicExplorer/TradingEconomics/InflationExport",
             json=expected_json,
-            headers=WFP.VAM_HEADERS,
+            headers=wfp.VAM_HEADERS,
             timeout=wfp_inflation._timeout,
         )
 
@@ -372,7 +371,7 @@ class TestInflation:
         Test that data extracts correctly after clearing the cached data.
         """
         # Clear cache
-        with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger:
+        with mock.patch("bblocks.data_importers.config.logger.info") as mock_logger:
             wfp_inflation_post_load.clear_cache()
 
             # Assert cache is cleared
@@ -395,12 +394,12 @@ class TestInflation:
 
         # Assert the correct API call was made
         mock_response_inflation.assert_called_once_with(
-            f"{WFP.VAM_API}/economicExplorer/TradingEconomics/InflationExport",
+            f"{wfp.VAM_API}/economicExplorer/TradingEconomics/InflationExport",
             json={
                 "adm0Code": country_code,
                 "economicIndicatorIds": [indicator_code],
             },
-            headers=WFP.VAM_HEADERS,
+            headers=wfp.VAM_HEADERS,
             timeout=wfp_inflation_post_load._timeout,
         )
 
@@ -460,7 +459,7 @@ class TestInflation:
         }
 
         # Mock logs
-        with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger:
+        with mock.patch("bblocks.data_importers.config.logger.info") as mock_logger:
             # Call `load_data` method
             wfp_inflation_pre_load.load_data("Headline inflation (YoY)", ["USA", "CAN"])
             # Assert that no messages are logged
@@ -471,7 +470,7 @@ class TestInflation:
         Test that WFPInflation's `load_data` method logs a warning and sets data to None for unavailable countries.
         """
         # Mock logs
-        with mock.patch("bblocks_data_importers.config.logger.warning") as mock_logger:
+        with mock.patch("bblocks.data_importers.config.logger.warning") as mock_logger:
             # Call `load_data` method
             wfp_inflation_pre_load.load_data("Headline inflation (YoY)", ["USA", "MEX"])
             # Assertions
@@ -490,7 +489,7 @@ class TestInflation:
 
         # Mock logs, `extract_data` and `format_data` methods
         with mock.patch(
-            "bblocks_data_importers.config.logger.info"
+            "bblocks.data_importers.config.logger.info"
         ) as mock_logger, mock.patch.object(
             wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data
         ) as mock_extract, mock.patch.object(
@@ -523,7 +522,7 @@ class TestInflation:
 
         # Mock logs, `extract_data` and `format_data` methods
         with mock.patch(
-            "bblocks_data_importers.config.logger.warning"
+            "bblocks.data_importers.config.logger.warning"
         ) as mock_warning, mock.patch.object(
             wfp_inflation_pre_load, "extract_data", return_value=mock_extracted_data
         ) as mock_extract, mock.patch.object(
@@ -570,7 +569,7 @@ class TestInflation:
             "format_data",
             return_value=pd.DataFrame({"date": ["2023-10-01"], "value": [2.3]}),
         ) as mock_format, mock.patch(
-            "bblocks_data_importers.config.logger.info"
+            "bblocks.data_importers.config.logger.info"
         ) as mock_logger:
             # Call `load_data`
             wfp_inflation_post_load.load_data(indicator_name, ["USA", "CAN"])
@@ -678,7 +677,7 @@ class TestInflation:
         """
         # Mock the `convert_countries_to_unique_list` function
         with mock.patch(
-            "bblocks_data_importers.utilities.convert_countries_to_unique_list",
+            "bblocks.data_importers.utilities.convert_countries_to_unique_list",
             return_value=[],
         ) as mock_convert:
             # Assertions
@@ -696,7 +695,7 @@ class TestInflation:
         wfp_inflation_post_load._indicators = {"Headline inflation (YoY)": 100}
 
         # Mock logger warning
-        with mock.patch("bblocks_data_importers.config.logger.warning") as mock_warning:
+        with mock.patch("bblocks.data_importers.config.logger.warning") as mock_warning:
             # Call method
             result = wfp_inflation_post_load.get_data(
                 indicators="Headline inflation (YoY)", countries=["USA"]
@@ -781,7 +780,7 @@ class TestInflation:
         Test that WFPInflation's `clear_cache` method clears the cached data.
         """
         # Mock logger
-        with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger:
+        with mock.patch("bblocks.data_importers.config.logger.info") as mock_logger:
             # Call method
             wfp_inflation_post_load.clear_cache()
 
@@ -792,7 +791,7 @@ class TestInflation:
                 "Food inflation": {},
             }
             assert wfp_inflation_post_load._countries is None
-            assert WFP._cached_countries is None
+            assert wfp._cached_countries is None
 
             mock_logger.assert_called_once_with("Cache cleared")
 
@@ -856,7 +855,7 @@ class TestFoodSecurity:
         """
 
         # Mock global variable
-        WFP._cached_countries = {
+        wfp._cached_countries = {
             "VNM": {
                 "entity_code": 1,
                 "data_type": "PREDICTION",
@@ -893,7 +892,7 @@ class TestFoodSecurity:
             assert result == {"key": "value"}
             mock_get.assert_called_once_with(
                 "https://api.hungermapdata.org/v2/adm0/1/countryData.json",
-                headers=WFP.HUNGERMAP_HEADERS,
+                headers=wfp.HUNGERMAP_HEADERS,
                 timeout=wfp_foodsecurity._timeout,
             )
 
@@ -913,7 +912,7 @@ class TestFoodSecurity:
             assert result == {"key": "value"}
             mock_get.assert_called_once_with(
                 "https://api.hungermapdata.org/v2/adm0/1/adm1data.json",
-                headers=WFP.HUNGERMAP_HEADERS,
+                headers=wfp.HUNGERMAP_HEADERS,
                 timeout=wfp_foodsecurity._timeout,
             )
 
@@ -956,7 +955,7 @@ class TestFoodSecurity:
         Test that data extracts correctly after clearing the cached data.
         """
         # Mock logger
-        with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger:
+        with mock.patch("bblocks.data_importers.config.logger.info") as mock_logger:
             # Clear cache
             wfp_foodsecurity_post_load.clear_cache()
 
@@ -984,7 +983,7 @@ class TestFoodSecurity:
             assert result == mock_response
             mock_get.assert_called_once_with(
                 f"https://api.hungermapdata.org/v2/adm0/{entity_code}/countryData.json",
-                headers=WFP.HUNGERMAP_HEADERS,
+                headers=wfp.HUNGERMAP_HEADERS,
                 timeout=wfp_foodsecurity_post_load._timeout,
             )
 
@@ -1161,7 +1160,7 @@ class TestFoodSecurity:
             "CAN": mock.Mock(),
         }
 
-        with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger:
+        with mock.patch("bblocks.data_importers.config.logger.info") as mock_logger:
             wfp_foodsecurity_pre_load._load_data(["USA", "CAN"], level="national")
             mock_logger.assert_not_called()
 
@@ -1169,7 +1168,7 @@ class TestFoodSecurity:
         """
         Test that WFPFoodSecurity's `_load_data` method logs a warning if a country is not available in `_countries`.
         """
-        with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger:
+        with mock.patch("bblocks.data_importers.config.logger.info") as mock_logger:
             wfp_foodsecurity_pre_load._load_data(["USA", "MEX"], level="national")
             mock_logger.assert_any_call("No data found for country - MEX")
             assert "MEX" not in wfp_foodsecurity_pre_load._data["national"]
@@ -1188,7 +1187,7 @@ class TestFoodSecurity:
             "_parse_national_data",
             return_value=mock_parsed_df,
         ) as mock_parse, mock.patch(
-            "bblocks_data_importers.config.logger.info"
+            "bblocks.data_importers.config.logger.info"
         ) as mock_logger, mock.patch.object(
             DataFrameValidator, "validate"
         ) as mock_validate:
@@ -1232,7 +1231,7 @@ class TestFoodSecurity:
             "_parse_subnational_data",
             return_value=mock_parsed_df,
         ) as mock_parse, mock.patch(
-            "bblocks_data_importers.config.logger.info"
+            "bblocks.data_importers.config.logger.info"
         ) as mock_logger, mock.patch.object(
             DataFrameValidator, "validate"
         ) as mock_validate:
@@ -1282,7 +1281,7 @@ class TestFoodSecurity:
         ) as mock_parse, mock.patch.object(
             DataFrameValidator, "validate", return_value=None
         ) as mock_validate, mock.patch(
-            "bblocks_data_importers.config.logger.info"
+            "bblocks.data_importers.config.logger.info"
         ) as mock_logger:
             # Call `_load_data`
             wfp_foodsecurity_post_load._load_data(["USA", "CAN"], level)
@@ -1453,7 +1452,7 @@ class TestFoodSecurity:
         Test that WFPFoodSecurity's `get_data` method raises a ValueError for invalid countries.
         """
         with mock.patch(
-            "bblocks_data_importers.utilities.convert_countries_to_unique_list",
+            "bblocks.data_importers.utilities.convert_countries_to_unique_list",
             return_value=[],
         ):
             with pytest.raises(ValueError, match="No valid countries found"):
@@ -1472,7 +1471,7 @@ class TestFoodSecurity:
         with mock.patch.object(
             wfp_foodsecurity_post_load, "_load_data"
         ) as mock_load, mock.patch(
-            "bblocks_data_importers.config.logger.warning"
+            "bblocks.data_importers.config.logger.warning"
         ) as mock_warning:
 
             # Call the method
@@ -1659,7 +1658,7 @@ class TestFoodSecurity:
         Test that WFPFoodSecurity's `clear_cache` method clears the cached data.
         """
         # Mock logger
-        with mock.patch("bblocks_data_importers.config.logger.info") as mock_logger:
+        with mock.patch("bblocks.data_importers.config.logger.info") as mock_logger:
             # Call method
             wfp_foodsecurity_post_load.clear_cache()
 
@@ -1669,6 +1668,6 @@ class TestFoodSecurity:
                 "subnational": {},
             }
             assert wfp_foodsecurity_post_load._countries is None
-            assert WFP._cached_countries is None
+            assert wfp._cached_countries is None
 
             mock_logger.assert_called_once_with("Cache cleared")
