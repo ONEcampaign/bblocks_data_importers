@@ -97,6 +97,7 @@ class Fields:
     data_type = "data_type"
     time_range = "time_range"
     notes = "notes"
+    footnote = "footnote"
 
     @classmethod
     def get_base_idx(cls):
