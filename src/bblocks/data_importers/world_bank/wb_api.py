@@ -110,6 +110,27 @@ class WorldBank:
             "api_params": {},
         }
 
+    def __repr__(self) -> str:
+        # Have we loaded any data yet?
+        if self._data is not None:
+            # pull out the unique series codes in the loaded DataFrame
+            loaded_series = sorted(self._data[Fields.indicator_code].unique().tolist())
+            # except Exception:
+            #     loaded_series = []
+            row_count = len(self._data)
+        else:
+            loaded_series = []
+            row_count = 0
+
+        return (
+            f"{self.__class__.__name__}("
+            f"database={self.config['database']!r}, "
+            f"economies={self.config['economies']!r}, "
+            f"years={self.config['years']!r}, "
+            f"loaded_series={loaded_series!r}, "
+            f")"
+        )
+
     def set_database(self, database: int) -> None:
         """Set the World Bank database to fetch data from.
 
