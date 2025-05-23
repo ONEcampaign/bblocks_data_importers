@@ -17,9 +17,15 @@ def test_protocol():
 
     importer_obj = hdi.HumanDevelopmentIndex()
 
-    assert isinstance(importer_obj, DataImporter), "HumanDevelopmentIndex does not implement DataImporter protocol"
-    assert hasattr(importer_obj, "get_data"), "HumanDevelopmentIndex does not have get_data method"
-    assert hasattr(importer_obj, "clear_cache"), "HumanDevelopmentIndex does not have clear_cache method"
+    assert isinstance(
+        importer_obj, DataImporter
+    ), "HumanDevelopmentIndex does not implement DataImporter protocol"
+    assert hasattr(
+        importer_obj, "get_data"
+    ), "HumanDevelopmentIndex does not have get_data method"
+    assert hasattr(
+        importer_obj, "clear_cache"
+    ), "HumanDevelopmentIndex does not have clear_cache method"
 
 
 # ------------------------------------------------------------------------------

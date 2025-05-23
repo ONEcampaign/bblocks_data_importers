@@ -19,7 +19,9 @@ def test_protocol():
 
     importer_obj = GHED()
 
-    assert isinstance(importer_obj, DataImporter), "GHED does not implement DataImporter protocol"
+    assert isinstance(
+        importer_obj, DataImporter
+    ), "GHED does not implement DataImporter protocol"
     assert hasattr(importer_obj, "get_data"), "GHED does not have get_data method"
     assert hasattr(importer_obj, "clear_cache"), "GHED does not have clear_cache method"
 

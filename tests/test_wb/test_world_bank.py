@@ -4,20 +4,31 @@ from bblocks.data_importers.world_bank.ids import InternationalDebtStatistics
 from bblocks.data_importers.world_bank.wb_api import WorldBank
 from bblocks.data_importers.protocols import DataImporter
 
+
 def test_protocol():
     """Test that importer class implements the DataImporter protocol"""
 
     importer_obj = WorldBank()
 
-    assert isinstance(importer_obj, DataImporter), "WorldBank does not implement DataImporter protocol"
+    assert isinstance(
+        importer_obj, DataImporter
+    ), "WorldBank does not implement DataImporter protocol"
     assert hasattr(importer_obj, "get_data"), "WorldBank does not have get_data method"
-    assert hasattr(importer_obj, "clear_cache"), "WorldBank does not have clear_cache method"
+    assert hasattr(
+        importer_obj, "clear_cache"
+    ), "WorldBank does not have clear_cache method"
 
     importer_obj = InternationalDebtStatistics()
 
-    assert isinstance(importer_obj, DataImporter), "InternationalDebtStatistics does not implement DataImporter protocol"
-    assert hasattr(importer_obj, "get_data"), "InternationalDebtStatistics does not have get_data method"
-    assert hasattr(importer_obj, "clear_cache"), "InternationalDebtStatistics does not have clear_cache method"
+    assert isinstance(
+        importer_obj, DataImporter
+    ), "InternationalDebtStatistics does not implement DataImporter protocol"
+    assert hasattr(
+        importer_obj, "get_data"
+    ), "InternationalDebtStatistics does not have get_data method"
+    assert hasattr(
+        importer_obj, "clear_cache"
+    ), "InternationalDebtStatistics does not have clear_cache method"
 
 
 def test_set_database():
