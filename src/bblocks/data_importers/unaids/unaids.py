@@ -196,7 +196,6 @@ class UNAIDS:
             f")"
         )
 
-
     def _load_data(
         self,
         dataset: Literal["Estimates", "Laws and Policies", "Key Populations", "GAM"],

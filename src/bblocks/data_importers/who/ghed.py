@@ -94,9 +94,7 @@ class GHED:
 
         loaded = True if self._data is not None else False
 
-        return (f"GHED(data_file={self._data_file}, "
-                f"data loaded = {loaded}"
-                f")")
+        return f"GHED(data_file={self._data_file}, " f"data loaded = {loaded}" f")"
 
     @staticmethod
     def _extract_raw_data() -> io.BytesIO:
