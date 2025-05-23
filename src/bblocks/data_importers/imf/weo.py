@@ -27,7 +27,6 @@ The data is cached to avoid downloading it multiple times. To clear the cache, c
 import pandas as pd
 from imf_reader import weo
 
-from bblocks.data_importers.protocols import DataImporter
 from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.config import (
     logger,
@@ -39,7 +38,7 @@ from bblocks.data_importers.config import (
 from bblocks.data_importers.data_validators import DataFrameValidator
 
 
-class WEO(DataImporter):
+class WEO:
     """Importer for the WEO database
 
     The World Economic Outlook (WEO) database provides data on the global economy and its prospects

@@ -39,14 +39,13 @@ from bblocks.data_importers.config import (
     DataFormattingError,
     Fields,
 )
-from bblocks.data_importers.protocols import DataImporter
 from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.data_validators import DataFrameValidator
 
 URL: str = "https://apps.who.int/nha/database/Home/IndicatorsDownload/en"
 
 
-class GHED(DataImporter):
+class GHED:
     """Importer for the GHED database from WHO.
 
     The Global Health Expenditure Database (GHED) provides comparable data on health expenditure
