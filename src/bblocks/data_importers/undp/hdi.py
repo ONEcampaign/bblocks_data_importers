@@ -214,6 +214,17 @@ class HumanDevelopmentIndex:
         self._data_df: pd.DataFrame | None = None
         self._metadata_df: pd.DataFrame | None = None
 
+    def __repr__(self) -> str:
+        """String representation of the HumanDevelopmentIndex object"""
+
+        imported = True if self._data_df is not None else False
+        return (
+            f"{self.__class__.__name__}("
+            f"timeout={self._timeout}, "
+            f"data imported = {imported!r}"
+            f")"
+        )
+
     def _extract_metadata(self):
         """Extract HDI metadata"""
 
