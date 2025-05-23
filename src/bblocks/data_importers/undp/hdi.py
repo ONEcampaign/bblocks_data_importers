@@ -26,7 +26,6 @@ import io
 import numpy as np
 
 from bblocks.data_importers.config import logger, DataExtractionError, Fields
-from bblocks.data_importers.protocols import DataImporter
 from bblocks.data_importers.data_validators import DataFrameValidator
 from bblocks.data_importers.utilities import convert_dtypes
 
@@ -185,7 +184,7 @@ def clean_data(data_df: pd.DataFrame, metadata_df: pd.DataFrame) -> pd.DataFrame
     )
 
 
-class HumanDevelopmentIndex(DataImporter):
+class HumanDevelopmentIndex:
     """A class to import Human Development Index (HDI) data from UNDP.
 
     This class provides methods to access HDI data and metadata.

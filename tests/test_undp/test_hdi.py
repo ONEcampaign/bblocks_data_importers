@@ -9,6 +9,23 @@ from io import BytesIO
 
 from bblocks.data_importers.undp import hdi
 from bblocks.data_importers.config import Fields, DataExtractionError
+from bblocks.data_importers.protocols import DataImporter
+
+
+def test_protocol():
+    """Test that importer class implements the DataImporter protocol"""
+
+    importer_obj = hdi.HumanDevelopmentIndex()
+
+    assert isinstance(
+        importer_obj, DataImporter
+    ), "HumanDevelopmentIndex does not implement DataImporter protocol"
+    assert hasattr(
+        importer_obj, "get_data"
+    ), "HumanDevelopmentIndex does not have get_data method"
+    assert hasattr(
+        importer_obj, "clear_cache"
+    ), "HumanDevelopmentIndex does not have clear_cache method"
 
 
 # ------------------------------------------------------------------------------

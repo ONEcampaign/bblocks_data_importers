@@ -61,7 +61,6 @@ from bblocks.data_importers.config import (
     Fields,
     Units,
 )
-from bblocks.data_importers.protocols import DataImporter
 from bblocks.data_importers.utilities import (
     convert_dtypes,
     convert_countries_to_unique_list,
@@ -149,7 +148,7 @@ def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
                 )
 
 
-class WFPInflation(DataImporter):
+class WFPInflation:
     """A class to import inflation data from the World Food Programme (WFP)
 
     The World Food Programme (WFP) provides data on inflation for various countries collected
@@ -437,7 +436,7 @@ class WFPInflation(DataImporter):
         logger.info("Cache cleared")
 
 
-class WFPFoodSecurity(DataImporter):
+class WFPFoodSecurity:
     """Class to import food security data from the WFP Hunger Map API
 
     The World Food Programme (WFP) Hunger Map is a global hunger monitoring system which provides data

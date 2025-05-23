@@ -17,7 +17,6 @@ import urllib3
 from bblocks.data_importers.config import logger, DataExtractionError, Fields
 from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.data_validators import DataFrameValidator
-from bblocks.data_importers.protocols import DataImporter
 
 # Disable warnings - UNAIDS does not have a valid SSL certificate
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -118,7 +117,7 @@ def format_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-class UNAIDS(DataImporter):
+class UNAIDS:
     """Import for UNAIDS data
 
     UNAIDS in a joint United Nations initiative with UNICEF and WHO provides
