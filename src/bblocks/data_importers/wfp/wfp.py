@@ -195,6 +195,17 @@ class WFPInflation:
             "Food inflation": {},
         }
 
+    def __repr__(self) -> str:
+        """String representation of the WFPInflation object"""
+
+        loaded = [ k for k, v in self._data.items() if v ]  # get the loaded indicators
+        return (
+            f"{self.__class__.__name__}("
+            f"timeout={self._timeout!r}, "
+            f"imported indicators={loaded!r}"
+            f")"
+        )
+
     def load_available_countries(self):
         """Load available countries to the object"""
 
@@ -478,6 +489,23 @@ class WFPFoodSecurity:
 
         self._countries: None | dict = None
         self._data = {"national": {}, "subnational": {}}
+
+    def __repr__(self) -> str:
+        """String representation of the WFPFoodSecurity object"""
+
+
+        # add the national and subnational as a string if the dictionary value is not empty
+        loaded = [ k for k, v in self._data.items() if v ]  # get the loaded levels
+
+        return (
+            f"{self.__class__.__name__}("
+            f"timeout={self._timeout!r}, "
+            f"retries={self._retries!r}, "
+            f"loaded levels={loaded!r}"
+            f")"
+        )
+
+    
 
     def _load_available_countries(self) -> None:
         """Load available countries to the object
