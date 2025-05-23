@@ -9,8 +9,19 @@ from pathlib import Path
 import io
 import requests
 import pandas as pd
+from bblocks.data_importers.protocols import DataImporter
 
 TEST_FILE_PATH = "tests/test_data/test_ghed.XLSX"
+
+
+def test_protocol():
+    """Test that importer class implements the DataImporter protocol"""
+
+    importer_obj = GHED()
+
+    assert isinstance(importer_obj, DataImporter), "GHED does not implement DataImporter protocol"
+    assert hasattr(importer_obj, "get_data"), "GHED does not have get_data method"
+    assert hasattr(importer_obj, "clear_cache"), "GHED does not have clear_cache method"
 
 
 @pytest.fixture

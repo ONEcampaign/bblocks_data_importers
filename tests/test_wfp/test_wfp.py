@@ -18,6 +18,23 @@ from bblocks.data_importers.utilities import (
     convert_dtypes,
 )
 from bblocks.data_importers.data_validators import DataFrameValidator
+from bblocks.data_importers.protocols import DataImporter
+
+
+def test_protocol():
+    """Test that importer class implements the DataImporter protocol"""
+
+    importer_obj = WFPInflation()
+
+    assert isinstance(importer_obj, DataImporter), "WFPInflation does not implement DataImporter protocol"
+    assert hasattr(importer_obj, "get_data"), "WFPInflation does not have get_data method"
+    assert hasattr(importer_obj, "clear_cache"), "WFPInflation does not have clear_cache method"
+
+    importer_obj = WFPFoodSecurity()
+
+    assert isinstance(importer_obj, DataImporter), "WFPFoodSecurity does not implement DataImporter protocol"
+    assert hasattr(importer_obj, "get_data"), "WFPFoodSecurity does not have get_data method"
+    assert hasattr(importer_obj, "clear_cache"), "WFPFoodSecurity does not have clear_cache method"
 
 
 # Fixtures

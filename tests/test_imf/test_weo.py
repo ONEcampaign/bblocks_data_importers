@@ -10,6 +10,16 @@ from bblocks.data_importers.config import (
     DataExtractionError,
     DataFormattingError,
 )
+from bblocks.data_importers.protocols import DataImporter
+
+def test_protocol():
+    """Test that importer class implements the DataImporter protocol"""
+
+    importer_obj = WEO()
+
+    assert isinstance(importer_obj, DataImporter), "WEO does not implement DataImporter protocol"
+    assert hasattr(importer_obj, "get_data"), "WEO does not have get_data method"
+    assert hasattr(importer_obj, "clear_cache"), "WEO does not have clear_cache method"
 
 
 @pytest.fixture

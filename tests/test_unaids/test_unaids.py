@@ -7,6 +7,16 @@ import pytest
 
 from bblocks.data_importers.unaids import unaids
 from bblocks.data_importers.config import DataExtractionError, Fields
+from bblocks.data_importers.protocols import DataImporter
+
+def test_protocol():
+    """Test that importer class implements the DataImporter protocol"""
+
+    importer_obj = unaids.UNAIDS()
+
+    assert isinstance(importer_obj, DataImporter), "UNAIDS does not implement DataImporter protocol"
+    assert hasattr(importer_obj, "get_data"), "UNAIDS does not have get_data method"
+    assert hasattr(importer_obj, "clear_cache"), "UNAIDS does not have clear_cache method"
 
 
 @pytest.fixture
