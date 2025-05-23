@@ -188,11 +188,11 @@ class UNAIDS:
     def __repr__(self) -> str:
         """String representation of the UNAIDS object."""
 
-        loaded = [name for name, df in self._data.items() if df is not None]
+        imported = [name for name, df in self._data.items() if df is not None]
         return (
             f"{self.__class__.__name__}("
             f"verify_ssl={self.verify_ssl!r}, "
-            f"loaded={loaded!r}"
+            f"imported datasets = {imported!r}"
             f")"
         )
 
