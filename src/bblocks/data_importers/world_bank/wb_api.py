@@ -115,12 +115,8 @@ class WorldBank:
         if self._data is not None:
             # pull out the unique series codes in the loaded DataFrame
             loaded_series = sorted(self._data[Fields.indicator_code].unique().tolist())
-            # except Exception:
-            #     loaded_series = []
-            row_count = len(self._data)
         else:
             loaded_series = []
-            row_count = 0
 
         return (
             f"{self.__class__.__name__}("

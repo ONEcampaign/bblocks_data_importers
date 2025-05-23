@@ -4,7 +4,7 @@ from typing import Optional, Literal, Iterable
 
 import pandas as pd
 
-from bblocks.data_importers.config import Paths
+from bblocks.data_importers.config import Paths, Fields
 from bblocks.data_importers.world_bank.wb_api import WorldBank
 
 
@@ -69,6 +69,24 @@ class InternationalDebtStatistics(WorldBank):
         super().__init__()
         self.set_database(6)
         self.config["api_params"]["per_page"] = 50_000_000
+
+    def __repr__(self) -> str:
+        """String representation of the InternationalDebtStatistics object."""
+
+        if self._data is not None:
+            loaded = sorted(self._data[Fields.indicator_code].unique().tolist())
+        else:
+            loaded = []
+
+        return (
+            f"{self.__class__.__name__}("
+            f"database={self.config['database']!r}, "
+            f"latest_update={self.latest_update!r}, "
+            f"economies={self.config['economies']!r}, "
+            f"years={self.config['years']!r}, "
+            f"loaded_series={loaded!r}, "
+            f")"
+        )
 
     @property
     def latest_update(self):
