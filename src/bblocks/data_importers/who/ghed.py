@@ -89,6 +89,13 @@ class GHED:
                 f"path."
             )
 
+    def __repr__(self) -> str:
+        """String representation of the GHED importer"""
+
+        loaded = True if self._data is not None else False
+
+        return f"GHED(data_file={self._data_file}, " f"data loaded = {loaded}" f")"
+
     @staticmethod
     def _extract_raw_data() -> io.BytesIO:
         """Extract the raw data from the GHED database

@@ -185,6 +185,17 @@ class UNAIDS:
                 " Please verify your security preferences before requesting data."
             )
 
+    def __repr__(self) -> str:
+        """String representation of the UNAIDS object."""
+
+        imported = [name for name, df in self._data.items() if df is not None]
+        return (
+            f"{self.__class__.__name__}("
+            f"verify_ssl={self.verify_ssl!r}, "
+            f"imported datasets = {imported!r}"
+            f")"
+        )
+
     def _load_data(
         self,
         dataset: Literal["Estimates", "Laws and Policies", "Key Populations", "GAM"],

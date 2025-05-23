@@ -65,6 +65,12 @@ class WEO:
         self._data: dict = {}
         self._latest_version = None
 
+    def __repr__(self) -> str:
+        """String representation of the WEO object"""
+
+        imported = list(self._data.keys())
+        return f"{self.__class__.__name__}(" f"imported versions = {imported!r}" f")"
+
     @staticmethod
     def _format_data(df: pd.DataFrame):
         """Format WEO data"""
