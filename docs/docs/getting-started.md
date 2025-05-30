@@ -9,11 +9,11 @@ You can install the data importers package as part of the broader bblocks distri
 
 ```bash title="Option 1: install via bblocks with extras"
 pip install bblocks[data-importers]
-````
+```
 
 ```bash title="Option 2: standalone installation"
 pip install bblocks-data-importers
-````
+```
 
 ## Import Your First Dataset
 
