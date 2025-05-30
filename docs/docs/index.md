@@ -25,4 +25,5 @@ __Key features__:
 - Avoid source-specific issues with built-in error handling and validation
 - Use a consistent interface across all data sources for simpler, cleaner code
 
-Whether you're building dashboards, developing policy briefs, or running large-scale analysis, bblocks-data-importers removes the friction from the very first step—getting the data—so you can focus on what matters most: understanding it.
+Whether you're building dashboards, developing policy briefs, or running large-scale analysis, `bblocks-data-importers` 
+removes the friction from the very first step—getting the data—so you can focus on what matters most: understanding it.

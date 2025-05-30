@@ -1,6 +1,6 @@
 # Getting started with `bblocks-data-importers`
 
-This section walks you through the basic steps to install the bblocks-data-importers package, load your first dataset, 
+This section walks you through the basic steps to install the `bblocks-data-importers` package, load your first dataset, 
 and understand how importers work.
 
 ## Installation
@@ -35,7 +35,7 @@ page for guidance on each importer.
 
 ### Step 2: Import package
 
-Each dataset in bblocks-data-importers has its own dedicated class. To work with World Economic Outlook data,
+Each dataset importer in `bblocks-data-importers` has its own dedicated class. To work with World Economic Outlook data,
 you’ll need to import the corresponding WEO importer:
 
 ```python
