@@ -2,6 +2,12 @@
 
 __Seamless Pythonic access to international development data__
 
+[![GitHub Repo](https://img.shields.io/badge/GitHub-bblocks_data_importers-181717?style=flat-square&labelColor=%23ddd&logo=github&color=%23555&logoColor=%23000)](https://github.com/ONEcampaign/bblocks_data_importers)
+[![GitHub License](https://img.shields.io/github/license/ONEcampaign/bblocks_data_importers?style=flat-square&labelColor=%23ddd)](https://github.com/ONEcampaign/bblocks_data_importers/blob/main/LICENSE)
+[![PyPI - Version](https://img.shields.io/pypi/v/bblocks_data_importers?style=flat-square&labelColor=%23ddd)](https://pypi.org/project/bblocks_data_importers/)
+[![Codecov](https://img.shields.io/codecov/c/github/ONEcampaign/bblocks_data_importers?token=CSCDFHIUE6&style=flat-square&logo=codecov&labelColor=%23ddd)](https://codecov.io/gh/ONEcampaign/bblocks_data_importers)
+
+
 In any data analysis workflow, the first and often most time-consuming step is accessing the data—especially when it 
 comes from multiple external sources, each with its own formats, APIs, and quirks. And international development data 
 is as messy as it comes.
