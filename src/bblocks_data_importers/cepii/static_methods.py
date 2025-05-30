@@ -4,7 +4,7 @@ Helper functions for importing and processing the CEPII BACI trade database.
 This module includes:
 - Web scraping to identify available BACI versions and supported HS classifications.
 - Utilities to download, extract, and process BACI datasets.
-- Conversion of raw CSV data into a standardized, Parquet-based format for efficient use.
+- Conversion of raw CSV data into a standardized, Parquet-based format for efficient disk use.
 """
 
 import io
@@ -29,6 +29,7 @@ from bblocks_data_importers.config import logger, Fields
 # ---------------------------
 
 BACI_URL = "https://www.cepii.fr/CEPII/en/bdd_modele/bdd_modele_item.asp?id=37"
+
 
 def fetch_baci_page(url: str) -> str:
     """Fetch the HTML content of the CEPII BACI page."""
@@ -99,7 +100,9 @@ def parse_baci_and_hs_versions(text: str) -> dict[str, dict[str, list[int] or bo
     return result
 
 
-def get_available_versions(url: str = BACI_URL) -> dict[str, dict[str, list[int] or bool]]:
+def get_available_versions(
+    url: str = BACI_URL,
+) -> dict[str, dict[str, list[int] or bool]]:
     """Orchestrate the process of parsing BACI page, extracting the divs with the BACI and HS versions and populate a
     dictionary with the information for easy access.
 
@@ -107,7 +110,7 @@ def get_available_versions(url: str = BACI_URL) -> dict[str, dict[str, list[int]
         url(str): URL of the CEPII BACI dataset page.
 
     Returns:
-        dict: Dictionary mapping version codes to HS versions and latest flag.
+        dict: Dictionary mapping BACI to HS versions and latest flag.
     """
     html = fetch_baci_page(url)
     text_latest = extract_div(html, div_id="telechargement")
@@ -115,9 +118,11 @@ def get_available_versions(url: str = BACI_URL) -> dict[str, dict[str, list[int]
 
     return parse_baci_and_hs_versions(text_latest + text_other)
 
+
 # ---------------------------
 # File extraction and cleanup
 # ---------------------------
+
 
 def extract_zip(zip_data: io.BytesIO, extract_path: Path):
     """Extract ZIP archive contents to target folder.
@@ -128,6 +133,7 @@ def extract_zip(zip_data: io.BytesIO, extract_path: Path):
     """
     with zipfile.ZipFile(zip_data) as zip_ref:
         zip_ref.extractall(path=extract_path)
+
 
 def cleanup_csvs(path: Path):
     """Delete all BACI CSV files in a directory.
@@ -142,6 +148,7 @@ def cleanup_csvs(path: Path):
 # ---------------------------
 # Data transformation
 # ---------------------------
+
 
 def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Rename BACI raw columns to standardized field names.
@@ -219,9 +226,11 @@ def organise_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+
 # ---------------------------
 # Data I/O
 # ---------------------------
+
 
 def combine_data(path):
     """
@@ -302,9 +311,11 @@ def load_parquet(
 
     return table.to_pandas(types_mapper=pd.ArrowDtype)
 
+
 # ---------------------------
 # Metadata
 # ---------------------------
+
 
 def generate_metadata(path: Path) -> dict:
     """
@@ -329,14 +340,18 @@ def generate_metadata(path: Path) -> dict:
         if ":" in lines[0]:
             key, first_value_line = lines[0].split(":", 1)
             key = key.strip()
-            value_lines = [first_value_line.strip()] + [line.strip() for line in lines[1:]]
+            value_lines = [first_value_line.strip()] + [
+                line.strip() for line in lines[1:]
+            ]
             metadata[key] = " ".join(value_lines)
 
     return metadata
 
+
 # ---------------------------
 # Validation
 # ---------------------------
+
 
 def validate_years(parquet_dir: Path, filter_years: set[int] | None) -> set[int] | None:
     """Validate that the requested years are available in the partitioned data.
