@@ -162,7 +162,7 @@ class BACI(DataImporter):
         else:
             if baci_version not in VALID_BACI_VERSIONS:
                 raise ValueError(
-                    f"Unsupported BACI version: {baci_version}. Available versions: {VALID_BACI_VERSIONS + ['latest']}"
+                    f"Unsupported BACI version: {baci_version}. Available versions: {list(VALID_BACI_VERSIONS) + ['latest']}"
                 )
             else:
                 self._baci_version = baci_version
@@ -185,15 +185,13 @@ class BACI(DataImporter):
         self._metadata: dict | None = None
         self._loaded_years: set[int] | None = None
 
-
     def _download_zip(self) -> io.BytesIO:
         """Download ZIP file from the BACI database."""
         download_url = f"{BASE_URL}/{self._data_directory}.zip"
         logger.info("Downloading BACI data. This may take a while...")
 
         response = requests.get(download_url)
-        if response.status_code != 200:
-            raise RuntimeError(f"Download failed with status {response.status_code}")
+        response.raise_for_status()
 
         return io.BytesIO(response.content)
 
@@ -269,6 +267,9 @@ class BACI(DataImporter):
     def get_versions() -> dict[str, dict[str, list[int] or bool]]:
         """Returns a dictionary with the different BACI versions available and their supported HS versions, as well as
         bool indicator to identify the latest BACI version.
+
+        Returns:
+            dict: Dictionary mapping BACI to HS versions and latest flag.
         """
         return get_available_versions()
 
@@ -313,7 +314,35 @@ class BACI(DataImporter):
 
         return self._data
 
-    def get_hs_map(self, force_reload: bool = False) -> dict:
+    def _extract_hs_map(self) -> dict[str, str]:
+        """Extract HS map from product_codes_HSXX_XXXX.csv if present."""
+
+        file_name = f"product_codes_HS{self._hs_version}_V{self._baci_version}.csv"
+        file_path = self._extract_path / file_name
+        parquet_path = self._extract_path / "parquet"
+
+        if not file_path.exists():
+            if parquet_path.exists():
+                raise FileNotFoundError(
+                    f"HS map file {file_name} not found in {self._extract_path}. "
+                    "You may have an incomplete local dataset.\n"
+                    f"To rebuild it with metadata, try running `clear_cache(clean_disk=True)` followed by `get_data()`"
+                )
+            else:
+                logger.warning("BACI files not found locally.")
+                self.get_data()
+
+        product_codes_df = pd.read_csv(
+            file_path,
+            dtype={"code": str},
+        )
+        product_dict = dict(
+            zip(product_codes_df["code"], product_codes_df["description"])
+        )
+
+        return product_dict
+
+    def get_hs_map(self, force_reload: bool = False) -> dict[str, str]:
         """Get a dictionary mapping HS codes to product descriptions.
 
         Arguments:
@@ -326,33 +355,23 @@ class BACI(DataImporter):
         if force_reload:
             self.get_data()
 
-        product_codes_df = pd.read_csv(
-            self._extract_path
-            / f"product_codes_HS{self._hs_version}_V{self._baci_version}.csv",
-            dtype={"code": str},
-        )
-        product_dict = dict(
-            zip(product_codes_df["code"], product_codes_df["description"])
-        )
-
-        return product_dict
+        return self._extract_hs_map()
 
     def _extract_metadata(self):
-        """Extract metadata from Readme.txt if present, else warn or raise."""
+        """Extract metadata from Readme.txt if present."""
 
         readme_path = self._extract_path / "Readme.txt"
         parquet_path = self._extract_path / "parquet"
 
         if not readme_path.exists():
             if parquet_path.exists():
-                logger.warning(
+                raise FileNotFoundError(
                     f"Metadata file 'Readme.txt' not found in {self._extract_path}. "
                     "You may have an incomplete local dataset.\n"
                     f"To rebuild it with metadata, try running `clear_cache(clean_disk=True)` followed by `get_data()`"
                 )
-                self._metadata = {}
-                return
             else:
+                logger.warning("BACI files not found locally.")
                 self.get_data()
 
         self._metadata = generate_metadata(readme_path)
