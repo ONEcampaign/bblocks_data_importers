@@ -81,7 +81,9 @@ def test_fetch_baci_page_success(mock_get):
 def test_fetch_baci_page_failure(mock_get):
     """Test HTTPError is raised when BACI page fetch fails."""
     mock_response = Mock()
-    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Client Error")
+    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+        "404 Client Error"
+    )
     mock_get.return_value = mock_response
 
     with pytest.raises(requests.exceptions.HTTPError, match="404 Client Error"):
@@ -414,4 +416,6 @@ def test_validate_years_returns_none_for_invalid_years(mock_parquet_dir, caplog)
     """Test that `validate_years()` ignores filter if years are our of range."""
     result = validate_years(mock_parquet_dir, {2018, 2022})
     assert result is None
-    assert any("Will return all available years." in message for message in caplog.messages)
+    assert any(
+        "Will return all available years." in message for message in caplog.messages
+    )

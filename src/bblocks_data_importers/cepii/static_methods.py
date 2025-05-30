@@ -367,7 +367,10 @@ def validate_years(parquet_dir: Path, filter_years: set[int] | None) -> set[int]
     }
 
     if filter_years is not None and not set(filter_years).issubset(available_years):
-        logger.warning(f"Provided years %s are out of range. Will return all available years.", filter_years)
+        logger.warning(
+            f"Provided years %s are out of range. Will return all available years.",
+            filter_years,
+        )
         return None
 
     return set(filter_years) if filter_years is not None else None
