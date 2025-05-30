@@ -34,8 +34,7 @@ BACI_URL = "https://www.cepii.fr/CEPII/en/bdd_modele/bdd_modele_item.asp?id=37"
 def fetch_baci_page(url: str) -> str:
     """Fetch the HTML content of the CEPII BACI page."""
     response = requests.get(url)
-    if response.status_code != 200:
-        raise RuntimeError(f"Error {response.status_code}")
+    response.raise_for_status()
     return response.text
 
 
@@ -368,7 +367,7 @@ def validate_years(parquet_dir: Path, filter_years: set[int] | None) -> set[int]
     }
 
     if filter_years is not None and not set(filter_years).issubset(available_years):
-        logger.warning(f"Provided years are out of range. Ignoring filter.")
+        logger.warning(f"Provided years %s are out of range. Will return all available years.", filter_years)
         return None
 
     return set(filter_years) if filter_years is not None else None
