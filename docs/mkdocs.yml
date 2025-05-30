@@ -1,29 +1,4 @@
-site_name: tools/blocks/data-importers
-
-theme:
-  name: material
-
-  features:
-    - navigation.instant # Enable instant navigation
-    - navigation.instant.progress # Show progress bar on instant navigation
-    #    - navigation.tracking # update the URL when navigating
-#    - navigation.tabs # Enable tabbed navigation
-    #    - navigation.tabs.sticky # Keep tabs sticky on scroll
-    - navigation.sections # Enable section navigation
-    #    - navigation.expand # expand all navigation sections by default
-    - navigation.indexes # Enable indexes in the navigation
-    - navigation.top # Enable "Back to top" button
-
-    - toc.follow # Follow the table of contents when scrolling
-
-    - content.code.annotate # Annotate code blocks
-
-    - navigation.footer # Enable footer navigation
-
-    - search.suggest # Enable search suggestions
-  #    - search.highlight # Highlight search results
-  #    - search.share # Enable search sharing
-
+site_name: tools/bblocks/data-importers
 
 nav:
     - index.md
