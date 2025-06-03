@@ -9,7 +9,7 @@ import pyarrow.parquet as pq
 import requests
 from unittest.mock import patch, MagicMock
 
-from bblocks_data_importers.cepii.baci import BACI, VERSIONS_DICT
+from bblocks.data_importers.cepii.baci import BACI, VERSIONS_DICT
 
 
 # ------------------------- Fixtures ------------------------- #
@@ -111,7 +111,7 @@ def fake_zip_file():
 
 
 @patch(
-    "bblocks_data_importers.cepii.baci.get_available_versions",
+    "bblocks.data_importers.cepii.baci.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_valid(mock_versions, baci_instance):
@@ -126,7 +126,7 @@ def test_baci_invalid_path_raises():
 
 
 @patch(
-    "bblocks_data_importers.cepii.baci.get_available_versions",
+    "bblocks.data_importers.cepii.baci.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_invalid_version_raises(mock_versions, baci_instance):
@@ -135,7 +135,7 @@ def test_init_invalid_version_raises(mock_versions, baci_instance):
 
 
 @patch(
-    "bblocks_data_importers.cepii.baci.get_available_versions",
+    "bblocks.data_importers.cepii.baci.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_invalid_hs_version_raises(mock_versions, baci_instance):
@@ -144,7 +144,7 @@ def test_init_invalid_hs_version_raises(mock_versions, baci_instance):
 
 
 @patch(
-    "bblocks_data_importers.cepii.baci.get_available_versions",
+    "bblocks.data_importers.cepii.baci.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_no_path_raises(mock_versions):
@@ -169,7 +169,7 @@ def test_download_zip_success(monkeypatch, baci_instance):
             pass
 
     monkeypatch.setattr(
-        "bblocks_data_importers.cepii.baci.requests.get", lambda _: MockResponse()
+        "bblocks.data_importers.cepii.baci.requests.get", lambda _: MockResponse()
     )
     buf = baci_instance()._download_zip()
     assert isinstance(buf, io.BytesIO)
@@ -182,7 +182,7 @@ def test_download_zip_failure(monkeypatch, baci_instance):
         "404 Client Error"
     )
     monkeypatch.setattr(
-        "bblocks_data_importers.cepii.baci.requests.get", lambda _: mock_resp
+        "bblocks.data_importers.cepii.baci.requests.get", lambda _: mock_resp
     )
 
     with pytest.raises(requests.exceptions.HTTPError):
@@ -236,12 +236,12 @@ def test_format_data(monkeypatch, baci_instance, mock_df):
 # ------------------------- get_data() & Caching ------------------------- #
 
 
-@patch("bblocks_data_importers.cepii.baci.cleanup_csvs")
-@patch("bblocks_data_importers.cepii.baci.save_parquet")
-@patch("bblocks_data_importers.cepii.baci.combine_data")
-@patch("bblocks_data_importers.cepii.baci.extract_zip")
-@patch("bblocks_data_importers.cepii.baci.load_parquet")
-@patch("bblocks_data_importers.cepii.baci.requests.get")
+@patch("bblocks.data_importers.cepii.baci.cleanup_csvs")
+@patch("bblocks.data_importers.cepii.baci.save_parquet")
+@patch("bblocks.data_importers.cepii.baci.combine_data")
+@patch("bblocks.data_importers.cepii.baci.extract_zip")
+@patch("bblocks.data_importers.cepii.baci.load_parquet")
+@patch("bblocks.data_importers.cepii.baci.requests.get")
 def test_get_data_success(
     mock_requests_get,
     mock_load_parquet,
@@ -333,7 +333,7 @@ def test_extract_metadata_missing_file_with_parquet_raises(baci_instance, extrac
 # ------------------------- Simple Accessors ------------------------- #
 
 
-@patch("bblocks_data_importers.cepii.baci.BACI.get_data")
+@patch("bblocks.data_importers.cepii.baci.BACI.get_data")
 def test_get_metadata_returns_dict(mock_get_data, tmp_baci_dir):
     b = BACI(data_path=tmp_baci_dir, baci_version="202501", hs_version="22")
     path = b._extract_path
@@ -350,7 +350,7 @@ def test_get_metadata_returns_dict(mock_get_data, tmp_baci_dir):
     assert "Source" in metadata
 
 
-@patch("bblocks_data_importers.cepii.baci.BACI.get_data")
+@patch("bblocks.data_importers.cepii.baci.BACI.get_data")
 def test_get_hs_map_returns_dict(mock_get_data, tmp_baci_dir):
     b = BACI(data_path=tmp_baci_dir, baci_version="202501", hs_version="22")
     path = b._extract_path

@@ -12,7 +12,7 @@ automatically download and extract data if not already available locally, and re
 
 Usage:
 
->>> import bblocks_data_importers as bbdata
+>>> import bblocks.data_importers as bbdata
 
 First, initiate a BACI object. You must specify a path to save the data locally. You may also specify a BACI version
 with baci_version. If not specified, the object will be set to the latest BACI version available. You can specify an
@@ -58,11 +58,11 @@ from typing import Literal
 from pathlib import Path
 import shutil
 
-from bblocks_data_importers.config import logger, Fields
-from bblocks_data_importers.protocols import DataImporter
-from bblocks_data_importers.utilities import convert_dtypes
-from bblocks_data_importers.data_validators import DataFrameValidator
-from bblocks_data_importers.cepii.static_methods import (
+from bblocks.data_importers.config import logger, Fields
+from bblocks.data_importers.protocols import DataImporter
+from bblocks.data_importers.utilities import convert_dtypes
+from bblocks.data_importers.data_validators import DataFrameValidator
+from bblocks.data_importers.cepii.static_methods import (
     get_available_versions,
     extract_zip,
     rename_columns,
@@ -110,7 +110,7 @@ class BACI(DataImporter):
         _loaded_years (set[int] | None): Years included in the current `_data` cache.
 
     Usage:
-        >>> import bblocks_data_importers as bbdata
+        >>> import bblocks.data_importers as bbdata
         >>> # Initiate the object by specifying directory where the data will be downloaded
         >>> baci = bbdata.BACI(data_path="my/local/folder", baci_version="latest", hs_version="22")
         >>> # To check the available BACI and HS versions, use the `get_versions()` method:
@@ -126,12 +126,12 @@ class BACI(DataImporter):
     """
 
     def __init__(
-        self,
-        data_path: Path | str,
-        baci_version: Literal[
-            "202102", "202201", "202301", "202401", "202401b", "202501", "latest"
-        ] = "latest",
-        hs_version: Literal["92", "96", "02", "07", "12", "17", "22"] = "22",
+            self,
+            data_path: Path | str,
+            baci_version: Literal[
+                "202102", "202201", "202301", "202401", "202401b", "202501", "latest"
+            ] = "latest",
+            hs_version: Literal["92", "96", "02", "07", "12", "17", "22"] = "22",
     ):
         """Initialize a BACI importer instance.
 
@@ -274,10 +274,10 @@ class BACI(DataImporter):
         return get_available_versions()
 
     def get_data(
-        self,
-        include_country_names: bool = True,
-        years: int | list[int] | range | set[int] | None = None,
-        force_reload: bool = False,
+            self,
+            include_country_names: bool = True,
+            years: int | list[int] | range | set[int] | None = None,
+            force_reload: bool = False,
     ) -> pd.DataFrame:
         """Get the BACI data
 
@@ -304,8 +304,8 @@ class BACI(DataImporter):
                 years = set(years)
 
         config_changed = (
-            self._include_country_names != include_country_names
-            or self._loaded_years != years
+                self._include_country_names != include_country_names
+                or self._loaded_years != years
         )
 
         if self._data is None or config_changed or force_reload:

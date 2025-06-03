@@ -11,8 +11,8 @@ import io
 import zipfile
 import tempfile
 
-from bblocks_data_importers.config import Fields
-from bblocks_data_importers.cepii.static_methods import (
+from bblocks.data_importers.config import Fields
+from bblocks.data_importers.cepii.static_methods import (
     fetch_baci_page,
     extract_div,
     parse_baci_and_hs_versions,
@@ -65,7 +65,7 @@ def html_text():
     return HTML_WITH_DIVS
 
 
-@patch("bblocks_data_importers.cepii.baci.requests.get")
+@patch("bblocks.data_importers.cepii.baci.requests.get")
 def test_fetch_baci_page_success(mock_get):
     """Test BACI page is fetched correctly."""
     mock_response = Mock()
@@ -77,7 +77,7 @@ def test_fetch_baci_page_success(mock_get):
     assert "<html>" in content
 
 
-@patch("bblocks_data_importers.cepii.static_methods.requests.get")
+@patch("bblocks.data_importers.cepii.static_methods.requests.get")
 def test_fetch_baci_page_failure(mock_get):
     """Test HTTPError is raised when BACI page fetch fails."""
     mock_response = Mock()
@@ -114,7 +114,7 @@ def test_parse_baci_and_hs_versions(html_text):
     assert set(parsed["202401b"]["hs"]) == {"17", "12"}
 
 
-@patch("bblocks_data_importers.cepii.static_methods.fetch_baci_page")
+@patch("bblocks.data_importers.cepii.static_methods.fetch_baci_page")
 def test_get_available_versions(mock_fetch):
     """Test that versions are returned correctly."""
     mock_fetch.return_value = HTML_WITH_DIVS

@@ -21,7 +21,7 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.csv as pv
 
-from bblocks_data_importers.config import logger, Fields
+from bblocks.data_importers.config import logger, Fields
 
 
 # ---------------------------
@@ -100,7 +100,7 @@ def parse_baci_and_hs_versions(text: str) -> dict[str, dict[str, list[int] or bo
 
 
 def get_available_versions(
-    url: str = BACI_URL,
+        url: str = BACI_URL,
 ) -> dict[str, dict[str, list[int] or bool]]:
     """Orchestrate the process of parsing BACI page, extracting the divs with the BACI and HS versions and populate a
     dictionary with the information for easy access.
@@ -171,7 +171,7 @@ def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def map_country_codes(
-    df: pd.DataFrame, country_codes_df: pd.DataFrame, include_names: bool = False
+        df: pd.DataFrame, country_codes_df: pd.DataFrame, include_names: bool = False
 ) -> pd.DataFrame:
     """Map exporter/importer codes to ISO3 and optionally country names.
 
@@ -287,7 +287,7 @@ def save_parquet(table: pa.Table, path: Path):
 
 
 def load_parquet(
-    parquet_dir: Path, filter_years: set[int] | None = None
+        parquet_dir: Path, filter_years: set[int] | None = None
 ) -> pd.DataFrame:
     """
     Load partitioned Parquet data into a pandas DataFrame, optionally filtered by year.
