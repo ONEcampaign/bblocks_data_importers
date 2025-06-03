@@ -126,12 +126,12 @@ class BACI(DataImporter):
     """
 
     def __init__(
-            self,
-            data_path: Path | str,
-            baci_version: Literal[
-                "202102", "202201", "202301", "202401", "202401b", "202501", "latest"
-            ] = "latest",
-            hs_version: Literal["92", "96", "02", "07", "12", "17", "22"] = "22",
+        self,
+        data_path: Path | str,
+        baci_version: Literal[
+            "202102", "202201", "202301", "202401", "202401b", "202501", "latest"
+        ] = "latest",
+        hs_version: Literal["92", "96", "02", "07", "12", "17", "22"] = "22",
     ):
         """Initialize a BACI importer instance.
 
@@ -274,10 +274,10 @@ class BACI(DataImporter):
         return get_available_versions()
 
     def get_data(
-            self,
-            include_country_names: bool = True,
-            years: int | list[int] | range | set[int] | None = None,
-            force_reload: bool = False,
+        self,
+        include_country_names: bool = True,
+        years: int | list[int] | range | set[int] | None = None,
+        force_reload: bool = False,
     ) -> pd.DataFrame:
         """Get the BACI data
 
@@ -304,8 +304,8 @@ class BACI(DataImporter):
                 years = set(years)
 
         config_changed = (
-                self._include_country_names != include_country_names
-                or self._loaded_years != years
+            self._include_country_names != include_country_names
+            or self._loaded_years != years
         )
 
         if self._data is None or config_changed or force_reload:
