@@ -34,8 +34,8 @@ class Paths:
     """Configuration for paths"""
 
     project = Path(__file__).resolve().parent.parent
-    data = project / "bblocks_data_importers" / ".data"
-    wb_importer = project / "bblocks_data_importers" / "world_bank"
+    data = project / "data_importers" / ".data"
+    wb_importer = project / "data_importers" / "world_bank"
 
 
 class DataExtractionError(Exception):
@@ -98,6 +98,7 @@ class Fields:
     time_range = "time_range"
     notes = "notes"
     quantity = "quantity"
+    footnote = "footnote"
 
     # trade-related fields
     exporter_code = "exporter_code"
