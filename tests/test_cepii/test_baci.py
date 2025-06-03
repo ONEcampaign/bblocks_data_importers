@@ -69,7 +69,7 @@ def processed_baci_df():
 
 
 @patch(
-    "bblocks.data_importers.cepii.baci.get_available_versions",
+    "bblocks.data_importers.cepii.static_methods.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_valid(mock_versions, baci_instance):
@@ -86,7 +86,7 @@ def test_baci_invalid_path_raises():
 
 
 @patch(
-    "bblocks.data_importers.cepii.baci.get_available_versions",
+    "bblocks.data_importers.cepii.static_methods.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_invalid_version_raises(mock_versions, baci_instance):
@@ -96,7 +96,7 @@ def test_init_invalid_version_raises(mock_versions, baci_instance):
 
 
 @patch(
-    "bblocks.data_importers.cepii.baci.get_available_versions",
+    "bblocks.data_importers.cepii.static_methods.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_invalid_hs_version_raises(mock_versions, baci_instance):
@@ -106,7 +106,7 @@ def test_init_invalid_hs_version_raises(mock_versions, baci_instance):
 
 
 @patch(
-    "bblocks.data_importers.cepii.baci.get_available_versions",
+    "bblocks.data_importers.cepii.static_methods.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_no_path_raises(mock_versions):
@@ -359,11 +359,11 @@ def test_clear_cache_deletes_disk(tmp_baci_dir):
     assert not b._extract_path.exists()
 
 
-@patch("bblocks.data_importers.cepii.baci.get_available_versions")
+@patch("bblocks.data_importers.cepii.static_methods.get_available_versions")
 def test_get_versions(mock_get_versions):
     """Tests get_available_versions()` returns a versions dictionary"""
     mock_get_versions.return_value = {"202501": {"hs": ["22"], "latest": True}}
-    from bblocks.data_importers.cepii.baci import BACI
+    from bblocks.data_importers.cepii.baci import get_baci_versions
 
-    result = BACI.get_versions()
+    result = get_baci_versions()
     assert "202501" in result
