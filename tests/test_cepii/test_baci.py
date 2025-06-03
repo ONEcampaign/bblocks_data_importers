@@ -1,11 +1,8 @@
 """Test suite for the BACI importer class."""
 
 import io
-import zipfile
 import pytest
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 import requests
 from unittest.mock import patch, MagicMock
 
@@ -17,6 +14,7 @@ from bblocks.data_importers.cepii.baci import BACI, VERSIONS_DICT
 
 @pytest.fixture
 def tmp_baci_dir(tmp_path):
+    """Create a temporary BACI data directory."""
     path = tmp_path / "baci"
     path.mkdir()
     return path
@@ -24,6 +22,8 @@ def tmp_baci_dir(tmp_path):
 
 @pytest.fixture
 def baci_instance(tmp_path):
+    """Factory for creating a BACI instance with optional custom paths or versions."""
+
     def _create(data_path=None, baci_version="202501", hs_version="22"):
         path = data_path or (tmp_path / "baci")
         path.mkdir(parents=True, exist_ok=True)
@@ -34,6 +34,7 @@ def baci_instance(tmp_path):
 
 @pytest.fixture
 def extract_path(tmp_path):
+    """Fixture for a standard extract path directory layout."""
     path = tmp_path / "BACI_HS22_V202501"
     path.mkdir(parents=True)
     return path
@@ -41,40 +42,15 @@ def extract_path(tmp_path):
 
 @pytest.fixture
 def mock_df():
+    """Mock raw BACI DataFrame simulating unformatted trade data."""
     return pd.DataFrame(
         {"t": [2022], "i": [250], "j": [840], "k": ["0101"], "v": [1000.0], "q": [50.0]}
     )
 
 
 @pytest.fixture
-def mock_table_dataframe(mock_df):
-    mock_table = MagicMock()
-    mock_table.to_pandas.return_value = mock_df
-    return mock_table
-
-
-@pytest.fixture
-def mock_parquet_dir(tmp_baci_dir, mock_df):
-    parquet_dir = tmp_baci_dir / "BACI_HS22_V202501" / "parquet"
-    parquet_dir.mkdir(parents=True, exist_ok=True)
-
-    schema = pa.schema(
-        [
-            ("t", pa.int16()),
-            ("i", pa.int32()),
-            ("j", pa.int32()),
-            ("k", pa.string()),
-            ("v", pa.float32()),
-            ("q", pa.float32()),
-        ]
-    )
-    table = pa.Table.from_pandas(mock_df, schema=schema, preserve_index=False)
-    pq.write_table(table, parquet_dir / "part-000.parquet")
-    return parquet_dir
-
-
-@pytest.fixture
 def processed_baci_df():
+    """Mock final formatted BACI DataFrame matching expected output schema."""
     return pd.DataFrame(
         {
             "year": [2022],
@@ -89,24 +65,6 @@ def processed_baci_df():
     )
 
 
-@pytest.fixture
-def fake_zip_file():
-    mem_zip = io.BytesIO()
-    with zipfile.ZipFile(mem_zip, mode="w") as zf:
-        zf.writestr("BACI_2022.csv", "t,i,j,k,v,q\n2022,1,2,0101,1000.0,50.0")
-        zf.writestr(
-            "country_codes_V202501.csv",
-            "country_code,country_iso3,country_name\n1,FRA,France\n2,USA,United States",
-        )
-        zf.writestr(
-            "product_codes_HS22_V202501.csv",
-            "code,description\n0101,Horses\n0102,Cattle",
-        )
-        zf.writestr("Readme.txt", "Version: 202501\nSource: CEPII")
-    mem_zip.seek(0)
-    return mem_zip
-
-
 # ------------------------- Init Tests ------------------------- #
 
 
@@ -115,12 +73,14 @@ def fake_zip_file():
     return_value=VERSIONS_DICT,
 )
 def test_init_valid(mock_versions, baci_instance):
+    """Check that a BACI instance initializes with valid inputs."""
     b = baci_instance()
     assert b._baci_version == "202501"
     assert b._hs_version == "22"
 
 
 def test_baci_invalid_path_raises():
+    """Ensure FileNotFoundError is raised for invalid path."""
     with pytest.raises(FileNotFoundError):
         BACI(data_path="bad_path", baci_version="202501", hs_version="22")
 
@@ -130,6 +90,7 @@ def test_baci_invalid_path_raises():
     return_value=VERSIONS_DICT,
 )
 def test_init_invalid_version_raises(mock_versions, baci_instance):
+    """Ensure ValueError is raised for an unsupported BACI version."""
     with pytest.raises(ValueError):
         baci_instance(baci_version="999999")
 
@@ -139,6 +100,7 @@ def test_init_invalid_version_raises(mock_versions, baci_instance):
     return_value=VERSIONS_DICT,
 )
 def test_init_invalid_hs_version_raises(mock_versions, baci_instance):
+    """Ensure ValueError is raised for an unsupported HS version."""
     with pytest.raises(ValueError):
         baci_instance(hs_version="88")
 
@@ -148,11 +110,13 @@ def test_init_invalid_hs_version_raises(mock_versions, baci_instance):
     return_value=VERSIONS_DICT,
 )
 def test_init_no_path_raises(mock_versions):
+    """Ensure ValueError is raised when no path is provided."""
     with pytest.raises(ValueError):
         BACI(data_path=None)
 
 
 def test_init_latest_version(baci_instance):
+    """Ensure 'latest' version resolves to the latest version key in VERSIONS_DICT."""
     b = baci_instance(baci_version="latest")
     assert b._baci_version == next(v for v, d in VERSIONS_DICT.items() if d["latest"])
 
@@ -161,6 +125,8 @@ def test_init_latest_version(baci_instance):
 
 
 def test_download_zip_success(monkeypatch, baci_instance):
+    """Test successful zip file download from mocked HTTP response."""
+
     class MockResponse:
         status_code = 200
         content = b"zipdata"
@@ -177,6 +143,7 @@ def test_download_zip_success(monkeypatch, baci_instance):
 
 
 def test_download_zip_failure(monkeypatch, baci_instance):
+    """Test that download failure raises HTTPError."""
     mock_resp = MagicMock()
     mock_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
         "404 Client Error"
@@ -190,6 +157,7 @@ def test_download_zip_failure(monkeypatch, baci_instance):
 
 
 def test_load_country_codes(tmp_path, baci_instance):
+    """Ensure country codes CSV is loaded correctly."""
     csv_df = pd.DataFrame(
         {"country_code": [250], "country_iso3": ["FRA"], "country_name": ["France"]}
     )
@@ -205,6 +173,7 @@ def test_load_country_codes(tmp_path, baci_instance):
 
 
 def test_format_data(monkeypatch, baci_instance, mock_df):
+    """Test full formatting of raw data into final expected DataFrame structure."""
     baci = baci_instance()
     monkeypatch.setattr(
         baci,
@@ -231,6 +200,18 @@ def test_format_data(monkeypatch, baci_instance, mock_df):
     }
     assert set(df.columns) == expected_cols
     assert df.loc[0, "exporter_iso3"] == "FRA"
+
+
+def test_ensure_parquet_dir_is_returned(monkeypatch, tmp_path):
+    """Test that a path is returned in _ensure_parquet_data_exists"""
+    extract_path = tmp_path / "BACI_HS22_V202501"
+    parquet_path = extract_path / "parquet"
+    parquet_path.mkdir(parents=True, exist_ok=True)
+    (parquet_path / "part-000.parquet").touch()
+
+    baci = BACI(data_path=tmp_path, baci_version="202501", hs_version="22")
+    result = baci._ensure_parquet_data_exists()
+    assert result == parquet_path
 
 
 # ------------------------- get_data() & Caching ------------------------- #
@@ -297,6 +278,7 @@ def test_get_data_success(
     ],
 )
 def test_get_data_normalizes_years(monkeypatch, baci_instance, input_years, expected):
+    """Test that various formats of input years are normalized to a set of integers."""
     baci = baci_instance()
     captured = {}
 
@@ -317,6 +299,7 @@ def test_get_data_normalizes_years(monkeypatch, baci_instance, input_years, expe
 
 
 def test_extract_hs_map_missing_file_with_parquet_raises(baci_instance, extract_path):
+    """Raise FileNotFoundError when HS map file is missing and parquet dir exists."""
     (extract_path / "parquet").mkdir()
     baci = baci_instance(data_path=extract_path.parent)
     with pytest.raises(FileNotFoundError, match="HS map file .* not found"):
@@ -324,6 +307,7 @@ def test_extract_hs_map_missing_file_with_parquet_raises(baci_instance, extract_
 
 
 def test_extract_metadata_missing_file_with_parquet_raises(baci_instance, extract_path):
+    """Raise FileNotFoundError when Readme.txt is missing and parquet dir exists."""
     (extract_path / "parquet").mkdir()
     baci = baci_instance(data_path=extract_path.parent)
     with pytest.raises(FileNotFoundError, match="Metadata file 'Readme.txt' not found"):
@@ -335,6 +319,7 @@ def test_extract_metadata_missing_file_with_parquet_raises(baci_instance, extrac
 
 @patch("bblocks.data_importers.cepii.baci.BACI.get_data")
 def test_get_metadata_returns_dict(mock_get_data, tmp_baci_dir):
+    """Test get_metadata returns parsed dictionary from Readme.txt."""
     b = BACI(data_path=tmp_baci_dir, baci_version="202501", hs_version="22")
     path = b._extract_path
     path.mkdir(parents=True)
@@ -352,6 +337,7 @@ def test_get_metadata_returns_dict(mock_get_data, tmp_baci_dir):
 
 @patch("bblocks.data_importers.cepii.baci.BACI.get_data")
 def test_get_hs_map_returns_dict(mock_get_data, tmp_baci_dir):
+    """Test get_hs_map returns dictionary from product code CSV."""
     b = BACI(data_path=tmp_baci_dir, baci_version="202501", hs_version="22")
     path = b._extract_path
     path.mkdir(parents=True)
@@ -364,9 +350,20 @@ def test_get_hs_map_returns_dict(mock_get_data, tmp_baci_dir):
 
 
 def test_clear_cache_deletes_disk(tmp_baci_dir):
+    """Test that clear_cache() removes the extracted path when clear_disk=True."""
     b = BACI(data_path=tmp_baci_dir, baci_version="202501", hs_version="22")
     b._extract_path.mkdir(parents=True)
     (b._extract_path / "dummy.txt").write_text("x")
     assert b._extract_path.exists()
     b.clear_cache(clear_disk=True)
     assert not b._extract_path.exists()
+
+
+@patch("bblocks.data_importers.cepii.baci.get_available_versions")
+def test_get_versions(mock_get_versions):
+    """Tests get_available_versions()` returns a versions dictionary"""
+    mock_get_versions.return_value = {"202501": {"hs": ["22"], "latest": True}}
+    from bblocks.data_importers.cepii.baci import BACI
+
+    result = BACI.get_versions()
+    assert "202501" in result
