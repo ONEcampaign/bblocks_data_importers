@@ -26,7 +26,7 @@ HS classification. Note that hs_version determines how far back in time the data
 
 If you would like to explore older BACI versions, the `get_versions()` method returns a dictionary with the different
 BACI versions available and their supported HS versions, as well as bool indicator to identify the latest BACI version.
->>> versions = baci.get_versions()
+>>> versions = bbdata.get_baci_versions()
 
 Get the BACI data with the `get_data()` method. The function will look for a folder of the format 'BACI_HSXX_V20XXX'
 in the specified data_path, and download if not found.
@@ -82,6 +82,16 @@ VERSIONS_DICT = get_available_versions()
 VALID_BACI_VERSIONS = VERSIONS_DICT.keys()
 
 
+def get_baci_versions() -> dict[str, dict[str, list[int] or bool]]:
+    """Returns a dictionary with the different BACI versions available and their supported HS versions, as well as
+    bool indicator to identify the latest BACI version.
+
+    Returns:
+        dict: Dictionary mapping BACI to HS versions and latest flag.
+    """
+    return VERSIONS_DICT
+
+
 class BACI(DataImporter):
     """
     Importer for the CEPII BACI international trade dataset.
@@ -114,7 +124,7 @@ class BACI(DataImporter):
         >>> # Initiate the object by specifying directory where the data will be downloaded
         >>> baci = bbdata.BACI(data_path="my/local/folder", baci_version="latest", hs_version="22")
         >>> # To check the available BACI and HS versions, use the `get_versions()` method:
-        >>> versions = baci.get_versions()
+        >>> versions = bbdata.get_baci_versions()
         >>> # Get data as a DataFrame, specifying where to include country names and filtering specific years
         >>> # The traded amounts are specified in columns `value` (current thousand USD) and `quantity` (metric tons).
         >>> df = baci.get_data(include_country_names=True, years=range(2022, 2024))
@@ -262,16 +272,6 @@ class BACI(DataImporter):
         self._data = df
         self._loaded_years = filter_years
         logger.info("Data loaded successfully")
-
-    @staticmethod
-    def get_versions() -> dict[str, dict[str, list[int] or bool]]:
-        """Returns a dictionary with the different BACI versions available and their supported HS versions, as well as
-        bool indicator to identify the latest BACI version.
-
-        Returns:
-            dict: Dictionary mapping BACI to HS versions and latest flag.
-        """
-        return get_available_versions()
 
     def get_data(
         self,
