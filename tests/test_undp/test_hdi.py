@@ -7,8 +7,25 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 
-from bblocks_data_importers.undp import hdi
-from bblocks_data_importers.config import Fields, DataExtractionError
+from bblocks.data_importers.undp import hdi
+from bblocks.data_importers.config import Fields, DataExtractionError
+from bblocks.data_importers.protocols import DataImporter
+
+
+def test_protocol():
+    """Test that importer class implements the DataImporter protocol"""
+
+    importer_obj = hdi.HumanDevelopmentIndex()
+
+    assert isinstance(
+        importer_obj, DataImporter
+    ), "HumanDevelopmentIndex does not implement DataImporter protocol"
+    assert hasattr(
+        importer_obj, "get_data"
+    ), "HumanDevelopmentIndex does not have get_data method"
+    assert hasattr(
+        importer_obj, "clear_cache"
+    ), "HumanDevelopmentIndex does not have clear_cache method"
 
 
 # ------------------------------------------------------------------------------
@@ -117,7 +134,7 @@ def test_read_hdi_data_success(mock_hdi_csv_content):
     when it successfully reads CSV data.
     """
     with mock.patch(
-        "bblocks_data_importers.undp.hdi._request_hdi_data"
+        "bblocks.data_importers.undp.hdi._request_hdi_data"
     ) as mock_request:
         mock_response = mock.Mock()
         mock_response.content = mock_hdi_csv_content
@@ -148,7 +165,7 @@ def test_read_hdi_data_parser_error():
 
     # 2) Patch _request_hdi_data so it returns this mock response
     with mock.patch(
-        "bblocks_data_importers.undp.hdi._request_hdi_data", return_value=mock_response
+        "bblocks.data_importers.undp.hdi._request_hdi_data", return_value=mock_response
     ):
         # 3) Force pandas.read_csv to raise a ParserError
         with mock.patch(
@@ -162,7 +179,7 @@ def test_read_hdi_data_parser_error():
 def test_read_hdi_metadata_success(mock_hdi_metadata_content):
     """hdi.read_hdi_metadata should return a DataFrame with correct shape/columns on success."""
     with mock.patch(
-        "bblocks_data_importers.undp.hdi._request_hdi_data"
+        "bblocks.data_importers.undp.hdi._request_hdi_data"
     ) as mock_request:
         mock_response = mock.Mock()
         mock_response.content = mock_hdi_metadata_content
@@ -181,7 +198,7 @@ def test_read_hdi_metadata_success(mock_hdi_metadata_content):
 def test_read_hdi_metadata_parser_error():
     """If the Excel is malformed, hdi.read_hdi_metadata should raise DataExtractionError."""
     with mock.patch(
-        "bblocks_data_importers.undp.hdi._request_hdi_data"
+        "bblocks.data_importers.undp.hdi._request_hdi_data"
     ) as mock_request:
         mock_response = mock.Mock()
         mock_response.content = b"NOT_AN_EXCEL_FILE"
@@ -277,7 +294,7 @@ def test_clean_data(mock_hdi_df, mock_metadata_df):
 def mock_read_hdi_data_func(mock_hdi_df):
     """Mocks hdi.read_hdi_data to return mock_hdi_df."""
     with mock.patch(
-        "bblocks_data_importers.undp.hdi.read_hdi_data", return_value=mock_hdi_df
+        "bblocks.data_importers.undp.hdi.read_hdi_data", return_value=mock_hdi_df
     ):
         yield
 
@@ -286,7 +303,7 @@ def mock_read_hdi_data_func(mock_hdi_df):
 def mock_read_hdi_metadata_func(mock_metadata_df):
     """Mocks hdi.read_hdi_metadata to return mock_metadata_df."""
     with mock.patch(
-        "bblocks_data_importers.undp.hdi.read_hdi_metadata",
+        "bblocks.data_importers.undp.hdi.read_hdi_metadata",
         return_value=mock_metadata_df,
     ):
         yield

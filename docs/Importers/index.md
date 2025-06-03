@@ -11,5 +11,4 @@ wfp.ipynb
 world_bank.ipynb
 international_debt_statistics.ipynb
 hdi.ipynb
-baci.ipynb
 ```
