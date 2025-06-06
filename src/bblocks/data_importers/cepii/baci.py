@@ -155,7 +155,7 @@ class BACI(DataImporter):
         if data_path is None:
             raise ValueError("`data_path` must be defined.")
 
-        path = Path(data_path)
+        path = Path(data_path).resolve()
 
         if not path.exists():
             raise FileNotFoundError(
