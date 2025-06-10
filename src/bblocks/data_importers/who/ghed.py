@@ -79,6 +79,7 @@ class GHED:
     def __init__(self, data_file: PathLike | Path | None = None):
         self._raw_data: io.BytesIO | None = None
         self._data: pd.DataFrame | None = None
+        self._indicators: pd.DataFrame | None = None
         self._metadata: pd.DataFrame | None = None
 
         self._data_file = Path(data_file) if data_file else None
@@ -154,20 +155,31 @@ class GHED:
         Returns:
             A DataFrame with the formatted codes
         """
-        return (
-            pd.read_excel(
-                self._raw_data, sheet_name="Codebook", dtype_backend="pyarrow"
+
+        try:
+            return (
+                pd.read_excel(
+                    self._raw_data, sheet_name="Codebook", dtype_backend="pyarrow"
+                )
+                .rename(
+                    columns={
+                        "variable code": Fields.indicator_code,
+                        "variable name": Fields.indicator_name,
+                        "long code (GHED data explorer)": "indicator_long_code",
+                        "category 1": "category_1",
+                        "category 2": "category_2",
+                        "Method of measurement (INDICATORS category1)": "measurement_method",
+                    }
+                )
+                # .loc[:, [Fields.indicator_code, Fields.indicator_name, "unit", "currency"]]
+                .replace("-", np.nan)
+                .loc[lambda d: d.indicator_long_code.notna()]
+                .reset_index(drop=True)
+                .pipe(convert_dtypes)
             )
-            .rename(
-                columns={
-                    "variable code": Fields.indicator_code,
-                    "variable name": Fields.indicator_name,
-                }
-            )
-            .loc[:, [Fields.indicator_code, Fields.indicator_name, "unit", "currency"]]
-            .replace("-", np.nan)
-            .pipe(convert_dtypes)
-        )
+
+        except (ValueError, KeyError) as e:
+            raise DataFormattingError(f"Error formatting indicators metadata: {e}")
 
     def _format_data(self) -> pd.DataFrame:
         """Format the raw data
@@ -178,15 +190,14 @@ class GHED:
 
         try:
             data_df = self._format_main_data()
+
+            return pd.merge(data_df,
+                            self._indicators.loc[:, [Fields.indicator_code, Fields.indicator_name, "unit", "currency"]],
+                            on="indicator_code", how="left")
+
         except (ValueError, KeyError) as e:
             raise DataFormattingError(f"Error formatting data: {e}")
 
-        try:
-            codes_df = self._format_codes()
-        except (ValueError, KeyError) as e:
-            raise DataFormattingError(f"Error formatting data: {e}")
-
-        return pd.merge(data_df, codes_df, on="indicator_code", how="left")
 
     def _format_metadata(self) -> pd.DataFrame:
         """Format the metadata
@@ -230,6 +241,10 @@ class GHED:
             logger.info("Importing data from GHED database")
             self._raw_data = self._extract_raw_data()
 
+        # Format the indicators
+        self._indicators = self._format_codes()
+
+        # Format the main data
         df = self._format_data()
         DataFrameValidator().validate(
             df,
@@ -243,13 +258,14 @@ class GHED:
             ],
         )
         self._data = df
+
+        # Format the metadata
         self._metadata = self._format_metadata()
+
         logger.info("Data imported successfully")
 
     def get_data(self) -> pd.DataFrame:
         """Get the GHED data
-
-        # TODO: Add functionality to filter the data by country, indicator, year, etc.
 
         Returns:
             A DataFrame with the formatted GHED data
@@ -272,6 +288,14 @@ class GHED:
             self._load_data()
 
         return self._metadata
+
+    def get_indicators(self) -> pd.DataFrame:
+        """Get available GHED indicators"""
+
+        if self._indicators is None:
+            self._load_data()
+
+        return self._indicators
 
     def clear_cache(self) -> None:
         """Clear the data cached in the importer"""
