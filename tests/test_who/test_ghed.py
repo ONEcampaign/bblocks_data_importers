@@ -187,6 +187,9 @@ def test_format_data_success(mock_raw_data):
 
     ghed = GHED()
     ghed._raw_data = mock_raw_data
+    ghed._indicators = (
+        ghed._format_codes()
+    )  # Ensure that the codes are formatted before formatting data
     result = ghed._format_data()
     expected_data = pd.read_feather(
         "tests/test_data/formatted_data_ghed.feather", dtype_backend="pyarrow"
@@ -245,6 +248,9 @@ def test_format_data_missing_codes(mock_raw_data):
 
     # test
     with pytest.raises(DataFormattingError):
+        ghed._indicators = (
+            ghed._format_codes()
+        )  # Ensure that the codes are formatted before formatting data
         result = ghed._format_data()
 
 
@@ -276,6 +282,9 @@ def test_format_data_merging_error(mock_raw_data):
 
     # Test
     with pytest.raises(DataFormattingError):
+        ghed._indicators = (
+            ghed._format_codes()
+        )  # Ensure that the codes are formatted before formatting data
         result = ghed._format_data()
 
 
@@ -376,7 +385,7 @@ def test_export_raw_data_success(mock_file_open, mock_path_exists):
     ghed = GHED()
     ghed._raw_data = io.BytesIO(b"some raw data")
     ghed.export_raw_data(
-        path="some_valid_directory", file_name="ghed_test", overwrite=True
+        directory="some_valid_directory", file_name="ghed_test", overwrite=True
     )
 
     # test
@@ -398,7 +407,7 @@ def test_export_raw_data_file_exists_no_overwrite(mock_file_open, mock_path_exis
     # Test that a FileExistsError is raised when overwrite is False
     with pytest.raises(FileExistsError):
         ghed.export_raw_data(
-            path="some_valid_directory", file_name="ghed_test", overwrite=False
+            directory="some_valid_directory", file_name="ghed_test", overwrite=False
         )
 
     # Ensure that the file was not opened for writing
@@ -415,7 +424,7 @@ def test_export_raw_data_directory_not_found(mock_path_exists):
 
     # Test that a FileNotFoundError is raised
     with pytest.raises(FileNotFoundError):
-        ghed.export_raw_data(path="non_existent_directory", file_name="ghed_test")
+        ghed.export_raw_data(directory="non_existent_directory", file_name="ghed_test")
 
     # Ensure that the file was not opened for writing
     mock_path_exists.assert_called_once_with()
@@ -432,7 +441,7 @@ def test_export_raw_data_calls_load_data_if_raw_data_none(
     ghed = GHED()
     mock_load_data.side_effect = lambda: setattr(ghed, "_raw_data", mock_raw_data)
     ghed.export_raw_data(
-        path="some_valid_directory", file_name="ghed_test", overwrite=True
+        directory="some_valid_directory", file_name="ghed_test", overwrite=True
     )
 
     # test
@@ -456,6 +465,32 @@ def test_get_data_calls_load_data_if_data_none(mock_load_data):
     # test
     mock_load_data.assert_called_once()
     assert isinstance(result, pd.DataFrame)
+
+
+@mock.patch("bblocks.data_importers.who.ghed.GHED._load_data")
+def test_get_indicators_calls_load_data_if_indicators_none(mock_load_data):
+    """Test that get_indicators calls _load_data if _indicators is None and returns a DataFrame"""
+
+    ghed = GHED()
+    mock_load_data.side_effect = lambda: setattr(
+        ghed, "_indicators", pd.DataFrame({"indicator": ["ind1", "ind2"]})
+    )
+    result = ghed.get_indicators()
+
+    # test
+    mock_load_data.assert_called_once()
+    assert isinstance(result, pd.DataFrame)
+
+
+@mock.patch("bblocks.data_importers.who.ghed.GHED._load_data")
+def test_get_indicators_does_not_call_load_data_if_indicators_exists(mock_load_data):
+    """Test that get_indicators does not call _load_data if _indicators is already populated"""
+
+    ghed = GHED()
+    ghed._indicators = pd.DataFrame({"indicator": ["ind1", "ind2"]})
+    # Simulate that indicators are already loaded
+    result = ghed.get_indicators()
+    mock_load_data.assert_not_called()
 
 
 @mock.patch("bblocks.data_importers.who.ghed.GHED._load_data")
