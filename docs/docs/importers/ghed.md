@@ -73,7 +73,7 @@ print(indicators.head())
 ```
 
 
-## Data Caching
+## Data caching
 
 Data is cached to avoid repeated downloads and to improve performance. The cached data is tied to the importer
 instance and cleared automatically when the session ends. You can also manually clear the cache
