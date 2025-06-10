@@ -376,7 +376,7 @@ def test_export_raw_data_success(mock_file_open, mock_path_exists):
     ghed = GHED()
     ghed._raw_data = io.BytesIO(b"some raw data")
     ghed.export_raw_data(
-        path="some_valid_directory", file_name="ghed_test", overwrite=True
+        directory="some_valid_directory", file_name="ghed_test", overwrite=True
     )
 
     # test
@@ -398,7 +398,7 @@ def test_export_raw_data_file_exists_no_overwrite(mock_file_open, mock_path_exis
     # Test that a FileExistsError is raised when overwrite is False
     with pytest.raises(FileExistsError):
         ghed.export_raw_data(
-            path="some_valid_directory", file_name="ghed_test", overwrite=False
+            directory="some_valid_directory", file_name="ghed_test", overwrite=False
         )
 
     # Ensure that the file was not opened for writing
@@ -415,7 +415,7 @@ def test_export_raw_data_directory_not_found(mock_path_exists):
 
     # Test that a FileNotFoundError is raised
     with pytest.raises(FileNotFoundError):
-        ghed.export_raw_data(path="non_existent_directory", file_name="ghed_test")
+        ghed.export_raw_data(directory="non_existent_directory", file_name="ghed_test")
 
     # Ensure that the file was not opened for writing
     mock_path_exists.assert_called_once_with()
@@ -432,7 +432,7 @@ def test_export_raw_data_calls_load_data_if_raw_data_none(
     ghed = GHED()
     mock_load_data.side_effect = lambda: setattr(ghed, "_raw_data", mock_raw_data)
     ghed.export_raw_data(
-        path="some_valid_directory", file_name="ghed_test", overwrite=True
+        directory="some_valid_directory", file_name="ghed_test", overwrite=True
     )
 
     # test

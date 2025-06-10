@@ -15,7 +15,7 @@ get the data and metadata:
 >>> metadata = ghed.get_metadata()
 
 Export the raw data to disk:
->>> ghed.export_raw_data(path = "some_path")
+>>> ghed.export_raw_data(directory = "some_path")
 
 Clear the cached data:
 >>> ghed.clear_cache()
@@ -32,6 +32,7 @@ import io
 import numpy as np
 from requests.exceptions import RequestException
 from pathlib import Path
+from os import PathLike
 
 from bblocks.data_importers.config import (
     logger,
@@ -63,7 +64,7 @@ class GHED:
     >>> metadata = ghed.get_metadata()
 
     Export the raw data to disk:
-    >>> ghed.export_raw_data(path = "some_path")
+    >>> ghed.export_raw_data(directory = "path/to/directory")
 
     You can clear the cached data using the `clear_cache method`. Once the cache is cleared, next time you call
     `get_data` or `get_metadata`, the importer will download the data again.
@@ -71,11 +72,11 @@ class GHED:
 
 
     Optionally you can pass a path to a local file containing the data to avoid downloading the data from the WHO.
-    >>> ghed = GHED(data_file="path_to_file")
+    >>> ghed = GHED(data_file="user/path/to/file.xlsx")
     If you do this, the importer will read the data from the file instead of downloading it from the WHO.
     """
 
-    def __init__(self, data_file: str | None = None):
+    def __init__(self, data_file: PathLike | Path | None = None):
         self._raw_data: io.BytesIO | None = None
         self._data: pd.DataFrame | None = None
         self._metadata: pd.DataFrame | None = None
@@ -280,18 +281,18 @@ class GHED:
         self._metadata = None
         logger.info("Cache cleared")
 
-    def export_raw_data(self, path: str, file_name="ghed", overwrite=False) -> None:
+    def export_raw_data(self, directory: PathLike | Path, file_name="ghed", overwrite=False) -> None:
         """Export the raw data to disk.
 
         This method saves the raw data to disk in the specified path as an Excel file.
 
         Args:
-            path: Path to the directory where the data will be saved
+            directory: Path to the directory where the data will be saved
             file_name: Name of the file to save the data
             overwrite: Whether to overwrite the file if it already exists. Default is False
         """
 
-        directory = Path(path)
+        directory = Path(directory)
         if not directory.exists():
             raise FileNotFoundError(
                 f"The directory does not exist. Please provide a valid path."
