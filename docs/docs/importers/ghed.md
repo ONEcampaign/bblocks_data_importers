@@ -1,11 +1,9 @@
-from importlib.metadata import metadatafrom mkdocs.commands.gh_deploy import gh_deploy
-
 # Global Health Expenditure Database (GHED) importer
 
 The `GHED` importer provides structured access to the Global Health Expenditure Database published and maintained
 by the World Health Organization (WHO). 
 
-## About the Global Health Expenditure Database (GHED)
+## About GHED
 
 
 The Global Health Expenditure Database (GHED) provides comprehensive data on health expenditures across
@@ -38,7 +36,6 @@ print(data.head())
 # 0	    Algeria	        DZA	        2000	che_gdp	        3.214	Current Health Expenditure ...	Percentage	
 # 1	    Algeria	        DZA	        2001	che_gdp	        3.536	Current Health Expenditure ...	Percentage	
 # ...
-
 ```
 
 ## Access metadata
@@ -52,12 +49,29 @@ metadata = ghed.get_metadata()
 # preview the first few rows of the metadata
 print(metadata.head())
 
-
+# Output:
 #	    country_name	iso3_code	indicator_name	                indicator_code	sources		                                data_type	                ....
 # 0	    Algeria	        DZA	        Current health expenditure ... 	fs	            2019 - 2022: Sum of its components ...		2019 - 2022: Derived ...	                        
 # 1	    Algeria	        DZA	        Transfers from government ...	fs1	            2000 - 2018: Calculated as the ...          2000 - 2018: Estimated...
-
+# ...
 ```
+
+You can also get information about the available indicators by calling the `get_indicators` method. This will return
+a DataFrame containing the list of indicators available in the GHED database.
+
+```py
+indicators = ghed.get_indicators()
+
+# preview the first few rows of the indicators
+print(indicators.head())
+
+# Output:
+#	    indicator_code	indicator_name	                                                    indicator_long_code	category_1	category_2	unit	    currency	measurement_method
+# 0	    che_gdp	        Current Health Expenditure (CHE) as % Gross Domestic Product (GDP)	CHE%GDP_SHA2011	    INDICATORS	AGGREGATES	Percentage		        Current Health Expenditure (CHE) / Gross Domestic Product (GDP)
+# 1	    che_pc_usd	    Current Health Expenditure (CHE) per Capita in US$	                CHE_pc_US$_SHA2011	INDICATORS	AGGREGATES	Ones	    US$	        Current Health Expenditure (CHE) / Population / Exchange rate (NCU to USD)
+# ...
+```
+
 
 ## Data Caching
 
@@ -82,12 +96,11 @@ ghed = GHED(data_file='path/to/your/downloaded/ghed_data.xlsx')
 # use the importer as usual
 data = ghed.get_data()
 metadata = ghed.get_metadata()
-
 ```
 
-You can also export the data from the object to disk in Excel format using the `export_to_excel` method:
+You can also export the data from the object to disk as an Excel format using the `export_raw_data` method:
 
 ```py
-ghed.export_raw_data('directory/to/save/ghed_data')
+ghed.export_raw_data(directory = 'directory/to/save/ghed_data')
 ```
 
