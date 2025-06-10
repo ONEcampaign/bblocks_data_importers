@@ -62,6 +62,7 @@ class GHED:
     get the data and metadata:
     >>> data = ghed.get_data()
     >>> metadata = ghed.get_metadata()
+    >>> indicators = ghed.get_indicators() # Get available indicators
 
     Export the raw data to disk:
     >>> ghed.export_raw_data(directory = "path/to/directory")
@@ -191,13 +192,18 @@ class GHED:
         try:
             data_df = self._format_main_data()
 
-            return pd.merge(data_df,
-                            self._indicators.loc[:, [Fields.indicator_code, Fields.indicator_name, "unit", "currency"]],
-                            on="indicator_code", how="left")
+            return pd.merge(
+                data_df,
+                self._indicators.loc[
+                    :,
+                    [Fields.indicator_code, Fields.indicator_name, "unit", "currency"],
+                ],
+                on="indicator_code",
+                how="left",
+            )
 
         except (ValueError, KeyError) as e:
             raise DataFormattingError(f"Error formatting data: {e}")
-
 
     def _format_metadata(self) -> pd.DataFrame:
         """Format the metadata
@@ -290,7 +296,11 @@ class GHED:
         return self._metadata
 
     def get_indicators(self) -> pd.DataFrame:
-        """Get available GHED indicators"""
+        """Get available GHED indicators
+
+        Returns:
+            A DataFrame with the available indicators in the GHED database
+        """
 
         if self._indicators is None:
             self._load_data()
@@ -305,7 +315,9 @@ class GHED:
         self._metadata = None
         logger.info("Cache cleared")
 
-    def export_raw_data(self, directory: PathLike | Path, file_name="ghed", overwrite=False) -> None:
+    def export_raw_data(
+        self, directory: PathLike | Path, file_name="ghed", overwrite=False
+    ) -> None:
         """Export the raw data to disk.
 
         This method saves the raw data to disk in the specified path as an Excel file.
