@@ -103,8 +103,8 @@ class Fields:
     # trade-related fields
     exporter_code = "exporter_code"
     importer_code = "importer_code"
-    exporter_iso3 = "exporter_iso3"
-    importer_iso3 = "importer_iso3"
+    exporter_iso3_code = "exporter_iso3_code"
+    importer_iso3_code = "importer_iso3_code"
     exporter_name = "exporter_name"
     importer_name = "importer_name"
     product_code = "product_code"
