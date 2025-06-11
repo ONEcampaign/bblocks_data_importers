@@ -1,4 +1,4 @@
-"""Test static_methods module for BACI utilities."""
+"""Test baci_utils module for BACI utilities."""
 
 import pytest
 from unittest.mock import patch, Mock
@@ -12,7 +12,7 @@ import zipfile
 import tempfile
 
 from bblocks.data_importers.config import Fields
-from bblocks.data_importers.cepii.static_methods import (
+from bblocks.data_importers.cepii.baci_utils import (
     fetch_baci_page,
     extract_div,
     parse_baci_and_hs_versions,
@@ -28,6 +28,7 @@ from bblocks.data_importers.cepii.static_methods import (
     cleanup_csvs,
     generate_metadata,
     validate_years,
+    verify_years,
 )
 
 # ---------------------------
@@ -77,7 +78,7 @@ def test_fetch_baci_page_success(mock_get):
     assert "<html>" in content
 
 
-@patch("bblocks.data_importers.cepii.static_methods.requests.get")
+@patch("bblocks.data_importers.cepii.baci_utils.requests.get")
 def test_fetch_baci_page_failure(mock_get):
     """Test HTTPError is raised when BACI page fetch fails."""
     mock_response = Mock()
@@ -114,7 +115,7 @@ def test_parse_baci_and_hs_versions(html_text):
     assert set(parsed["202401b"]["hs"]) == {"17", "12"}
 
 
-@patch("bblocks.data_importers.cepii.static_methods.fetch_baci_page")
+@patch("bblocks.data_importers.cepii.baci_utils.fetch_baci_page")
 def test_get_available_versions(mock_fetch):
     """Test that versions are returned correctly."""
     mock_fetch.return_value = HTML_WITH_DIVS
@@ -213,10 +214,10 @@ def test_map_country_codes_without_names(raw_baci_df, country_codes_df):
     df = rename_columns(raw_baci_df)
     df = map_country_codes(df, country_codes_df, include_names=False)
 
-    assert Fields.exporter_iso3 in df.columns
-    assert Fields.importer_iso3 in df.columns
-    assert df.loc[0, Fields.exporter_iso3] == "FRA"
-    assert df.loc[0, Fields.importer_iso3] == "USA"
+    assert Fields.exporter_iso3_code in df.columns
+    assert Fields.importer_iso3_code in df.columns
+    assert df.loc[0, Fields.exporter_iso3_code] == "FRA"
+    assert df.loc[0, Fields.importer_iso3_code] == "USA"
     assert Fields.exporter_name not in df.columns
     assert Fields.importer_name not in df.columns
 
@@ -240,9 +241,9 @@ def test_organise_columns(raw_baci_df, country_codes_df):
 
     expected_order = [
         Fields.year,
-        Fields.exporter_iso3,
+        Fields.exporter_iso3_code,
         Fields.exporter_name,
-        Fields.importer_iso3,
+        Fields.importer_iso3_code,
         Fields.importer_name,
         Fields.product_code,
         Fields.value,
@@ -386,6 +387,36 @@ def test_generate_metadata_parses_key_value_blocks(sample_readme):
 # ---------------------------
 
 
+@pytest.mark.parametrize(
+    "input_years,expected",
+    [
+        (2022, {2022}),
+        ([2022, 2023], {2022, 2023}),
+        ({2021, 2022}, {2021, 2022}),
+        (range(2020, 2023), {2020, 2021, 2022}),
+        ([2022, 2022, 2023], {2022, 2023}),
+        (None, None),
+    ],
+)
+def test_validate_years_valid_inputs(input_years, expected):
+    assert validate_years(input_years) == expected
+
+
+@pytest.mark.parametrize(
+    "bad_input",
+    [
+        "2022",  # string
+        2022.0,  # float
+        ["2022", 2023],  # list with string
+        [2022, 2023.0],  # list with float
+        object(),  # completely invalid type
+    ],
+)
+def test_validate_years_invalid_types(bad_input):
+    with pytest.raises((TypeError, ValueError)):
+        validate_years(bad_input)
+
+
 @pytest.fixture
 def mock_parquet_dir(tmp_path: Path) -> Path:
     """Fixture to return a mock partitioned parquet directory by year."""
@@ -407,14 +438,14 @@ def mock_parquet_dir(tmp_path: Path) -> Path:
         (None, None),
     ],
 )
-def test_validate_years_accepts_valid_years(mock_parquet_dir, requested, expected):
-    """Test that `validate_years()` accepts valid requested year sets."""
-    assert validate_years(mock_parquet_dir, requested) == expected
+def test_verify_years_accepts_valid_years(mock_parquet_dir, requested, expected):
+    """Test that `verify_years()` accepts valid requested year sets."""
+    assert verify_years(mock_parquet_dir, requested) == expected
 
 
-def test_validate_years_returns_none_for_invalid_years(mock_parquet_dir, caplog):
-    """Test that `validate_years()` ignores filter if years are our of range."""
-    result = validate_years(mock_parquet_dir, {2018, 2022})
+def test_verify_years_returns_none_for_invalid_years(mock_parquet_dir, caplog):
+    """Test that `verify_years()` ignores filter if years are our of range."""
+    result = verify_years(mock_parquet_dir, {2018, 2022})
     assert result is None
     assert any(
         "Will return all available years." in message for message in caplog.messages

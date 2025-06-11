@@ -7,6 +7,7 @@ import requests
 from unittest.mock import patch, MagicMock
 
 from bblocks.data_importers.cepii.baci import BACI, VERSIONS_DICT
+from bblocks.data_importers.protocols import DataImporter
 
 
 # ------------------------- Fixtures ------------------------- #
@@ -54,9 +55,9 @@ def processed_baci_df():
     return pd.DataFrame(
         {
             "year": [2022],
-            "exporter_iso3": ["FRA"],
+            "exporter_iso3_code": ["FRA"],
             "exporter_name": ["France"],
-            "importer_iso3": ["USA"],
+            "importer_iso3_code": ["USA"],
             "importer_name": ["United States"],
             "product_code": ["0101"],
             "value": [1000],
@@ -68,8 +69,20 @@ def processed_baci_df():
 # ------------------------- Init Tests ------------------------- #
 
 
+def test_protocol(baci_instance):
+    """Test that importer class implements the DataImporter protocol"""
+
+    importer_obj = baci_instance()
+
+    assert isinstance(
+        importer_obj, DataImporter
+    ), "BACI does not implement DataImporter protocol"
+    assert hasattr(importer_obj, "get_data"), "BACI does not have get_data method"
+    assert hasattr(importer_obj, "clear_cache"), "BACI does not have clear_cache method"
+
+
 @patch(
-    "bblocks.data_importers.cepii.static_methods.get_available_versions",
+    "bblocks.data_importers.cepii.baci_utils.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_valid(mock_versions, baci_instance):
@@ -86,7 +99,7 @@ def test_baci_invalid_path_raises():
 
 
 @patch(
-    "bblocks.data_importers.cepii.static_methods.get_available_versions",
+    "bblocks.data_importers.cepii.baci_utils.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_invalid_version_raises(mock_versions, baci_instance):
@@ -96,7 +109,7 @@ def test_init_invalid_version_raises(mock_versions, baci_instance):
 
 
 @patch(
-    "bblocks.data_importers.cepii.static_methods.get_available_versions",
+    "bblocks.data_importers.cepii.baci_utils.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_invalid_hs_version_raises(mock_versions, baci_instance):
@@ -106,7 +119,7 @@ def test_init_invalid_hs_version_raises(mock_versions, baci_instance):
 
 
 @patch(
-    "bblocks.data_importers.cepii.static_methods.get_available_versions",
+    "bblocks.data_importers.cepii.baci_utils.get_available_versions",
     return_value=VERSIONS_DICT,
 )
 def test_init_no_path_raises(mock_versions):
@@ -190,16 +203,16 @@ def test_format_data(monkeypatch, baci_instance, mock_df):
 
     expected_cols = {
         "year",
-        "exporter_iso3",
+        "exporter_iso3_code",
         "exporter_name",
-        "importer_iso3",
+        "importer_iso3_code",
         "importer_name",
         "product_code",
         "value",
         "quantity",
     }
     assert set(df.columns) == expected_cols
-    assert df.loc[0, "exporter_iso3"] == "FRA"
+    assert df.loc[0, "exporter_iso3_code"] == "FRA"
 
 
 def test_ensure_parquet_dir_is_returned(monkeypatch, tmp_path):
@@ -282,7 +295,7 @@ def test_get_data_normalizes_years(monkeypatch, baci_instance, input_years, expe
     baci = baci_instance()
     captured = {}
 
-    def mock_load_data(filter_years):
+    def mock_load_data(filter_years, force_reload=False):
         captured["filter_years"] = filter_years
         baci._data = pd.DataFrame()  # Prevent load fallback
 
@@ -359,7 +372,7 @@ def test_clear_cache_deletes_disk(tmp_baci_dir):
     assert not b._extract_path.exists()
 
 
-@patch("bblocks.data_importers.cepii.static_methods.get_available_versions")
+@patch("bblocks.data_importers.cepii.baci_utils.get_available_versions")
 def test_get_versions(mock_get_versions):
     """Tests get_available_versions()` returns a versions dictionary"""
     mock_get_versions.return_value = {"202501": {"hs": ["22"], "latest": True}}
