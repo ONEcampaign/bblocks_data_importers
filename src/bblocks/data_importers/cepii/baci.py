@@ -5,7 +5,7 @@ more than 200 countries and territories, covering over 5,000 products at the 6-d
 Trade values are reported in thousands of USD and quantities in metric tons. BACI is built using the UN COMTRADE
 database and includes reconciliation procedures.
 
-More information and access to the raw data can be found at: https://www.cepii.fr/CEPII/en/bdd_modele/presentation.asp?id=37
+More information and access to the raw data can be found [here](https://www.cepii.fr/CEPII/en/bdd_modele/presentation.asp?id=37)
 
 This importer provides functionality to easily access the latest BACI data (or data from a specific version),
 automatically download and extract data if not already available locally, and return formatted trade data.
@@ -46,7 +46,7 @@ A dictionary that maps HS codes to product desriptions is available with:
 To access metadata from a BACI object:
 >>> metadata = baci.get_metadata()
 
-The data and metadata are cached to avoid loading the dataset again. User the `clear_cache()` method to delete this
+The data and metadata are cached to avoid loading the dataset again. Use the `clear_cache()` method to delete this
 data. You can set clear_disk = True to delete the local directory where the BACI data was saver (defaults to False).
 >>> baci.clear_cache(clear_disk=True)
 """
@@ -59,10 +59,9 @@ from pathlib import Path
 import shutil
 
 from bblocks.data_importers.config import logger, Fields
-from bblocks.data_importers.protocols import DataImporter
 from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.data_validators import DataFrameValidator
-from bblocks.data_importers.cepii.static_methods import (
+from bblocks.data_importers.cepii.baci_utils import (
     get_available_versions,
     extract_zip,
     rename_columns,
@@ -74,6 +73,7 @@ from bblocks.data_importers.cepii.static_methods import (
     cleanup_csvs,
     generate_metadata,
     validate_years,
+    verify_years,
 )
 
 BASE_URL = "https://www.cepii.fr/DATA_DOWNLOAD/baci/data"
@@ -92,7 +92,7 @@ def get_baci_versions() -> dict[str, dict[str, list[int] or bool]]:
     return VERSIONS_DICT
 
 
-class BACI(DataImporter):
+class BACI:
     """
     Importer for the CEPII BACI international trade dataset.
 
@@ -120,28 +120,30 @@ class BACI(DataImporter):
         _loaded_years (set[int] | None): Years included in the current `_data` cache.
 
     Usage:
-        >>> import bblocks.data_importers as bbdata
-        >>> # Initiate the object by specifying directory where the data will be downloaded
+
+        # Initiate the object by specifying directory where the data will be downloaded
         >>> baci = bbdata.BACI(data_path="my/local/folder", baci_version="latest", hs_version="22")
-        >>> # To check the available BACI and HS versions, use the `get_versions()` method:
+
+        # To check the available BACI and HS versions, use the `get_versions()` method:
         >>> versions = bbdata.get_baci_versions()
-        >>> # Get data as a DataFrame, specifying where to include country names and filtering specific years
-        >>> # The traded amounts are specified in columns `value` (current thousand USD) and `quantity` (metric tons).
+
+        # Get data as a DataFrame, specifying where to include country names and filtering specific years
+        # The traded amounts are specified in columns `value` (current thousand USD) and `quantity` (metric tons).
         >>> df = baci.get_data(include_country_names=True, years=range(2022, 2024))
-        >>> # Access metadata and HS code to product description map.
+
+        # Access metadata and HS code to product description map.
         >>> metadata = baci.get_metadata()
         >>> hs_map = baci.get_hs_map()
-        >>> # Clear cache and delete local files
+
+        # Clear cache and delete local files
         >>> baci.clear_cache(clear_disk=True)
     """
 
     def __init__(
         self,
         data_path: Path | str,
-        baci_version: Literal[
-            "202102", "202201", "202301", "202401", "202401b", "202501", "latest"
-        ] = "latest",
-        hs_version: Literal["92", "96", "02", "07", "12", "17", "22"] = "22",
+        baci_version: str = "latest",
+        hs_version: str = "22",
     ):
         """Initialize a BACI importer instance.
 
@@ -195,6 +197,19 @@ class BACI(DataImporter):
         self._metadata: dict | None = None
         self._loaded_years: set[int] | None = None
 
+    def __repr__(self) -> str:
+        """String representation of the BACI object"""
+        return (
+            f"{self.__class__.__name__}("
+            f"data_path='{self._data_path}', "
+            f"baci_version='{self._baci_version}', "
+            f"hs_version='{self._hs_version}', "
+            f"include_country_names={self._include_country_names}, "
+            f"loaded_years={sorted(self._loaded_years) if self._loaded_years else None}, "
+            f"data_loaded={self._data is not None})"
+            f")"
+        )
+
     def _download_zip(self) -> io.BytesIO:
         """Download ZIP file from the BACI database."""
         download_url = f"{BASE_URL}/{self._data_directory}.zip"
@@ -227,11 +242,13 @@ class BACI(DataImporter):
 
         return convert_dtypes(df)
 
-    def _ensure_parquet_data_exists(self):
-        """Ensure the Parquet data directory exists; if not, download and process the raw ZIP."""
+    def _ensure_parquet_data_exists(self, force_reload: bool = False):
+        """Ensure the Parquet data directory exists; if not, download and process the raw ZIP. If the force_reload option is
+        set to True, the data will be downloaded regardless of whether it exists locally or not.
+        """
         parquet_dir = self._extract_path / "parquet"
 
-        if parquet_dir.exists() and any(parquet_dir.rglob("*.parquet")):
+        if not force_reload and next(parquet_dir.glob("*.parquet"), None) is not None:
             return parquet_dir
 
         zip_file = self._download_zip()
@@ -245,10 +262,12 @@ class BACI(DataImporter):
 
         return parquet_dir
 
-    def _load_data(self, filter_years: set[int] | None):
-        """Load, format, and cache BACI data for the given filter years."""
-        parquet_dir = self._ensure_parquet_data_exists()
-        filter_years = validate_years(parquet_dir, filter_years)
+    def _load_data(self, filter_years: set[int] | None, force_reload: bool = False):
+        """Load, format, and cache BACI data for the given filter years. The force_reload option is passed onto
+        `_ensure_parquet_data_exists()` to download new data regardless of whether it exists locally or not.
+        """
+        parquet_dir = self._ensure_parquet_data_exists(force_reload=force_reload)
+        filter_years = verify_years(parquet_dir, filter_years)
 
         logger.info(f"Loading consolidated BACI dataset from {parquet_dir}")
         raw_df = load_parquet(parquet_dir, filter_years)
@@ -257,8 +276,8 @@ class BACI(DataImporter):
 
         required_cols = [
             Fields.year,
-            Fields.exporter_iso3,
-            Fields.importer_iso3,
+            Fields.exporter_iso3_code,
+            Fields.importer_iso3_code,
             Fields.product_code,
             Fields.value,
             Fields.quantity,
@@ -279,38 +298,35 @@ class BACI(DataImporter):
         years: int | list[int] | range | set[int] | None = None,
         force_reload: bool = False,
     ) -> pd.DataFrame:
-        """Get the BACI data
+        """Get the BACI data.
 
-        This method will return a DataFrame with BACI data. The returned DataFrame includes ISO-3 codes for importer and
-        exporter countries and optionally, country names as well. The traded amounts are specified in columns `value`
-        (current thousand USD) and `quantity` (metric tons).
+        This method returns a DataFrame with BACI data. It uses internal caching to avoid reloading the dataset if
+        the requested parameters (`include_country_names`, `years`) match the previous call. Otherwise, it triggers
+        a reload from local or remote source.
 
-        Arguments:
-            include_country_names (bool): Whether to include a column with country names in addition to ISO-3 codes
-            (default: True).
-            years (int | list[int] | range | set[int] | None): Years to include in the data (default: None, which returns all
-            available years).
-            force_reload (bool): Whether to fetch new data even if it already exists (default: False).
+        Args:
+            include_country_names (bool): Whether to include country names in addition to ISO-3 codes (default: True).
+            years (int | list[int] | range | set[int] | None): Year(s) to filter by. None returns all available years.
+            force_reload (bool): Force re-download and reprocessing of data (default: False).
 
         Returns:
-            pd.DataFrame: BACI trade data
+            pd.DataFrame: BACI trade data.
         """
 
-        # Normalize years as a set for later operations
-        if years is not None:
-            if isinstance(years, int):
-                years = {years}
-            else:
-                years = set(years)
+        validated_years = validate_years(years)
 
+        # Determine if cache is still valid
         config_changed = (
             self._include_country_names != include_country_names
             or self._loaded_years != years
         )
 
-        if self._data is None or config_changed or force_reload:
-            self._include_country_names = include_country_names
-            self._load_data(filter_years=years)
+        if self._data is not None and not config_changed and not force_reload:
+            return self._data
+
+        # Commit config only if a reload is needed
+        self._include_country_names = include_country_names
+        self._load_data(filter_years=validated_years, force_reload=force_reload)
 
         return self._data
 
@@ -326,11 +342,12 @@ class BACI(DataImporter):
                 raise FileNotFoundError(
                     f"HS map file {file_name} not found in {self._extract_path}. "
                     "You may have an incomplete local dataset.\n"
-                    f"To rebuild it with metadata, try running `clear_cache(clean_disk=True)` followed by `get_data()`"
+                    f"To restore the local data, try running `get_data(force_reload=True)` or "
+                    f"`clear_cache(clean_disk=True)` followed by `get_data()`."
                 )
             else:
                 logger.warning("BACI files not found locally.")
-                self.get_data()
+                self.get_data(force_reload=True)
 
         product_codes_df = pd.read_csv(
             file_path,
@@ -346,14 +363,14 @@ class BACI(DataImporter):
         """Get a dictionary mapping HS codes to product descriptions.
 
         Arguments:
-            force_reload (bool): Whether to fetch new data even if it already exists (default: False).
+            force_reload (bool): Whether to fetch new data even if it already exists locally (default: False).
 
         Returns:
             dict: Map of HS codes to products.
         """
 
         if force_reload:
-            self.get_data()
+            self.get_data(force_reload=force_reload)
 
         return self._extract_hs_map()
 
@@ -368,11 +385,12 @@ class BACI(DataImporter):
                 raise FileNotFoundError(
                     f"Metadata file 'Readme.txt' not found in {self._extract_path}. "
                     "You may have an incomplete local dataset.\n"
-                    f"To rebuild it with metadata, try running `clear_cache(clean_disk=True)` followed by `get_data()`"
+                    f"To restore the local data, try running `get_data(force_reload=True)` or "
+                    f"`clear_cache(clean_disk=True)` followed by `get_data()`."
                 )
             else:
                 logger.warning("BACI files not found locally.")
-                self.get_data()
+                self.get_data(force_reload=True)
 
         self._metadata = generate_metadata(readme_path)
 
@@ -382,14 +400,14 @@ class BACI(DataImporter):
         Returns a dictionary with BACI metadata including version, release data, weblink, and more.
 
         Arguments:
-            force_reload (bool): Whether to fetch new data even if it already exists. (default: False).
+            force_reload (bool): Whether to fetch new data even if it already exists locally. (default: False).
 
         Returns:
             dict: BACI metadata.
         """
 
         if force_reload:
-            self.get_data()
+            self.get_data(force_reload=force_reload)
 
         if self._metadata is None:
             self._extract_metadata()
@@ -397,10 +415,10 @@ class BACI(DataImporter):
         return self._metadata
 
     def clear_cache(self, clear_disk: bool = False):
-        """Clear cached data.
+        """Clear cached data in the object, and optionally clear the cached data in disk.
 
-        This includes the DataFrame returned by `get_data()` and its metadata. If clear_disk is True, the local
-        directory where the BACI data was extracted will be deleted.
+        This method will clear any data cached in the object including metadata. The BACI importer will also cache data
+        to disk. By default, the cache in disk is not cleared. To clear cached data in disk set `clear_disk = True`.
 
         Arguments:
              clear_disk (bool): Whether to delete local data directory (default: False).
@@ -411,6 +429,10 @@ class BACI(DataImporter):
 
         if clear_disk and self._extract_path.exists():
             shutil.rmtree(self._extract_path)
-            logger.info(f"Deleting local BACI directory: {self._extract_path}")
-
-        logger.info("Cache cleared")
+            logger.info(
+                f"Object cache cleared and local BACI directory deleted: {self._extract_path}"
+            )
+        else:
+            logger.info(
+                f"Object cache cleared. Local BACI directory still available at: {self._extract_path}"
+            )
