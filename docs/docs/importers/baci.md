@@ -33,7 +33,7 @@ df = baci.get_data(
 print(df.sample(3))
 
 # Output:
-#           year exporter_iso3    exporter_name  ... product_code      value quantity
+#           year exporter_iso3_code    exporter_name  ... product_code      value quantity
 # 2685311   2022           FIN          Finland  ...       320990     16.292    4.972
 # 17120141  2023           MDA  Rep. of Moldova  ...       841459      0.575    0.019
 # 10229678  2022           GBR   United Kingdom  ...       621143  44.633999     1.31
