@@ -186,8 +186,8 @@ def map_country_codes(
     iso3_map = dict(
         zip(country_codes_df["country_code"], country_codes_df["country_iso3"])
     )
-    df[Fields.exporter_iso3] = df[Fields.exporter_code].map(iso3_map)
-    df[Fields.importer_iso3] = df[Fields.importer_code].map(iso3_map)
+    df[Fields.exporter_iso3_code] = df[Fields.exporter_code].map(iso3_map)
+    df[Fields.importer_iso3_code] = df[Fields.importer_code].map(iso3_map)
 
     if include_names:
         name_map = dict(
@@ -210,9 +210,9 @@ def organise_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     ordered_columns = [
         Fields.year,
-        Fields.exporter_iso3,
+        Fields.exporter_iso3_code,
         Fields.exporter_name,
-        Fields.importer_iso3,
+        Fields.importer_iso3_code,
         Fields.importer_name,
         Fields.product_code,
         Fields.value,
@@ -352,8 +352,40 @@ def generate_metadata(path: Path) -> dict:
 # ---------------------------
 
 
-def validate_years(parquet_dir: Path, filter_years: set[int] | None) -> set[int] | None:
-    """Validate that the requested years are available in the partitioned data.
+def validate_years(years: int | list[int] | set[int] | range | None) -> set[int] | None:
+    """Validate and normalize the years passed onto `get_data()`.
+
+    Accepts a single integer, list, set, range, or None, and returns a set of unique integer years.
+    Raises a TypeError if the input type is unsupported, or a ValueError if any element is not an integer.
+
+    Args:
+        years (int | list[int] | set[int] | range | None): Year(s) to validate and normalize.
+
+    Returns:
+        set[int] | None: A set of valid integer years, or None if no filtering is requested.
+    """
+    if years is None:
+        return None
+
+    # Normalize to a set
+    if isinstance(years, int):
+        years = {years}
+    elif isinstance(years, (list, range, set)):
+        years = set(years)
+    else:
+        raise TypeError(
+            f"`years` must be int, list[int], set[int], range, or None — not {type(years)}"
+        )
+
+    # Validate contents
+    if not all(isinstance(y, int) for y in years):
+        raise ValueError("All `years` entries must be integers.")
+
+    return years
+
+
+def verify_years(parquet_dir: Path, filter_years: set[int] | None) -> set[int] | None:
+    """Verify that the requested years are available in the partitioned data.
 
     Args:
         parquet_dir (Path): Path to directory containing year-partitioned data.
