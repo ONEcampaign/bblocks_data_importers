@@ -1,6 +1,6 @@
 [![PyPI](https://img.shields.io/pypi/v/bblocks_data_importers.svg)](https://pypi.org/project/bblocks_data_importers/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/bblocks_data_importers.svg)](https://pypi.org/project/bblocks_data_importers/)
-[![Docs](https://img.shields.io/badge/docs-bblocks-blue)](https://docs.one.org/tools/bblocks/data-importers/)
+[![Documentation Status](https://readthedocs.org/projects/bblocks-data-importers/badge/?version=latest)](https://bblocks-data-importers.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/ONEcampaign/bblocks_data_importers/branch/main/graph/badge.svg?token=YN8S1719NH)](https://codecov.io/gh/ONEcampaign/bblocks_data_importers)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
@@ -12,7 +12,7 @@ A package to import data from major humanitarian, development and financial inst
 ## Installation
 
 ```bash
-$ pip install bblocks-data-importers
+$ pip install bblocks_data_importers
 ```
 
 ## Example Usage
@@ -20,7 +20,6 @@ $ pip install bblocks-data-importers
 Import the package and use the various importer objects to access data from different sources.
 
 ```python
-
 import bblocks.data_importers as bbdata
 ```
 
@@ -37,8 +36,9 @@ Available importers include:
 - `WFPFoodSecurity` and `WFPInflation` to access the World Food Programme's Food Security and Inflation data
 - `WorldBank` to access the World Bank data
 - `InternationalDebtStatistics` to access the World Bank's International Debt Statistics
+- `BACI` to access CEPII's BACI database on international trade
 - `HumanDevelopmentIndex` to access the UNDP's Human Development Index
-- `UNAIDS` to access the UNAIDS HIV/AIDS data
+
 Read the documentation for more details on each importer [here](https://bblocks-data-importers.readthedocs.io/en/latest/Importers/index.html)
 
 
