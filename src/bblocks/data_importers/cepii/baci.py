@@ -54,7 +54,6 @@ data. You can set clear_disk = True to delete the local directory where the BACI
 import io
 import pandas as pd
 import requests
-from typing import Literal
 from pathlib import Path
 import shutil
 
@@ -248,7 +247,11 @@ class BACI:
         """
         parquet_dir = self._extract_path / "parquet"
 
-        if not force_reload and next(parquet_dir.glob("*.parquet"), None) is not None:
+        if (
+                not force_reload
+                and parquet_dir.exists()
+                and any(parquet_dir.rglob("*.parquet"))
+        ):
             return parquet_dir
 
         zip_file = self._download_zip()
@@ -347,7 +350,7 @@ class BACI:
                 )
             else:
                 logger.warning("BACI files not found locally.")
-                self.get_data(force_reload=True)
+                self._load_data(force_reload=True)
 
         product_codes_df = pd.read_csv(
             file_path,
@@ -370,7 +373,7 @@ class BACI:
         """
 
         if force_reload:
-            self.get_data(force_reload=force_reload)
+            self._load_data(force_reload=force_reload)
 
         return self._extract_hs_map()
 
@@ -390,7 +393,7 @@ class BACI:
                 )
             else:
                 logger.warning("BACI files not found locally.")
-                self.get_data(force_reload=True)
+                self._load_data(force_reload=True)
 
         self._metadata = generate_metadata(readme_path)
 
@@ -407,7 +410,7 @@ class BACI:
         """
 
         if force_reload:
-            self.get_data(force_reload=force_reload)
+            self.load_data(force_reload=force_reload)
 
         if self._metadata is None:
             self._extract_metadata()
