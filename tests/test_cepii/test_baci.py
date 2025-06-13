@@ -13,6 +13,7 @@ from bblocks.data_importers.protocols import DataImporter
 
 # ------------------------- Fixtures ------------------------- #
 
+
 @pytest.fixture
 def tmp_baci_dir(tmp_path):
     """Temporary base directory for BACI data."""
@@ -24,10 +25,12 @@ def tmp_baci_dir(tmp_path):
 @pytest.fixture
 def baci_instance(tmp_path):
     """Factory for creating a BACI instance."""
+
     def _create(data_path=None, baci_version="202501", hs_version="22"):
         path = data_path or (tmp_path / "baci")
         path.mkdir(parents=True, exist_ok=True)
         return BACI(data_path=path, baci_version=baci_version, hs_version=hs_version)
+
     return _create
 
 
@@ -42,28 +45,31 @@ def extract_path(tmp_path):
 @pytest.fixture
 def mock_df():
     """Raw BACI DataFrame with original column names and types."""
-    return pd.DataFrame({
-        "t": [2022], "i": [250], "j": [840], "k": ["0101"], "v": [1000.0], "q": [50.0]
-    })
+    return pd.DataFrame(
+        {"t": [2022], "i": [250], "j": [840], "k": ["0101"], "v": [1000.0], "q": [50.0]}
+    )
 
 
 @pytest.fixture
 def processed_baci_df():
     """Pre-processed BACI DataFrame with pyarrow-backed dtypes."""
-    df = pd.DataFrame({
-        "year": [2022],
-        "exporter_iso3_code": ["FRA"],
-        "exporter_name": ["France"],
-        "importer_iso3_code": ["USA"],
-        "importer_name": ["United States"],
-        "product_code": ["0101"],
-        "value": [1000],
-        "quantity": [50],
-    })
+    df = pd.DataFrame(
+        {
+            "year": [2022],
+            "exporter_iso3_code": ["FRA"],
+            "exporter_name": ["France"],
+            "importer_iso3_code": ["USA"],
+            "importer_name": ["United States"],
+            "product_code": ["0101"],
+            "value": [1000],
+            "quantity": [50],
+        }
+    )
     return df.convert_dtypes(dtype_backend="pyarrow")
 
 
 # ------------------------- Init / Protocol ------------------------- #
+
 
 def test_protocol(baci_instance):
     """Ensure BACI implements required DataImporter protocol."""
@@ -73,7 +79,10 @@ def test_protocol(baci_instance):
     assert hasattr(obj, "clear_cache")
 
 
-@patch("bblocks.data_importers.cepii.baci_utils.get_available_versions", return_value=VERSIONS_DICT)
+@patch(
+    "bblocks.data_importers.cepii.baci_utils.get_available_versions",
+    return_value=VERSIONS_DICT,
+)
 def test_init_valid(mock_versions, baci_instance):
     """BACI initializes with correct versions."""
     b = baci_instance()
@@ -87,21 +96,30 @@ def test_baci_invalid_path_raises():
         BACI(data_path="bad_path", baci_version="202501", hs_version="22")
 
 
-@patch("bblocks.data_importers.cepii.baci_utils.get_available_versions", return_value=VERSIONS_DICT)
+@patch(
+    "bblocks.data_importers.cepii.baci_utils.get_available_versions",
+    return_value=VERSIONS_DICT,
+)
 def test_init_invalid_version_raises(mock_versions, baci_instance):
     """Should raise if BACI version is invalid."""
     with pytest.raises(ValueError):
         baci_instance(baci_version="999999")
 
 
-@patch("bblocks.data_importers.cepii.baci_utils.get_available_versions", return_value=VERSIONS_DICT)
+@patch(
+    "bblocks.data_importers.cepii.baci_utils.get_available_versions",
+    return_value=VERSIONS_DICT,
+)
 def test_init_invalid_hs_version_raises(mock_versions, baci_instance):
     """Should raise if HS version is invalid."""
     with pytest.raises(ValueError):
         baci_instance(hs_version="88")
 
 
-@patch("bblocks.data_importers.cepii.baci_utils.get_available_versions", return_value=VERSIONS_DICT)
+@patch(
+    "bblocks.data_importers.cepii.baci_utils.get_available_versions",
+    return_value=VERSIONS_DICT,
+)
 def test_init_no_path_raises(mock_versions):
     """Should raise ValueError if path is missing."""
     with pytest.raises(ValueError):
@@ -116,12 +134,16 @@ def test_init_latest_version(baci_instance):
 
 # ------------------------- Download & Load ------------------------- #
 
+
 def test_download_zip_success(monkeypatch, baci_instance):
     """Test successful zip file download returns BytesIO object."""
+
     class MockResponse:
         status_code = 200
         content = b"zipdata"
-        def raise_for_status(self): pass
+
+        def raise_for_status(self):
+            pass
 
     monkeypatch.setattr(
         "bblocks.data_importers.cepii.baci.requests.get", lambda _: MockResponse()
@@ -144,11 +166,9 @@ def test_download_zip_failure(monkeypatch, baci_instance):
 
 def test_load_country_codes(tmp_path, baci_instance):
     """Ensure country codes CSV is loaded into DataFrame correctly."""
-    expected_df = pd.DataFrame({
-        "country_code": [250],
-        "country_iso3": ["FRA"],
-        "country_name": ["France"]
-    })
+    expected_df = pd.DataFrame(
+        {"country_code": [250], "country_iso3": ["FRA"], "country_name": ["France"]}
+    )
     path = tmp_path / "BACI_HS22_V202501"
     path.mkdir()
     expected_df.to_csv(path / "country_codes_V202501.csv", index=False)
@@ -156,22 +176,35 @@ def test_load_country_codes(tmp_path, baci_instance):
     result = baci_instance(data_path=tmp_path)._load_country_codes()
     pd.testing.assert_frame_equal(result, expected_df)
 
+
 # ------------------------- Internal Logic ------------------------- #
+
 
 def test_format_data(monkeypatch, baci_instance, mock_df):
     """Test that formatting raw BACI data returns expected structure."""
     baci = baci_instance()
-    monkeypatch.setattr(baci, "_load_country_codes", lambda: pd.DataFrame({
-        "country_code": [250, 840],
-        "country_iso3": ["FRA", "USA"],
-        "country_name": ["France", "United States"],
-    }))
+    monkeypatch.setattr(
+        baci,
+        "_load_country_codes",
+        lambda: pd.DataFrame(
+            {
+                "country_code": [250, 840],
+                "country_iso3": ["FRA", "USA"],
+                "country_name": ["France", "United States"],
+            }
+        ),
+    )
     df = baci._format_data(mock_df)
 
     expected_columns = {
-        "year", "exporter_iso3_code", "exporter_name",
-        "importer_iso3_code", "importer_name",
-        "product_code", "value", "quantity",
+        "year",
+        "exporter_iso3_code",
+        "exporter_name",
+        "importer_iso3_code",
+        "importer_name",
+        "product_code",
+        "value",
+        "quantity",
     }
     assert set(df.columns) == expected_columns
     assert df.loc[0, "exporter_iso3_code"] == "FRA"
@@ -183,12 +216,12 @@ def test_format_data(monkeypatch, baci_instance, mock_df):
 @patch("bblocks.data_importers.cepii.baci.extract_zip")
 @patch.object(BACI, "_download_zip")
 def test_ensure_parquet_dir_is_returned(
-        mock_download_zip,
-        mock_extract_zip,
-        mock_combine_data,
-        mock_save_parquet,
-        mock_cleanup_csvs,
-        tmp_path,
+    mock_download_zip,
+    mock_extract_zip,
+    mock_combine_data,
+    mock_save_parquet,
+    mock_cleanup_csvs,
+    tmp_path,
 ):
     """Test _ensure_parquet_data_exists returns directory when .parquet exists."""
     extract_path = tmp_path / "BACI_HS22_V202501"
@@ -202,7 +235,9 @@ def test_ensure_parquet_dir_is_returned(
     assert result == extract_path / "parquet"
     assert not mock_download_zip.called
 
+
 # ------------------------- get_data() Behavior ------------------------- #
+
 
 @patch("bblocks.data_importers.cepii.baci.cleanup_csvs")
 @patch("bblocks.data_importers.cepii.baci.save_parquet")
@@ -211,15 +246,15 @@ def test_ensure_parquet_dir_is_returned(
 @patch("bblocks.data_importers.cepii.baci.load_parquet")
 @patch("bblocks.data_importers.cepii.baci.requests.get")
 def test_get_data_success(
-        mock_requests_get,
-        mock_load_parquet,
-        mock_extract_zip,
-        mock_combine_data,
-        mock_save_parquet,
-        mock_cleanup_csvs,
-        tmp_path,
-        mock_df,
-        processed_baci_df,
+    mock_requests_get,
+    mock_load_parquet,
+    mock_extract_zip,
+    mock_combine_data,
+    mock_save_parquet,
+    mock_cleanup_csvs,
+    tmp_path,
+    mock_df,
+    processed_baci_df,
 ):
     """Test full get_data workflow returns formatted DataFrame."""
     mock_requests_get.return_value.status_code = 200
@@ -241,7 +276,7 @@ def test_get_data_success(
     pd.testing.assert_frame_equal(
         result.sort_index(axis=1),
         processed_baci_df.sort_index(axis=1),
-        check_dtype=False
+        check_dtype=False,
     )
 
 
@@ -269,6 +304,7 @@ def test_get_data_normalizes_years(monkeypatch, baci_instance, input_years, expe
 
     baci.get_data(years=input_years)
     assert captured["filter_years"] == expected
+
 
 # ------------------------- Caching ------------------------- #
 
@@ -305,16 +341,19 @@ def test_clear_cache_removes_disk_and_memory(baci_instance, tmp_baci_dir):
     assert baci._metadata is None
     assert not baci._extract_path.exists()
 
+
 # ------------------------- Disk vs Memory Behavior ------------------------- #
 
-MOCK_ARROW_TABLE = pa.table({
-    "t": pa.array([2022], type=pa.int16()),
-    "i": pa.array([250], type=pa.int32()),
-    "j": pa.array([840], type=pa.int32()),
-    "k": pa.array(["0101"]),
-    "v": pa.array([1000.0]),
-    "q": pa.array([50.0]),
-})
+MOCK_ARROW_TABLE = pa.table(
+    {
+        "t": pa.array([2022], type=pa.int16()),
+        "i": pa.array([250], type=pa.int32()),
+        "j": pa.array([840], type=pa.int32()),
+        "k": pa.array(["0101"]),
+        "v": pa.array([1000.0]),
+        "q": pa.array([50.0]),
+    }
+)
 
 
 @patch("bblocks.data_importers.cepii.baci.save_parquet")
@@ -323,13 +362,13 @@ MOCK_ARROW_TABLE = pa.table({
 @patch("bblocks.data_importers.cepii.baci.load_parquet")
 @patch.object(BACI, "_format_data")
 def test_download_triggered_after_disk_clear(
-        mock_format_data,
-        mock_load_parquet,
-        mock_extract_zip,
-        mock_combine_data,
-        mock_save_parquet,
-        baci_instance,
-        processed_baci_df,
+    mock_format_data,
+    mock_load_parquet,
+    mock_extract_zip,
+    mock_combine_data,
+    mock_save_parquet,
+    baci_instance,
+    processed_baci_df,
 ):
     """Ensure get_data triggers a re-download if disk cache is deleted."""
     baci = baci_instance()
@@ -366,15 +405,15 @@ def test_download_triggered_after_disk_clear(
 @patch.object(BACI, "_format_data")
 @patch.object(BACI, "_download_zip", return_value=io.BytesIO(b"PK\x03\x04"))
 def test_get_data_reads_from_disk_after_memory_clear(
-        mock_download_zip,
-        mock_format_data,
-        mock_load_parquet,
-        mock_save_parquet,
-        mock_extract_zip,
-        mock_combine_data,
-        baci_instance,
-        tmp_baci_dir,
-        processed_baci_df,
+    mock_download_zip,
+    mock_format_data,
+    mock_load_parquet,
+    mock_save_parquet,
+    mock_extract_zip,
+    mock_combine_data,
+    baci_instance,
+    tmp_baci_dir,
+    processed_baci_df,
 ):
     """Test that get_data reads from disk again after clearing only memory."""
     baci = baci_instance(data_path=tmp_baci_dir)
@@ -399,7 +438,9 @@ def test_get_data_reads_from_disk_after_memory_clear(
     assert mock_load_parquet.call_count == 2
     assert second_df.equals(df)
 
+
 # ------------------------- Metadata & HS Map ------------------------- #
+
 
 def test_extract_hs_map_missing_file_with_parquet_raises(baci_instance, extract_path):
     """Raise error when HS map file is missing but parquet exists."""
@@ -418,6 +459,7 @@ def test_extract_metadata_missing_file_with_parquet_raises(baci_instance, extrac
 
 
 # ------------------------- Simple Accessors ------------------------- #
+
 
 @patch("bblocks.data_importers.cepii.baci.BACI.get_data")
 def test_get_metadata_returns_dict(mock_get_data, tmp_baci_dir):
@@ -454,5 +496,6 @@ def test_get_versions(mock_get_versions):
     """Test get_baci_versions returns expected version keys."""
     mock_get_versions.return_value = {"202501": {"hs": ["22"], "latest": True}}
     from bblocks.data_importers.cepii.baci import get_baci_versions
+
     result = get_baci_versions()
     assert "202501" in result

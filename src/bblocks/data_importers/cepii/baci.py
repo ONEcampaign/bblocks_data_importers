@@ -248,9 +248,9 @@ class BACI:
         parquet_dir = self._extract_path / "parquet"
 
         if (
-                not force_reload
-                and parquet_dir.exists()
-                and any(parquet_dir.rglob("*.parquet"))
+            not force_reload
+            and parquet_dir.exists()
+            and any(parquet_dir.rglob("*.parquet"))
         ):
             return parquet_dir
 
