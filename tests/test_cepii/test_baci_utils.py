@@ -13,9 +13,9 @@ import tempfile
 
 from bblocks.data_importers.config import Fields
 from bblocks.data_importers.cepii.baci_utils import (
-    fetch_baci_page,
-    extract_div,
-    parse_baci_and_hs_versions,
+    _get_soup,
+    extract_section_div,
+    _parse_baci_and_hs_versions,
     BACI_URL,
     get_available_versions,
     extract_zip,
@@ -74,7 +74,7 @@ def test_fetch_baci_page_success(mock_get):
     mock_response.text = "<html>test</html>"
     mock_get.return_value = mock_response
 
-    content = fetch_baci_page(BACI_URL)
+    content = _get_soup(BACI_URL)
     assert "<html>" in content
 
 
@@ -88,24 +88,24 @@ def test_fetch_baci_page_failure(mock_get):
     mock_get.return_value = mock_response
 
     with pytest.raises(requests.exceptions.HTTPError, match="404 Client Error"):
-        fetch_baci_page(BACI_URL)
+        _get_soup(BACI_URL)
 
 
 def test_extract_div_success(html_text):
     """Test divs are extracted correctly."""
-    result = extract_div(html_text, div_id="telechargement")
+    result = extract_section_div(html_text, div_id="telechargement")
     assert "This is the 202501 version" in result
 
 
 def test_extract_div_missing():
     """Test error is raised if version is missing."""
     with pytest.raises(RuntimeError, match="Latest BACI version not found"):
-        extract_div(HTML_MISSING_DIV, div_id="telechargement")
+        extract_section_div(HTML_MISSING_DIV, div_id="telechargement")
 
 
 def test_parse_baci_and_hs_versions(html_text):
     """Test that HTML is parsed correctly and versions are outputted as dict."""
-    parsed = parse_baci_and_hs_versions(html_text)
+    parsed = _parse_baci_and_hs_versions(html_text)
     assert "202501" in parsed
     assert parsed["202501"]["latest"] is True
     assert set(parsed["202501"]["hs"]) == {"22", "17", "12"}
