@@ -1,236 +1,76 @@
 """Extract BACI data"""
 
 from pathlib import Path
+import os
 import io
 import zipfile
 import pandas as pd
 import pyarrow as pa
 import pyarrow.dataset as ds
 from pyarrow import csv as pv
-from bblocks.data_importers.config import logger, Fields
+import requests
+
+from bblocks.data_importers.config import logger, Fields, DataExtractionError
 
 
+BASE_URL = "https://www.cepii.fr"
 
 
-
-
-
-
-
-
-
-# ---------------------------
-# File extraction and cleanup
-# ---------------------------
-
-
-def extract_zip(zip_data: io.BytesIO, extract_path: Path):
-    """Extract ZIP archive contents to target folder.
-
-    Args:
-        zip_data (io.BytesIO): ZIP file in memory.
-        extract_path (Path): Destination path to extract files into
+def rename_data_columns(table: pa.Table) -> pa.Table:
+    """Rename BACI raw data PyArrow columns to standardized field names.
     """
-    with zipfile.ZipFile(zip_data) as zip_ref:
-        zip_ref.extractall(path=extract_path)
 
-
-def cleanup_csvs(path: Path):
-    """Delete all BACI CSV files in a directory.
-
-    Args:
-        path (Path): Directory containing extracted CSV files.
-    """
-    for f in path.glob("BACI*.csv"):
-        f.unlink()
-
-
-# ---------------------------
-# Data transformation
-# ---------------------------
-
-
-def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Rename BACI raw columns to standardized field names.
-
-    Args:
-        df (pd.DataFrame): Raw BACI DataFrame.
-
-    Returns:
-        DataFrame with renamed columns.
-    """
-    return df.rename(
-        columns={
-            "t": Fields.year,
-            "i": Fields.exporter_code,
-            "j": Fields.importer_code,
-            "k": Fields.product_code,
-            "v": Fields.value,
-            "q": Fields.quantity,
-        }
-    )
-
-
-def map_country_codes(
-    df: pd.DataFrame, country_codes_df: pd.DataFrame, include_names: bool = False
-) -> pd.DataFrame:
-    """Map exporter/importer codes to ISO3 and optionally country names.
-
-    Args:
-        df (pd.DataFrame): Input BACI DataFrame.
-        country_codes_df (pd.DataFrame): Mapping of country_code -> ISO3 / name.
-        include_names (bool): If True, include country name columns.
-
-    Returns:
-        DataFrame with mapped ISO3 codes and names.
-    """
-    iso3_map = dict(
-        zip(country_codes_df["country_code"], country_codes_df["country_iso3"])
-    )
-    df[Fields.exporter_iso3_code] = df[Fields.exporter_code].map(iso3_map)
-    df[Fields.importer_iso3_code] = df[Fields.importer_code].map(iso3_map)
-
-    if include_names:
-        name_map = dict(
-            zip(country_codes_df["country_code"], country_codes_df["country_name"])
-        )
-        df[Fields.exporter_name] = df[Fields.exporter_code].map(name_map)
-        df[Fields.importer_name] = df[Fields.importer_code].map(name_map)
-
-    return df
-
-
-def organise_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Reorder and drop unnecessary columns in the final output.
-
-    Args:
-        df (pd.DataFrame): DataFrame to format
-
-    Returns
-        DataFrame with organized columns.
-    """
-    ordered_columns = [
-        Fields.year,
-        Fields.exporter_iso3_code,
-        Fields.exporter_name,
-        Fields.importer_iso3_code,
-        Fields.importer_name,
-        Fields.product_code,
-        Fields.value,
-        Fields.quantity,
-    ]
-
-    existing_cols = [col for col in ordered_columns if col in df.columns]
-
-    df = df.drop(columns=[Fields.exporter_code, Fields.importer_code])[existing_cols]
-
-    return df
-
-
-# ---------------------------
-# Data I/O
-# ---------------------------
-
-
-def combine_data(path):
-    """
-    Combine BACI CSV files for multiple years into a single PyArrow Table.
-
-    Args:
-        path (Path): Directory containing raw BACI CSVs.
-
-    Returns:
-        pyarrow.Table: Consolidated BACI data.
-    """
-    logger.info("Building consolidated dataset")
-    tables = []
-
-    column_types = {
-        "t": pa.int16(),
-        "i": pa.int32(),
-        "j": pa.int32(),
-        "k": pa.string(),
-        "v": pa.float32(),
-        "q": pa.float32(),
+    column_map = {
+        "t": Fields.year,
+        "i": Fields.exporter_code,
+        "j": Fields.importer_code,
+        "k": Fields.product_code,
+        "v": Fields.value,
+        "q": Fields.quantity,
     }
 
-    for csv_path in path.glob("BACI*.csv"):
-        table = pv.read_csv(
-            csv_path,
-            read_options=pv.ReadOptions(autogenerate_column_names=False),
-            convert_options=pv.ConvertOptions(column_types=column_types),
-        )
-        tables.append(table)
+    # Get the current column names
+    current_names = table.schema.names
 
-    if not tables:
-        raise FileNotFoundError("No BACI CSV files found in data directory.")
+    # Build the new names list
+    new_names = [column_map.get(name, name) for name in current_names]
 
-    return pa.concat_tables(tables)
+    return table.rename_columns(new_names)
 
 
-def save_parquet(table: pa.Table, path: Path):
+def rename_country_columns(country_df: pd.DataFrame) -> pd.DataFrame:
+    """Remane columns in the country codes DataFrame to standardized field names."""
+
+
+    column_map = {
+        "country_code": Fields.country_code,
+        "country_name": Fields.country_name,
+        "country_iso3": Fields.iso3_code,
+        "country_iso2": Fields.iso2_code,
+    }
+
+    # Rename columns using the mapping
+    return country_df.rename(columns=column_map)
+
+def rename_product_columns(product_df: pd.DataFrame) -> pd.DataFrame:
+    """Rename columns in the product codes DataFrame to standardized field names."""
+
+    column_map = {
+        "code": Fields.product_code,
+        "description": Fields.product_description,
+    }
+
+    # Rename columns using the mapping
+    return product_df.rename(columns=column_map)
+
+def parse_readme(readme_content: str) -> dict:
     """
-    Save the provided PyArrow Table to partitioned Parquet format by year.
-
-    Args:
-        table (pa.Table): Consolidated trade data.
-        path (Path): Destination directory for Parquet files.
     """
-    logger.info(f"Saving consolidated BACI dataset to {path}")
 
-    ds.write_dataset(
-        data=table,
-        base_dir=str(path),
-        format="parquet",
-        partitioning=["t"],
-        existing_data_behavior="overwrite_or_ignore",
-    )
+    # normalize all line breaks to "\n" for consistent processing
+    readme_content = readme_content.replace("\r\n", "\n").replace("\r", "\n")
 
-
-def load_parquet(
-    parquet_dir: Path, filter_years: set[int] | None = None
-) -> pd.DataFrame:
-    """
-    Load partitioned Parquet data into a pandas DataFrame, optionally filtered by year.
-
-    Args:
-        parquet_dir (Path): Directory containing Parquet partitions.
-        filter_years (set[int] | None): Years to filter.
-
-    Returns:
-        pd.DataFrame
-    """
-    dataset = ds.dataset(str(parquet_dir), format="parquet", partitioning=["t"])
-
-    if filter_years:
-        logger.info(f"Filtering for years: {filter_years}")
-        filter_expr = ds.field("t").isin(filter_years)
-        table = dataset.to_table(filter=filter_expr)
-    else:
-        table = dataset.to_table()
-
-    return table.to_pandas(types_mapper=pd.ArrowDtype)
-
-
-# ---------------------------
-# Metadata
-# ---------------------------
-
-
-def generate_metadata(path: Path) -> dict:
-    """
-    Extract metadata blocks from the BACI Readme.txt file.
-
-    Args:
-        path (Path): Path to Readme.txt.
-
-    Returns:
-        dict: Metadata key-value pairs.
-    """
-    with open(path, encoding="utf-8") as file:
-        content = file.read()
-
-    blocks = [block.strip() for block in content.split("\n\n") if block.strip()]
+    blocks = [block.strip() for block in readme_content.split("\n\n") if block.strip()]
     metadata = {}
 
     for block in blocks:
@@ -247,63 +87,194 @@ def generate_metadata(path: Path) -> dict:
 
     return metadata
 
+class BaciDataManager:
+    """Manager class for handling BACI data extraction and processing."""
 
-# ---------------------------
-# Validation
-# ---------------------------
+    def __init__(self, version: str, hs_version: str):
+        self.version = version
+        self.hs_version = hs_version
+
+        self.download_url =  f"{BASE_URL}/DATA_DOWNLOAD/baci/data/BACI_{hs_version}_V{version}.zip"
+        self.zip_file: None | zipfile.ZipFile = None
+
+        self.data: None | pa.lib.Table = None
+        self.country_codes: None | pd.DataFrame = None
+        self.product_codes: None | pd.DataFrame = None
+        self.metadata: None | dict = None
+
+    def extract_zipfile_from_disk(self, zip_path: Path) -> None:
+        """Extract the BACI ZIP file from a local path."""
+
+        logger.info(f"Extracting BACI data from local path: {zip_path}")
+
+        try:
+            self.zip_file = zipfile.ZipFile(zip_path)
+        except zipfile.BadZipFile as e:
+            raise DataExtractionError(f"Failed to open local ZIP file: {e}")
+
+    def extract_zipfile_from_web(self) -> None:
+        """Extract the BACI ZIP file from the download URL."""
+
+        try:
+            logger.info(f"Downloading BACI data for version {self.version} and HS version {self.hs_version}")
+            response = requests.get(self.download_url)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise DataExtractionError(f"Failed to download BACI data: {e}")
+
+        # Create a BytesIO object to hold the downloaded ZIP file in memory
+        zip_data = io.BytesIO(response.content)
+        try:
+            self.zip_file = zipfile.ZipFile(zip_data)
+        except zipfile.BadZipFile as e:
+            raise DataExtractionError(f"Failed to extract data from ZIP file: {e}")
+
+    def extract_zip_file(self, zip_path: Path | None = None) -> None:
+        """Extract the BACI ZIP file from either a local path or a web URL."""
+
+        # if the path exists, extract from disk otherwise download from the web
+        if zip_path and zip_path.exists():
+            self.extract_zipfile_from_disk(zip_path)
+        else:
+            self.extract_zipfile_from_web()
 
 
-def validate_years(years: int | list[int] | set[int] | range | None) -> set[int] | None:
-    """Validate and normalize the years passed onto `get_data()`.
+    def save_zip_file(self, directory: str | os.PathLike, override: bool=False) -> None:
+        """Save the zip file to a local path.
 
-    Accepts a single integer, list, set, range, or None, and returns a set of unique integer years.
-    Raises a TypeError if the input type is unsupported, or a ValueError if any element is not an integer.
+        Args:
+            directory: The directory where the zip file should be saved.
+            override: If True, will overwrite the existing file if it exists. Defaults to False.
+        """
 
-    Args:
-        years (int | list[int] | set[int] | range | None): Year(s) to validate and normalize.
+        # if the zipfile has not been extracted, raise an error
+        if not self.zip_file:
+            raise ValueError("BACI data has not bee extracted yet. No data available to save.")
 
-    Returns:
-        set[int] | None: A set of valid integer years, or None if no filtering is requested.
-    """
-    if years is None:
-        return None
+        file_name = self.zip_file.filename
 
-    # Normalize to a set
-    if isinstance(years, int):
-        years = {years}
-    elif isinstance(years, (list, range, set)):
-        years = set(years)
-    else:
-        raise TypeError(
-            f"`years` must be int, list[int], set[int], range, or None — not {type(years)}"
-        )
+        # check if the path already exists, if it doesn't raise an error
+        if not os.path.exists(directory):
+            raise FileNotFoundError(f"Directory {directory} does not exist.")
 
-    # Validate contents
-    if not all(isinstance(y, int) for y in years):
-        raise ValueError("All `years` entries must be integers.")
+        # check if the file already exists, if it does and override is False, raise an error
+        file_path = Path(directory) / file_name
+        if file_path.exists() and not override:
+            raise FileExistsError(f"File '{file_path}' already exists. Use `override=True` to overwrite it.")
 
-    return years
+        # save the zip file to the specified path
+        with open(file_path, "wb") as f:
+            f.write(self.zip_file.fp.read())
+
+    def _list_data_files(self) -> list[str]:
+        """List all relevant BACI data files in the ZIP archive."""
+
+        files = self.zip_file.namelist()
+
+        # Filter for CSV files that start with "BACI" and hs version such a "BACI_HS22....csv"
+        data_files = [f for f in files
+                          if f.startswith(f"BACI_{self.hs_version}")
+                          and f.endswith(".csv")
+                          ]
+
+        if not data_files:
+            raise FileNotFoundError(
+                f"No BACI data files found for HS version {self.hs_version}"
+            )
+
+        return data_files
 
 
-def verify_years(parquet_dir: Path, filter_years: set[int] | None) -> set[int] | None:
-    """Verify that the requested years are available in the partitioned data.
+    def read_data_files(self):
+        """Read the data files from the ZIP
+         file and combine them into a single PyArrow Table."""
 
-    Args:
-        parquet_dir (Path): Path to directory containing year-partitioned data.
-        filter_years (set[int] | None): Requested year filters.
+        tables = [] # List to hold individual tables
 
-    Returns:
-        set[int] | None: Cleaned set of valid years, or None to disable filtering.
-    """
-    available_years = {
-        int(p.name) for p in parquet_dir.iterdir() if p.is_dir() and p.name.isdigit()
-    }
+        # From the list of data files, read each CSV into a PyArrow Table
+        for file in self._list_data_files():
+            with self.zip_file.open(file) as f:
+                table = pv.read_csv(f)
+                tables.append(table)
 
-    if filter_years is not None and not set(filter_years).issubset(available_years):
-        logger.warning(
-            f"Provided years %s are out of range. Will return all available years.",
-            filter_years,
-        )
-        return None
+        # If no tables were read, raise an error
+        if not tables:
+            raise FileNotFoundError("No BACI data files found in the ZIP archive.")
 
-    return set(filter_years) if filter_years is not None else None
+        # Concatenate all tables into a single PyArrow Table
+        combined = pa.concat_tables(tables)
+
+        # format data
+        combined = rename_data_columns(combined)
+
+        self.data = combined
+
+    def read_product_codes(self):
+        """Read product codes from the ZIP file."""
+
+        # Find the product codes file in the ZIP archive
+        product_code_file = next((f for f in self.zip_file.namelist()
+                                  if f.startswith("product_codes")), None)
+
+        if not product_code_file:
+            raise FileNotFoundError("No product codes file found in the ZIP file.")
+
+        # Read the product codes CSV file into a DataFrame
+        products = pd.read_csv(self.zip_file.open(product_code_file))
+        products = rename_product_columns(products)
+        self.product_codes = products
+
+    def read_country_codes(self):
+        """Read country codes from the ZIP file."""
+
+        # Find the country codes file in the ZIP archive
+        country_codes_file = next((f for f in self.zip_file.namelist()
+                                   if f.startswith("country_codes")), None)
+
+        if not country_codes_file:
+            raise FileNotFoundError("No country codes file found in the ZIP file.")
+
+        # Read the country codes CSV file into a DataFrame
+        country_codes = pd.read_csv(self.zip_file.open(country_codes_file))
+        country_codes = rename_country_columns(country_codes)
+        self.country_codes = country_codes
+
+    def read_metadata(self) -> None:
+        """Read metadata from the Readme.txt file in the ZIP archive.
+        """
+
+        # Find the Readme.txt file in the ZIP archive
+        readme_file = next((f for f in self.zip_file.namelist()
+                            if f.startswith("Readme.txt")
+                            and f.endswith(".txt"))
+                           , None)
+
+        if not readme_file:
+            raise FileNotFoundError("No Readme.txt file found in the ZIP file.")
+
+        with self.zip_file.open(readme_file) as f:
+            readme_content = f.read().decode('utf-8')
+
+        # Parse the Readme content to extract metadata
+        metadata = parse_readme(readme_content)
+        if not metadata:
+            raise DataExtractionError("No metadata found in Readme.txt")
+
+        self.metadata = metadata
+
+    def load_data(self, zip_path: Path | None = None):
+        """Extract, read, and process all BACI data files."""
+
+        # Extract the ZIP file from the URL
+        self.extract_zip_file(zip_path)
+
+        # Read the main data files
+        self.read_data_files()
+        # Read country codes
+        self.read_country_codes()
+        # Read product codes
+        self.read_product_codes()
+        # Read metadata
+        self.read_metadata()
+
+        # TODO: Validation

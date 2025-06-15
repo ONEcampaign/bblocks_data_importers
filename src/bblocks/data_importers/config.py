@@ -75,6 +75,7 @@ class Fields:
 
     # country, region and other entity names and codes
     country_name = "country_name"
+    country_code = "country_code"
     region_name = "region_name"
     entity_name = "entity_name"  # The name of the entity (country or region) to be used when entities are mixed
     iso2_code = "iso2_code"
@@ -108,6 +109,8 @@ class Fields:
     exporter_name = "exporter_name"
     importer_name = "importer_name"
     product_code = "product_code"
+    product_name = "product_name"
+    product_description = "product_description"
 
     @classmethod
     def get_base_idx(cls):

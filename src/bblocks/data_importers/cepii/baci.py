@@ -60,8 +60,8 @@ import shutil
 from bblocks.data_importers.config import logger, Fields
 from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.data_validators import DataFrameValidator
-from bblocks.data_importers.cepii.baci_utils import (
-    get_available_versions,
+from bblocks.data_importers.cepii.extract import (
+    # get_available_versions,
     extract_zip,
     rename_columns,
     map_country_codes,
@@ -77,7 +77,7 @@ from bblocks.data_importers.cepii.baci_utils import (
 
 BASE_URL = "https://www.cepii.fr/DATA_DOWNLOAD/baci/data"
 
-VERSIONS_DICT = get_available_versions()
+VERSIONS_DICT =  {}#get_available_versions()
 VALID_BACI_VERSIONS = VERSIONS_DICT.keys()
 
 
