@@ -6,7 +6,6 @@ import io
 import zipfile
 import pandas as pd
 import pyarrow as pa
-import pyarrow.dataset as ds
 from pyarrow import csv as pv
 import requests
 
