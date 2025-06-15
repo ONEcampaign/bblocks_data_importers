@@ -130,6 +130,7 @@ class BACI:
     def get_data(
         self,
         hs_version: str,
+        years: int | list[int] | range | tuple[int, int] | None = None,
         baci_version: str = "latest",
     ) -> pd.DataFrame:
         """Get the BACI data.
@@ -141,7 +142,7 @@ class BACI:
         if baci_version == "latest":
             baci_version = self._latest_version
 
-        return self._data[baci_version][hs_version].data.to_pandas(types_mapper=pd.ArrowDtype)
+        return self._data[baci_version][hs_version].get_data_frame(years=years)
 
     def get_metadata(self, hs_version: str, version: str = "latest") -> dict:
         """Get the BACI metadata

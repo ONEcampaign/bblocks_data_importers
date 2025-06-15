@@ -5,14 +5,51 @@ import os
 import io
 import zipfile
 import pandas as pd
-import pyarrow as pa
 from pyarrow import csv as pv
+import pyarrow as pa
+import pyarrow.compute as pc
 import requests
 
 from bblocks.data_importers.config import logger, Fields, DataExtractionError
 
 
 BASE_URL = "https://www.cepii.fr"
+
+
+
+def filter_years(table: pa.Table, years) -> pa.Table:
+    """Filter table for years
+
+    Args:
+        table: The PyArrow Table to filter.
+        years: The years to filter for. Can be
+            - a single year as an int,
+            - any of a list/range of ints,
+            - or falls between start/end in a 2-tuple.
+    """
+    # Build the expression depending on the type of `years`
+    if isinstance(years, int):
+        expr = (pc.field("year") == years)
+
+    elif isinstance(years, (list, range)):
+        # OR together equality checks for each year
+        exprs = [(pc.field("year") == y) for y in years]
+        expr = exprs[0]
+        for e in exprs[1:]:
+            expr = expr | e
+
+    elif isinstance(years, tuple) and len(years) == 2 \
+         and all(isinstance(y, int) for y in years):
+        start, end = years
+        expr = (pc.field("year") >= start) & (pc.field("year") <= end)
+
+    else:
+        raise TypeError(
+            "`years` must be an int, list/range of ints, or a 2-tuple of ints"
+        )
+
+    # Apply the filter-expression
+    return table.filter(expr)
 
 
 def rename_data_columns(table: pa.Table) -> pa.Table:
@@ -277,3 +314,24 @@ class BaciDataManager:
         self.read_metadata()
 
         # TODO: Validation
+
+    def get_data_frame(self, years: int | list[int] | range | tuple[int, int] | None = None) -> pd.DataFrame:
+        """Get the BACI data as a Pandas DataFrame.
+
+        years: int | list[int] | range | tuple[int, int] | None
+            If provided, filter the data for the specified years.
+            - A single year as an int,
+            - Any of a list/range of ints,
+            - Or falls between start/end in a 2-tuple.
+
+        """
+
+        if self.data is None:
+            raise ValueError("BACI data has not been loaded yet. Call `load_data()` first.")
+
+        data = self.data
+
+        if years is not None:
+            data = filter_years(data, years)
+
+        return data.to_pandas(types_mapper=pd.ArrowDtype)
