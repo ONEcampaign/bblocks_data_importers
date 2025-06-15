@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 
-from src.bblocks.data_importers.config import logger
+from bblocks.data_importers.config import logger
 
 
 BASE_CEPII_URL = "https://www.cepii.fr"

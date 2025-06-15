@@ -10,50 +10,11 @@ More information and access to the raw data can be found [here](https://www.cepi
 This importer provides functionality to easily access the latest BACI data (or data from a specific version),
 automatically download and extract data if not already available locally, and return formatted trade data.
 
-Usage:
-
->>> import bblocks.data_importers as bbdata
-
-First, initiate a BACI object. You must specify a path to save the data locally. You may also specify a BACI version
-with baci_version. If not specified, the object will be set to the latest BACI version available. You can specify an
-HS classification. Note that hs_version determines how far back in time the data goes. For example, the default value
-"22" returns data from 2022 onward.
->>> baci = bbdata.BACI(
-...     data_path="my/local/folder",
-...     baci_version="latest",
-...     hs_version="22",
-... )
-
-If you would like to explore older BACI versions, the `get_versions()` method returns a dictionary with the different
-BACI versions available and their supported HS versions, as well as bool indicator to identify the latest BACI version.
->>> versions = bbdata.get_baci_versions()
-
-Get the BACI data with the `get_data()` method. The function will look for a folder of the format 'BACI_HSXX_V20XXX'
-in the specified data_path, and download if not found.
-
-You can indicate whether to include country names in the final DataFrame (defaults to True) or filter the years included
-in the data.
->>> data = baci.get_data(
-...     include_country_names=True,
-...     years=range(2022, 2024)
-... )
-
-The traded amounts are specified in columns `value` (current thousand USD) and `quantity` (metric tons).
-
-A dictionary that maps HS codes to product desriptions is available with:
->>> hs_map = baci.get_hs_map()
-
-To access metadata from a BACI object:
->>> metadata = baci.get_metadata()
-
-The data and metadata are cached to avoid loading the dataset again. Use the `clear_cache()` method to delete this
-data. You can set clear_disk = True to delete the local directory where the BACI data was saver (defaults to False).
->>> baci.clear_cache(clear_disk=True)
 """
 
 import pandas as pd
 
-from bblocks.data_importers.config import logger, DataExtractionError
+from bblocks.data_importers.config import logger
 from bblocks.data_importers.cepii.extract import BaciDataManager
 from bblocks.data_importers.cepii.baci_versions import parse_baci_and_hs_versions
 
@@ -66,43 +27,6 @@ class BACI:
     classified at the 6-digit Harmonized System (HS) level. This class provides methods to download, extract, cache,
     and structure BACI trade data, along with associated metadata and product descriptions.
 
-    Features:
-        - Download and process BACI data from the CEPII repository.
-        - Automatically detect and use the latest available BACI version.
-        - Support for multiple HS classifications.
-        - Filter datasets by year and include country names if desired.
-        - Cache formatted DataFrames and metadata to avoid redundant processing.
-        - Export mappings of HS product codes to descriptions.
-
-    Attributes:
-        _data_path (Path): Local root path where BACI data is stored.
-        _baci_version (str): Version string of the BACI release in use.
-        _hs_version (str): Selected Harmonized System code version (e.g. "22" for HS2022).
-        _data_directory (str): Folder name where BACI data is expected (e.g. 'BACI_HS22_V202501').
-        _extract_path (Path): Full path to the directory where the BACI data is extracted.
-        _include_country_names (bool): Whether to include country names in final DataFrame.
-        _data (pd.DataFrame | None): Cached BACI data.
-        _metadata (dict | None): Cached metadata extracted from the dataset's Readme.txt.
-        _loaded_years (set[int] | None): Years included in the current `_data` cache.
-
-    Usage:
-
-        # Initiate the object by specifying directory where the data will be downloaded
-        >>> baci = bbdata.BACI(data_path="my/local/folder", baci_version="latest", hs_version="22")
-
-        # To check the available BACI and HS versions, use the `get_versions()` method:
-        >>> versions = bbdata.get_baci_versions()
-
-        # Get data as a DataFrame, specifying where to include country names and filtering specific years
-        # The traded amounts are specified in columns `value` (current thousand USD) and `quantity` (metric tons).
-        >>> df = baci.get_data(include_country_names=True, years=range(2022, 2024))
-
-        # Access metadata and HS code to product description map.
-        >>> metadata = baci.get_metadata()
-        >>> hs_map = baci.get_hs_map()
-
-        # Clear cache and delete local files
-        >>> baci.clear_cache(clear_disk=True)
     """
 
     def __init__(self):
