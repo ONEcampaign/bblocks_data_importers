@@ -128,6 +128,7 @@ class BaciDataManager:
         self.country_codes: None | pd.DataFrame = None
         self.product_codes: None | pd.DataFrame = None
         self.metadata: None | dict = None
+        self.available_years: list[int] | None = None
 
     def extract_zipfile_from_web(self) -> None:
         """Extract the BACI ZIP file from the download URL."""
@@ -265,6 +266,16 @@ class BaciDataManager:
 
         self.metadata = metadata
 
+    def set_available_years(self) -> None:
+        """Inspect the loaded dataset and populate the available_years attribute."""
+
+        # Scan only the year column
+        scanner = self.dataset.scanner(columns=[Fields.year])
+        table = scanner.to_table()
+        # Convert to pandas to extract unique years
+        df_years = table.to_pandas(types_mapper=pd.ArrowDtype)
+        self.available_years = sorted(df_years[Fields.year].unique().tolist())
+
     def load_data(self):
         """Extract, read, and process all BACI data files."""
 
@@ -280,6 +291,9 @@ class BaciDataManager:
         self.read_product_codes()
         # Read metadata
         self.read_metadata()
+
+        # Set available years based on the dataset
+        self.set_available_years()
 
         # TODO: Validation
 

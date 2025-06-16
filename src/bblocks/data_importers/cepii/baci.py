@@ -144,6 +144,18 @@ class BACI:
 
         return self._data[baci_version][hs_version].get_data_frame(years=years)
 
+    def get_available_years(self, hs_version: str, baci_version: str = "latest") -> list[int]:
+        """Get the available years for an HS version and BACI version."""
+
+        # Load the data if not already loaded
+        self._load_data(baci_version=baci_version, hs_version=hs_version)
+
+        if baci_version == "latest":
+            baci_version = self._latest_version
+
+        return self._data[baci_version][hs_version].available_years
+
+
     def get_metadata(self, hs_version: str, version: str = "latest") -> dict:
         """Get the BACI metadata
         """
