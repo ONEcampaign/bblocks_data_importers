@@ -162,6 +162,17 @@ class BACI:
 
         return self._data[baci_version][hs_version].available_years
 
+    def get_available_countries(self, hs_version: str, baci_version: str = "latest") -> list[str]:
+        """Get the available exporter and importer countries for an HS version and BACI version."""
+
+        # Load the data if not already loaded
+        self._load_data(baci_version=baci_version, hs_version=hs_version)
+
+        if baci_version == "latest":
+            baci_version = self._latest_version
+
+        return self._data[baci_version][hs_version].country_codes
+
     def save_data_to_parquet(self, hs_version: str, file_path: str, baci_version: str = "latest") -> None:
         """Save the BACI data to a Parquet file."""
         # TODO: Implement saving to Parquet file with filtering
