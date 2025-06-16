@@ -156,6 +156,17 @@ class BACI:
 
         return self._data[version][hs_version].metadata
 
+    def get_product_descriptions(self, hs_version: str, version: str = "latest"):
+        """Get the product descriptions for a specific HS version and BACI version."""
+
+        # Load the data if not already loaded
+        self._load_data(baci_version=version, hs_version=hs_version)
+
+        if version == "latest":
+            version = self._latest_version
+
+        return self._data[version][hs_version].product_codes
+
     def clear_cache(self):
         """Clear cached data"""
 
