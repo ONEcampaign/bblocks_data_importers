@@ -110,6 +110,30 @@ def parse_readme(readme_content: str) -> dict:
 
     return metadata
 
+def add_country_labels(data: pd.DataFrame, country_codes: pd.DataFrame) -> pd.DataFrame:
+    """Adds country names and ISO3 codes to the BACI data DataFrame."""
+
+    names_map = country_codes.set_index(Fields.country_code)[Fields.country_name].to_dict()
+    iso3_map = country_codes.set_index(Fields.country_code)[Fields.iso3_code].to_dict()
+
+    return (data
+            .assign(**{Fields.exporter_name: lambda df: df[Fields.exporter_code].map(names_map),
+                    Fields.importer_name: lambda df: df[Fields.importer_code].map(names_map),
+                    Fields.exporter_iso3_code: lambda df: df[Fields.exporter_code].map(iso3_map),
+                    Fields.importer_iso3_code: lambda df: df[Fields.importer_code].map(iso3_map)
+                       }
+                    )
+            )
+
+def add_product_descriptions(data: pd.DataFrame, product_codes: pd.DataFrame) -> pd.DataFrame:
+    """Adds product descriptions to the BACI data DataFrame."""
+
+    descriptions_map = product_codes.set_index(Fields.product_code)[Fields.product_description].to_dict()
+
+    return data.assign(
+        product_description=lambda df: df[Fields.product_code].map(descriptions_map)
+    )
+
 class BaciDataManager:
     """Manager class for handling BACI data extraction and processing."""
 
@@ -297,7 +321,10 @@ class BaciDataManager:
 
         # TODO: Validation
 
-    def get_data_frame(self, years: int | list[int] | range | tuple[int, int] | None = None) -> pd.DataFrame:
+    def get_data_frame(self, years: int | list[int] | range | tuple[int, int] | None,
+                       incl_country_labels: bool,
+                       incl_product_labels: bool,
+                       ) -> pd.DataFrame:
         """Get the BACI data as a Pandas DataFrame.
 
         years: Years to filter the data. Default is None. Options include:
@@ -330,7 +357,16 @@ class BaciDataManager:
             else self.dataset.scanner()
         )
 
-        return scanner.to_table().to_pandas(types_mapper=pd.ArrowDtype)
+        df = scanner.to_table().to_pandas(types_mapper=pd.ArrowDtype)
+
+        # Add labels if requested
+        if incl_country_labels:
+            df = add_country_labels(df, self.country_codes)
+
+        if incl_product_labels:
+            df = add_product_descriptions(df, self.product_codes)
+
+        return df
 
     def __del__(self):
         """Cleanup resources when the object is deleted."""

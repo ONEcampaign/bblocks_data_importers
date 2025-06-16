@@ -127,22 +127,27 @@ class BACI:
         else:
             self._data[baci_version][hs_version] = baci_data_manager
 
-    def get_data(
-        self,
-        hs_version: str,
-        years: int | list[int] | range | tuple[int, int] | None = None,
-        baci_version: str = "latest",
-    ) -> pd.DataFrame:
-        """Get the BACI data.
+    def get_data(self,
+                 hs_version: str,
+                 years: int | list[int] | range | tuple[int, int] | None = None,
+                 incl_country_labels: bool = False,
+                 incl_product_labels: bool = False,
+                 baci_version: str = "latest",
+                 ) -> pd.DataFrame:
+        """Get the BACI data."""
 
-        """
         # Load the data if not already loaded
         self._load_data(baci_version=baci_version, hs_version=hs_version)
 
         if baci_version == "latest":
             baci_version = self._latest_version
 
-        return self._data[baci_version][hs_version].get_data_frame(years=years)
+        return (self._data[baci_version][hs_version].
+                get_data_frame(years=years,
+                               incl_country_labels=incl_country_labels,
+                               incl_product_labels=incl_product_labels
+                               )
+                )
 
     def get_available_years(self, hs_version: str, baci_version: str = "latest") -> list[int]:
         """Get the available years for an HS version and BACI version."""
@@ -154,6 +159,14 @@ class BACI:
             baci_version = self._latest_version
 
         return self._data[baci_version][hs_version].available_years
+
+    def save_data_to_parquet(self, hs_version: str, file_path: str, baci_version: str = "latest") -> None:
+        """Save the BACI data to a Parquet file."""
+        # TODO: Implement saving to Parquet file with filtering
+        pass
+
+    def save_raw_data(self):
+        """Save the raw data to a local directory as a zip file."""
 
 
     def get_metadata(self, hs_version: str, version: str = "latest") -> dict:
