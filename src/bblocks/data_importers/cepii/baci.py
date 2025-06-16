@@ -2,13 +2,12 @@
 
 The BACI database is an international trade dataset developed by CEPII. It provides detailed bilateral trade flows for
 more than 200 countries and territories, covering over 5,000 products at the 6-digit Harmonized System (HS) level.
-Trade values are reported in thousands of USD and quantities in metric tons. BACI is built using the UN COMTRADE
-database and includes reconciliation procedures.
 
-More information and access to the raw data can be found [here](https://www.cepii.fr/CEPII/en/bdd_modele/presentation.asp?id=37)
+Raw data accessed [here](https://www.cepii.fr/CEPII/en/bdd_modele/presentation.asp?id=37)
 
-This importer provides functionality to easily access the latest BACI data (or data from a specific version),
-automatically download and extract data if not already available locally, and return formatted trade data.
+TODO: Add input cleaning for versions - HS version must be uppercase; BACI version must be lowercase
+TODO: Add filtering for importer/exporter countries
+
 
 """
 
@@ -21,7 +20,7 @@ from bblocks.data_importers.cepii.baci_versions import parse_baci_and_hs_version
 
 
 class BACI:
-    """ Importer object for the CEPII BACI international trade dataset.
+    """Importer object for the CEPII BACI international trade dataset.
 
     The BACI database provides highly detailed bilateral trade data across more than 200 countries and 5,000 products
     classified at the 6-digit Harmonized System (HS) level. This method allows users to easily access BACI data
@@ -127,7 +126,6 @@ class BACI:
         if self._latest_version:
             latest_version_text = f", latest_version={self._latest_version!r}"
 
-
         return (
             f"{self.__class__.__name__}("
             f"loaded_versions={loaded_versions!r}"
@@ -163,11 +161,6 @@ class BACI:
 
     def _load_data(self, baci_version: str, hs_version: str) -> None:
         """Load BACI data to the object"""
-
-        # TODO: clean version and hs_version inputs
-        # baci_version must be all lowercase and hs_version must be in the format "HS22", "HS17", etc.
-        baci_version = baci_version.lower()
-        hs_version = hs_version.upper()
 
         # load available versions if not already loaded
         if not self._versions:
@@ -209,14 +202,15 @@ class BACI:
         else:
             self._data[baci_version][hs_version] = baci_data_manager
 
-    def get_data(self,
-                 hs_version: str,
-                 years: int | list[int] | range | tuple[int, int] | None = None,
-                 products: int | list[int] | range | tuple[int, int] | None = None,
-                 incl_country_labels: bool = False,
-                 incl_product_labels: bool = False,
-                 baci_version: str = "latest",
-                 ) -> pd.DataFrame:
+    def get_data(
+        self,
+        hs_version: str,
+        years: int | list[int] | range | tuple[int, int] | None = None,
+        products: int | list[int] | range | tuple[int, int] | None = None,
+        incl_country_labels: bool = False,
+        incl_product_labels: bool = False,
+        baci_version: str = "latest",
+    ) -> pd.DataFrame:
         """Get the BACI data.
 
         This method returns a pandas DataFrame with the trade data for the specified HS version and BACI version.
@@ -251,15 +245,16 @@ class BACI:
         if baci_version == "latest":
             baci_version = self._latest_version
 
-        return (self._data[baci_version][hs_version].
-                get_data_frame(years=years,
-                               products=products,
-                               incl_country_labels=incl_country_labels,
-                               incl_product_labels=incl_product_labels,
-                               )
-                )
+        return self._data[baci_version][hs_version].get_data_frame(
+            years=years,
+            products=products,
+            incl_country_labels=incl_country_labels,
+            incl_product_labels=incl_product_labels,
+        )
 
-    def get_available_years(self, hs_version: str, baci_version: str = "latest") -> list[int]:
+    def get_available_years(
+        self, hs_version: str, baci_version: str = "latest"
+    ) -> list[int]:
         """Get the available years for an HS version and BACI version.
 
         Args:
@@ -278,7 +273,9 @@ class BACI:
 
         return self._data[baci_version][hs_version].available_years
 
-    def get_available_countries(self, hs_version: str, baci_version: str = "latest") -> pd.DataFrame:
+    def get_available_countries(
+        self, hs_version: str, baci_version: str = "latest"
+    ) -> pd.DataFrame:
         """Get the available exporter and importer countries for an HS version and BACI version.
 
         Args:
@@ -298,7 +295,13 @@ class BACI:
 
         return self._data[baci_version][hs_version].country_codes
 
-    def save_raw_data(self, path: str | os.PathLike, hs_version: str, baci_version: str = "latest", override: bool=False) -> None:
+    def save_raw_data(
+        self,
+        path: str | os.PathLike,
+        hs_version: str,
+        baci_version: str = "latest",
+        override: bool = False,
+    ) -> None:
         """Save the raw data to disk as a zip file for a specific HS version and BACI version.
 
         Args:
@@ -317,7 +320,6 @@ class BACI:
 
         # Save the raw data to a local directory
         self._data[baci_version][hs_version].save_zip_file(path=path, override=override)
-
 
     def get_metadata(self, hs_version: str, baci_version: str = "latest") -> dict:
         """Get the metadata for a specific HS version and BACI version.
@@ -338,7 +340,9 @@ class BACI:
 
         return self._data[baci_version][hs_version].metadata
 
-    def get_product_descriptions(self, hs_version: str, baci_version: str = "latest") -> pd.DataFrame:
+    def get_product_descriptions(
+        self, hs_version: str, baci_version: str = "latest"
+    ) -> pd.DataFrame:
         """Get the product descriptions for a specific HS version and BACI version.
 
         Args:

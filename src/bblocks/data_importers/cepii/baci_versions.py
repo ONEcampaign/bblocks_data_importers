@@ -1,10 +1,10 @@
-"""
-Helper functions for importing and processing the CEPII BACI trade database.
+"""Web scraping module to fetch BACI versions and HS classifications.
 
-This module includes:
-- Web scraping to identify available BACI versions and supported HS classifications.
-- Utilities to download, extract, and process BACI datasets.
-- Conversion of raw CSV data into a standardized, Parquet-based format for efficient disk use.
+This module scrapes the CEPII BACI page to extract the latest and archived
+BACI versions along with their associated HS classifications.
+
+The `parse_baci_and_hs_versions` function returns a dictionary
+with BACI versions as keys and their HS classifications as values.
 """
 
 import bs4
@@ -33,9 +33,7 @@ def _get_soup() -> BeautifulSoup:
 
 
 def _extract_section_div(soup: BeautifulSoup, section_title: str) -> bs4.Tag:
-    """Extract the contents of a specific section <div> from the BACI page.
-
-    """
+    """Extract the contents of a specific section <div> from the BACI page."""
     # get a list of all section divs
     section_divs = soup.find_all("div", {"class": "titre-rubrique"})
 
@@ -57,14 +55,16 @@ def _parse_latest_version(latest_div: bs4.Tag) -> dict:
     # div = _extract_section_div(soup, "Download")
 
     # Get the latest version from the div text
-    match = re.search(r'This is the\s+([A-Za-z0-9]+)\s+version', latest_div.text, re.IGNORECASE)
+    match = re.search(
+        r"This is the\s+([A-Za-z0-9]+)\s+version", latest_div.text, re.IGNORECASE
+    )
     if match:
         version = match.group(1)
     else:
         raise ValueError("Latest version could not be found")
 
     # Extract all HS versions from the div text
-    hs_versions = re.findall(r'\bHS\d{2}\b', latest_div.text)
+    hs_versions = re.findall(r"\bHS\d{2}\b", latest_div.text)
 
     if not hs_versions:
         raise ValueError("No HS versions found in the latest version section.")
@@ -76,16 +76,16 @@ def _parse_archive_versions(archive_div: bs4.Tag) -> dict[int, list[str]]:
     """ """
 
     # Step 1: Split by version headers
-    blocks = re.split(r'\n+(?=\d{6}[a-z]?\s+version:)', archive_div.text)
+    blocks = re.split(r"\n+(?=\d{6}[a-z]?\s+version:)", archive_div.text)
 
     # Step 2: Parse each block
     version_dict = {}
 
     for block in blocks:
-        header_match = re.match(r'(\d{6}[a-z]?)\s+version:', block)
+        header_match = re.match(r"(\d{6}[a-z]?)\s+version:", block)
         if header_match:
             version = header_match.group(1)
-            hs_versions = re.findall(r'\bHS\d{2}\b', block)
+            hs_versions = re.findall(r"\bHS\d{2}\b", block)
             version_dict[version] = {"hs_versions": hs_versions}
 
     if not version_dict:
@@ -95,8 +95,7 @@ def _parse_archive_versions(archive_div: bs4.Tag) -> dict[int, list[str]]:
 
 
 def parse_baci_and_hs_versions() -> dict:
-    """Parse version declarations and associated HS versions.
-    """
+    """Parse version declarations and associated HS versions."""
 
     soup = _get_soup()
 
@@ -109,4 +108,3 @@ def parse_baci_and_hs_versions() -> dict:
     archive_versions = _parse_archive_versions(archive_div)
 
     return {**latest_version, **archive_versions}
-
