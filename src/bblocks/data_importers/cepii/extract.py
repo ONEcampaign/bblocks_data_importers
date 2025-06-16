@@ -10,7 +10,6 @@ import pyarrow as pa
 import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 from pyarrow import csv as pv
-import pyarrow.compute as pc
 import requests
 
 from bblocks.data_importers.config import logger, Fields, DataExtractionError
@@ -192,7 +191,7 @@ class BaciDataManager:
             raise DataExtractionError(f"Failed to extract data from ZIP file: {e}")
 
 
-    def save_zip_file(self, directory: str | os.PathLike, override: bool=False) -> None:
+    def save_zip_file(self, path: str | os.PathLike, override: bool=False) -> None:
         """Save the zip file to a local path.
 
         Args:
@@ -200,24 +199,30 @@ class BaciDataManager:
             override: If True, will overwrite the existing file if it exists. Defaults to False.
         """
 
-        # if the zipfile has not been extracted, raise an error
-        if not self.zip_file:
-            raise ValueError("BACI data has not bee extracted yet. No data available to save.")
+        target = Path(path)
+        directory = target.parent
 
-        file_name = self.zip_file.filename
+        # Verify path ends with .zip
+        if target.suffix.lower() != ".zip":
+            raise ValueError(f"The path must include a file name with a .zip extension: {target.name}")
 
-        # check if the path already exists, if it doesn't raise an error
-        if not os.path.exists(directory):
+        # Verify directory exists
+        if not directory.exists():
             raise FileNotFoundError(f"Directory {directory} does not exist.")
 
-        # check if the file already exists, if it does and override is False, raise an error
-        file_path = Path(directory) / file_name
-        if file_path.exists() and not override:
-            raise FileExistsError(f"File '{file_path}' already exists. Use `override=True` to overwrite it.")
+        # Check for existing file
+        if target.exists() and not override:
+            raise FileExistsError(
+                f"File '{target}' already exists. Use `override=True` to overwrite it."
+            )
 
-        # save the zip file to the specified path
-        with open(file_path, "wb") as f:
+        # Write ZIP contents to disk
+        with open(target, "wb") as f:
+            self.zip_file.fp.seek(0) # Ensure we read from the start of the BytesIO object
             f.write(self.zip_file.fp.read())
+
+
+        logger.info(f"Data for BACI version {self.version} and HS version {self.hs_version} saved to {target}")
 
     def _list_data_files(self) -> list[str]:
         """List all relevant BACI data files in the ZIP archive."""
