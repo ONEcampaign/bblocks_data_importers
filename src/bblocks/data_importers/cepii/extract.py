@@ -5,8 +5,11 @@ import os
 import io
 import zipfile
 import pandas as pd
-from pyarrow import csv as pv
+import tempfile
 import pyarrow as pa
+import pyarrow.dataset as ds
+import pyarrow.parquet as pq
+from pyarrow import csv as pv
 import pyarrow.compute as pc
 import requests
 
@@ -16,40 +19,27 @@ from bblocks.data_importers.config import logger, Fields, DataExtractionError
 BASE_URL = "https://www.cepii.fr"
 
 
-
-def filter_years(table: pa.Table, years) -> pa.Table:
-    """Filter table for years
+def filter_years(dataset: ds.Dataset,
+                 years: int | list[int] | range | tuple[int, int]) -> ds.Expression:
+    """Filter the dataset for the specified year(s) and return a new Scanner.
 
     Args:
-        table: The PyArrow Table to filter.
-        years: The years to filter for. Can be
-            - a single year as an int,
-            - any of a list/range of ints,
-            - or falls between start/end in a 2-tuple.
+        dataset: The PyArrow dataset to filter.
+        years: An int for a single year, a list or range of years, or a 2-tuple (start_year, end_year).
     """
-    # Build the expression depending on the type of `years`
+
     if isinstance(years, int):
-        expr = (pc.field("year") == years)
-
+        expr = ds.field(Fields.year) == years
     elif isinstance(years, (list, range)):
-        # OR together equality checks for each year
-        exprs = [(pc.field("year") == y) for y in years]
-        expr = exprs[0]
-        for e in exprs[1:]:
-            expr = expr | e
-
-    elif isinstance(years, tuple) and len(years) == 2 \
-         and all(isinstance(y, int) for y in years):
-        start, end = years
-        expr = (pc.field("year") >= start) & (pc.field("year") <= end)
-
+        expr = ds.field(Fields.year).isin(list(years))
+    elif isinstance(years, tuple) and len(years) == 2:
+        start_year, end_year = years
+        expr = (ds.field(Fields.year) >= start_year) & (ds.field(Fields.year) <= end_year)
     else:
-        raise TypeError(
-            "`years` must be an int, list/range of ints, or a 2-tuple of ints"
-        )
+        raise ValueError(f"Invalid type for years filter: {type(years)}")
 
-    # Apply the filter-expression
-    return table.filter(expr)
+    return expr
+
 
 
 def rename_data_columns(table: pa.Table) -> pa.Table:
@@ -133,7 +123,13 @@ class BaciDataManager:
         self.download_url =  f"{BASE_URL}/DATA_DOWNLOAD/baci/data/BACI_{hs_version}_V{version}.zip"
         self.zip_file: None | zipfile.ZipFile = None
 
-        self.data: None | pa.lib.Table = None
+        # Pyarrow dataset and temporary directory for Arrow files
+        self.arrow_temp_dir: tempfile.TemporaryDirectory | None = None
+        self.dataset: ds.Dataset | None = None
+
+        # self.data: None | pa.lib.Table = None
+
+        # other data attributes
         self.country_codes: None | pd.DataFrame = None
         self.product_codes: None | pd.DataFrame = None
         self.metadata: None | dict = None
@@ -222,28 +218,22 @@ class BaciDataManager:
 
 
     def read_data_files(self):
-        """Read the data files from the ZIP
-         file and combine them into a single PyArrow Table."""
+        """Stream and write BACI data to disk in Parquet format."""
 
-        tables = [] # List to hold individual tables
+        self.arrow_temp_dir = tempfile.TemporaryDirectory()
+        parquet_dir = Path(self.arrow_temp_dir.name)
 
-        # From the list of data files, read each CSV into a PyArrow Table
         for file in self._list_data_files():
             with self.zip_file.open(file) as f:
                 table = pv.read_csv(f)
-                tables.append(table)
+                table = rename_data_columns(table)
 
-        # If no tables were read, raise an error
-        if not tables:
-            raise FileNotFoundError("No BACI data files found in the ZIP archive.")
+                output_file = parquet_dir / f"{Path(file).stem}.parquet"
+                pq.write_table(table, output_file)
 
-        # Concatenate all tables into a single PyArrow Table
-        combined = pa.concat_tables(tables)
+        # Load entire directory as a dataset for efficient filtering
+        self.dataset = ds.dataset(str(parquet_dir), format="parquet")
 
-        # format data
-        combined = rename_data_columns(combined)
-
-        self.data = combined
 
     def read_product_codes(self):
         """Read product codes from the ZIP file."""
@@ -326,12 +316,29 @@ class BaciDataManager:
 
         """
 
-        if self.data is None:
-            raise ValueError("BACI data has not been loaded yet. Call `load_data()` first.")
+        filters = [] # List to hold filter expressions
 
-        data = self.data
-
+        # Filter year
         if years is not None:
-            data = filter_years(data, years)
+            filters.append(filter_years(self.dataset, years))
 
-        return data.to_pandas(types_mapper=pd.ArrowDtype)
+        # TODO: exporter filtering
+        # TODO: importer filtering
+        # TODO: product filtering
+
+        # Combine all filters
+        combined_filter = None
+        for expr in filters:
+            combined_filter = expr if combined_filter is None else combined_filter & expr
+
+        scanner = (
+            self.dataset.scanner(filter=combined_filter)
+            if combined_filter is not None
+            else self.dataset.scanner()
+        )
+
+        return scanner.to_table().to_pandas(types_mapper=pd.ArrowDtype)
+
+    def __del__(self):
+        if self.arrow_temp_dir:
+            self.arrow_temp_dir.cleanup()
