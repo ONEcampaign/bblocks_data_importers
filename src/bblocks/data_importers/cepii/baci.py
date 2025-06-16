@@ -130,6 +130,7 @@ class BACI:
     def get_data(self,
                  hs_version: str,
                  years: int | list[int] | range | tuple[int, int] | None = None,
+                 products: int | list[int] | range | tuple[int, int] | None = None,
                  incl_country_labels: bool = False,
                  incl_product_labels: bool = False,
                  baci_version: str = "latest",
@@ -144,8 +145,9 @@ class BACI:
 
         return (self._data[baci_version][hs_version].
                 get_data_frame(years=years,
+                               products=products,
                                incl_country_labels=incl_country_labels,
-                               incl_product_labels=incl_product_labels
+                               incl_product_labels=incl_product_labels,
                                )
                 )
 

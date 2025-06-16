@@ -39,6 +39,26 @@ def filter_years(years: int | list[int] | range | tuple[int, int]) -> ds.Express
 
     return expr
 
+def filter_products(products: int | list[int] | range | tuple[int, int]) -> ds.Expression:
+    """Create a PyArrow Expression to filter the dataset by the specified product code(s).
+    Products can be specified as:
+        - A single product code as an int,
+        - A list or range of product codes,
+        - A 2-tuple (start_product_code, end_product_code) to filter a range of product codes.
+    """
+
+    if isinstance(products, int):
+        expr = ds.field(Fields.product_code) == products
+    elif isinstance(products, (list, range)):
+        expr = ds.field(Fields.product_code).isin(list(products))
+    elif isinstance(products, tuple) and len(products) == 2:
+        start_prod, end_prod = products
+        expr = (ds.field(Fields.product_code) >= start_prod) & (ds.field(Fields.product_code) <= end_prod)
+    else:
+        raise ValueError(f"Invalid type for products filter: {type(products)}")
+
+    return expr
+
 
 
 def rename_data_columns(table: pa.Table) -> pa.Table:
@@ -322,6 +342,7 @@ class BaciDataManager:
         # TODO: Validation
 
     def get_data_frame(self, years: int | list[int] | range | tuple[int, int] | None,
+                       products: int | None,
                        incl_country_labels: bool,
                        incl_product_labels: bool,
                        ) -> pd.DataFrame:
@@ -344,7 +365,9 @@ class BaciDataManager:
 
         # TODO: exporter filtering
         # TODO: importer filtering
-        # TODO: product filtering
+        # Filter products
+        if products is not None:
+            filters.append(filter_products(products))
 
         # Combine all filters
         combined_filter = None
