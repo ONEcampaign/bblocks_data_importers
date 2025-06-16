@@ -19,13 +19,12 @@ from bblocks.data_importers.config import logger, Fields, DataExtractionError
 BASE_URL = "https://www.cepii.fr"
 
 
-def filter_years(dataset: ds.Dataset,
-                 years: int | list[int] | range | tuple[int, int]) -> ds.Expression:
-    """Filter the dataset for the specified year(s) and return a new Scanner.
-
-    Args:
-        dataset: The PyArrow dataset to filter.
-        years: An int for a single year, a list or range of years, or a 2-tuple (start_year, end_year).
+def filter_years(years: int | list[int] | range | tuple[int, int]) -> ds.Expression:
+    """Create a PyArrow Expression to filter the dataset by year(s).
+    Years can be specified as:
+        - A single year as an int,
+        - A list or range of years,
+        - A 2-tuple (start_year, end_year) to filter a range of years.
     """
 
     if isinstance(years, int):
@@ -43,8 +42,7 @@ def filter_years(dataset: ds.Dataset,
 
 
 def rename_data_columns(table: pa.Table) -> pa.Table:
-    """Rename BACI raw data PyArrow columns to standardized field names.
-    """
+    """Rename BACI raw data PyArrow columns to standardized field names."""
 
     column_map = {
         "t": Fields.year,
@@ -65,7 +63,7 @@ def rename_data_columns(table: pa.Table) -> pa.Table:
 
 
 def rename_country_columns(country_df: pd.DataFrame) -> pd.DataFrame:
-    """Remane columns in the country codes DataFrame to standardized field names."""
+    """Rename columns in the country codes DataFrame to standardized field names."""
 
 
     column_map = {
@@ -90,8 +88,7 @@ def rename_product_columns(product_df: pd.DataFrame) -> pd.DataFrame:
     return product_df.rename(columns=column_map)
 
 def parse_readme(readme_content: str) -> dict:
-    """
-    """
+    """Parse the Readme.txt content to extract metadata."""
 
     # normalize all line breaks to "\n" for consistent processing
     readme_content = readme_content.replace("\r\n", "\n").replace("\r", "\n")
@@ -127,22 +124,10 @@ class BaciDataManager:
         self.arrow_temp_dir: tempfile.TemporaryDirectory | None = None
         self.dataset: ds.Dataset | None = None
 
-        # self.data: None | pa.lib.Table = None
-
         # other data attributes
         self.country_codes: None | pd.DataFrame = None
         self.product_codes: None | pd.DataFrame = None
         self.metadata: None | dict = None
-
-    def extract_zipfile_from_disk(self, zip_path: Path) -> None:
-        """Extract the BACI ZIP file from a local path."""
-
-        logger.info(f"Extracting BACI data from local path: {zip_path}")
-
-        try:
-            self.zip_file = zipfile.ZipFile(zip_path)
-        except zipfile.BadZipFile as e:
-            raise DataExtractionError(f"Failed to open local ZIP file: {e}")
 
     def extract_zipfile_from_web(self) -> None:
         """Extract the BACI ZIP file from the download URL."""
@@ -160,15 +145,6 @@ class BaciDataManager:
             self.zip_file = zipfile.ZipFile(zip_data)
         except zipfile.BadZipFile as e:
             raise DataExtractionError(f"Failed to extract data from ZIP file: {e}")
-
-    def extract_zip_file(self, zip_path: Path | None = None) -> None:
-        """Extract the BACI ZIP file from either a local path or a web URL."""
-
-        # if the path exists, extract from disk otherwise download from the web
-        if zip_path and zip_path.exists():
-            self.extract_zipfile_from_disk(zip_path)
-        else:
-            self.extract_zipfile_from_web()
 
 
     def save_zip_file(self, directory: str | os.PathLike, override: bool=False) -> None:
@@ -266,8 +242,7 @@ class BaciDataManager:
         self.country_codes = country_codes
 
     def read_metadata(self) -> None:
-        """Read metadata from the Readme.txt file in the ZIP archive.
-        """
+        """Read metadata from the Readme.txt file in the ZIP archive."""
 
         # Find the Readme.txt file in the ZIP archive
         readme_file = next((f for f in self.zip_file.namelist()
@@ -288,11 +263,11 @@ class BaciDataManager:
 
         self.metadata = metadata
 
-    def load_data(self, zip_path: Path | None = None):
+    def load_data(self):
         """Extract, read, and process all BACI data files."""
 
         # Extract the ZIP file from the URL
-        self.extract_zip_file(zip_path)
+        self.extract_zipfile_from_web()
 
         # Read the main data files
         self.read_data_files()
@@ -308,19 +283,20 @@ class BaciDataManager:
     def get_data_frame(self, years: int | list[int] | range | tuple[int, int] | None = None) -> pd.DataFrame:
         """Get the BACI data as a Pandas DataFrame.
 
-        years: int | list[int] | range | tuple[int, int] | None
-            If provided, filter the data for the specified years.
+        years: Years to filter the data. Default is None. Options include:
             - A single year as an int,
             - Any of a list/range of ints,
             - Or falls between start/end in a 2-tuple.
 
+        Returns:
+            A Pandas DataFrame containing the (filtered) BACI data.
         """
 
         filters = [] # List to hold filter expressions
 
         # Filter year
         if years is not None:
-            filters.append(filter_years(self.dataset, years))
+            filters.append(filter_years(years))
 
         # TODO: exporter filtering
         # TODO: importer filtering
@@ -340,5 +316,6 @@ class BaciDataManager:
         return scanner.to_table().to_pandas(types_mapper=pd.ArrowDtype)
 
     def __del__(self):
+        """Cleanup resources when the object is deleted."""
         if self.arrow_temp_dir:
             self.arrow_temp_dir.cleanup()
