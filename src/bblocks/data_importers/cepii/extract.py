@@ -196,6 +196,8 @@ class BaciDataManager:
     def read_data_files(self):
         """Stream and write BACI data to disk in Parquet format."""
 
+        logger.info(f"Streaming BACI data files to Parquet in temporary cache directory")
+
         self.arrow_temp_dir = tempfile.TemporaryDirectory()
         parquet_dir = Path(self.arrow_temp_dir.name)
 
@@ -269,6 +271,7 @@ class BaciDataManager:
         # Extract the ZIP file from the URL
         self.extract_zipfile_from_web()
 
+        logger.info(f"Extracting data")
         # Read the main data files
         self.read_data_files()
         # Read country codes

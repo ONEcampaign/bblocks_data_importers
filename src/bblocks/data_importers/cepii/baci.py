@@ -71,7 +71,7 @@ class BACI:
     def _load_versions(self):
         """Load available BACI versions and HS classifications."""
 
-        logger.info("Loading available BACI versions and HS classifications...")
+        logger.info("Finding available BACI versions and HS classifications")
 
         self._versions = parse_baci_and_hs_versions()
 
