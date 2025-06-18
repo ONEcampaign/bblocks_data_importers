@@ -1,26 +1,22 @@
 """Module to get data from WFP
 
 The World Food Programme (WFP) provides data on inflation and food security.
-Food Security data is available at the national and subnational levels and can be accessed through the Hunger Map tool.
-Inflation data is available for various countries and indicators and can be accessed through the VAM data portal.
+Inflation data is available for various countries and indicators and can be accessed through the [VAM data portal](https://dataviz.vam.wfp.org/economic/inflation).
+Food Security data is available at the national and subnational levels and can be accessed through the [Hunger Map tool](https://hungermap.wfp.org/).
 
 This module provides 2 importers to get the data from WFP:
 1. WFPInflation: To get inflation data
 2. WFPFoodSecurity: To get food security data
 
-Access the data at:
-1. Inflation: https://dataviz.vam.wfp.org/economic/inflation
-2. Food Security: https://hungermap.wfp.org/
-
 Simple usage:
 
 1. Inflation data:
-Instantiat the object and call the get_data method to get the data for a specific indicator and country
+Instantiate the object and call the `get_data()` method to get the data for a specific indicator and country
 >>> wfp = WFPInflation()
 >>> data = wfp.get_data(indicators = "Headline inflation (YoY)", countries = ["KEN", "UGA"])
 
 2. Food Security data:
-Instantiat the object and call the get_data method to get the data for a specific country
+Instantiat the object and call the `get_data()` method to get the data for a specific country
 >>> wfp = WFPFoodSecurity()
 >>> data = wfp.get_data(countries = ["KEN", "UGA"])
 
@@ -151,10 +147,9 @@ def extract_countries(timeout: int = 20, retries: int = 2) -> dict:
 class WFPInflation:
     """A class to import inflation data from the World Food Programme (WFP)
 
-    The World Food Programme (WFP) provides data on inflation for various countries collected
-    from Trading Economics. The data is available for different indicators including headline inflation (year-on-year
-    and month-on-month) and food inflation.
-    See the data at: https://dataviz.vam.wfp.org/economic/inflation
+    The World Food Programme (WFP) [VAM data portal](https://dataviz.vam.wfp.org/economic/inflation) provides data on i
+    nflation for various countries collected from Trading Economics. The data is available for different indicators
+    including headline inflation (year-on-year and month-on-month) and food inflation.
 
     Usage:
     First instantiate an importer object:
@@ -450,11 +445,10 @@ class WFPInflation:
 class WFPFoodSecurity:
     """Class to import food security data from the WFP Hunger Map API
 
-    The World Food Programme (WFP) Hunger Map is a global hunger monitoring system which provides data
+    The World Food Programme (WFP) [Hunger Map](https://hungermap.wfp.org/) is a global hunger monitoring system which provides data
     on food security and other related indicators.
 
     The data accessible through this object is "people with insufficient food consumption" and is available at the national and subnational levels.
-    Access the Hunger Map at: https://hungermap.wfp.org/
 
     Usage:
     First instantiate an importer object:
