@@ -30,7 +30,7 @@ wfp_infl = WFPInflation()
 # Get the data for specific indicators and countries
 df_infl = wfp_infl.get_data(
     indicators = "Headline inflation (YoY)", 
-    countries = ["KEN", "UGA"] # Use ISO3 codes to retrieve countries
+    countries = ["KEN", "UGA"] # use ISO3 codes to retrieve countries
 )
 
 # Preview
@@ -52,7 +52,7 @@ indicators_infl = wfp_infl.available_indicators
 ### Food security
 
 Instantiate the object and call the `get_data()` method to retrieve a pandas DataFrame. You can optionally filter by 
-country using ISO3 codes.
+country using ISO3 codes and chose data at the national or subnational level. 
 
 ```python
 from bblocks.data_importers import WFPFoodSecurity
@@ -62,7 +62,8 @@ wfp_fs = WFPFoodSecurity()
 
 # Get the data for specific countries
 df_fs = wfp_fs.get_data(
-    countries = ["KEN", "UGA"] # Use ISO3 codes to retrieve countries
+    countries = ["KEN", "UGA"], # use ISO3 codes to retrieve countries
+    level = "subnational" # defaults to "national"
 )
 
 # Preview
