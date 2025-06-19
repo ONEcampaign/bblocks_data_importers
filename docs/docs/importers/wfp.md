@@ -18,7 +18,7 @@ the World Food Programme (WFP).
 ### Inflation
 
 Instantiate the object and call the `get_data()` method to retrieve a pandas DataFrame. It is recommended to specify 
-`indicators` and `countries` to reduce wait time. If none of the arguments is passed, the returned data will 
+`indicators` and `countries` to reduce wait time. If no arguments are passed, the returned data will 
 contain all indicators and countries.
 
 ```python
