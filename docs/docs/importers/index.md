@@ -8,20 +8,14 @@ interface while adapting to the quirks of each source.
 
 | Source                                                  | Description                                                                   |
 |---------------------------------------------------------|-------------------------------------------------------------------------------|
-| __IMF [World Economic Outlook](./weo)__                 | Macroeconomic indicators and forecasts from the IMF                           |
+| __IMF - [World Economic Outlook](./weo)__               | Macroeconomic indicators and forecasts from the IMF                           |
 | __[World Bank](./world-bank)__                          | Comprehensive development data across sectors                                 |
 | __World Bank - [International Debt Statistics](./ids)__ | Comprehensive external debt data from the World Bank                          |
 | __WHO - [Global Health Expenditure Database](./ghed)__  | Comprehensive country health expenditure data                                 |
-| __[UNAIDS](./unaids)__                                  | Extensive data on the HIV epidemic                                            |
+| __[UNAIDS](./unaids)__                                  | Extensive data on HIV                                                         |
 | __UNDP - [Human Development Report](./hdi)__            | Insights on key dimensions of human development                               |
-| __[WFP - Inflation and food security](./wfp)__          | Key inflation and food security data from WFP VAM and the HungerMap platform] |   
-
-
-## Upcoming Importers
-
-| Source             | Description                                                                                    |
-|--------------------|------------------------------------------------------------------------------------------------|
-| CEPII - BACI trade | Harmonized trade data                                                                          |
+| __[WFP - Inflation and food security](./wfp)__          | Key inflation and food security data from WFP VAM and the HungerMap platform] |
+| __CEPII - [BACI trade](./baci)__                        | Harmonized trade data                                                         |
 
 
 ## See Also

@@ -1,13 +1,15 @@
 """Data Importers for various data sources.
 
 Available data importers:
-- `WorldBank`: World Bank data
 - `WEO`: IMF World Economic Outlook data
+- `WorldBank`: World Bank data
+- `InternationalDebtStatistics`: World Bank International Debt Statistics
 - `GHED`: WHO Global Health Expenditure Database
+- `UNAIDS`: Extensive data on HIV
+- `HumanDevelopmentIndex`: UNDP Human Development
 - `WFPFoodSecurity`: WFP Food Security data
 - `WFPInflation`: WFP Inflation data
-- `InternationalDebtStatistics`: World Bank International Debt Statistics
-- `HumanDevelopmentIndex`: UNDP Human Development
+- `BACI`: Harmonized trade data
 
 
 Usage:
@@ -41,6 +43,7 @@ from bblocks.data_importers.wfp.wfp import WFPFoodSecurity, WFPInflation
 from bblocks.data_importers.world_bank.wb_api import WorldBank
 from bblocks.data_importers.world_bank.ids import InternationalDebtStatistics
 from bblocks.data_importers.undp.hdi import HumanDevelopmentIndex
+from bblocks.data_importers.cepii.baci import BACI
 from bblocks.data_importers.unaids.unaids import UNAIDS
 
 __version__ = version("bblocks-data-importers")
