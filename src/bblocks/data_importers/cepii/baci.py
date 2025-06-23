@@ -2,440 +2,369 @@
 
 The BACI database is an international trade dataset developed by CEPII. It provides detailed bilateral trade flows for
 more than 200 countries and territories, covering over 5,000 products at the 6-digit Harmonized System (HS) level.
-Trade values are reported in thousands of USD and quantities in metric tons. BACI is built using the UN COMTRADE
-database and includes reconciliation procedures.
 
-More information and access to the raw data can be found [here](https://www.cepii.fr/CEPII/en/bdd_modele/presentation.asp?id=37)
+Raw data accessed [here](https://www.cepii.fr/CEPII/en/bdd_modele/presentation.asp?id=37)
 
-This importer provides functionality to easily access the latest BACI data (or data from a specific version),
-automatically download and extract data if not already available locally, and return formatted trade data.
+TODO: Add input cleaning for versions - HS version must be uppercase; BACI version must be lowercase
+TODO: Add filtering for importer/exporter countries
 
-Usage:
 
->>> import bblocks.data_importers as bbdata
-
-First, initiate a BACI object. You must specify a path to save the data locally. You may also specify a BACI version
-with baci_version. If not specified, the object will be set to the latest BACI version available. You can specify an
-HS classification. Note that hs_version determines how far back in time the data goes. For example, the default value
-"22" returns data from 2022 onward.
->>> baci = bbdata.BACI(
-...     data_path="my/local/folder",
-...     baci_version="latest",
-...     hs_version="22",
-... )
-
-If you would like to explore older BACI versions, the `get_versions()` method returns a dictionary with the different
-BACI versions available and their supported HS versions, as well as bool indicator to identify the latest BACI version.
->>> versions = bbdata.get_baci_versions()
-
-Get the BACI data with the `get_data()` method. The function will look for a folder of the format 'BACI_HSXX_V20XXX'
-in the specified data_path, and download if not found.
-
-You can indicate whether to include country names in the final DataFrame (defaults to True) or filter the years included
-in the data.
->>> data = baci.get_data(
-...     include_country_names=True,
-...     years=range(2022, 2024)
-... )
-
-The traded amounts are specified in columns `value` (current thousand USD) and `quantity` (metric tons).
-
-A dictionary that maps HS codes to product desriptions is available with:
->>> hs_map = baci.get_hs_map()
-
-To access metadata from a BACI object:
->>> metadata = baci.get_metadata()
-
-The data and metadata are cached to avoid loading the dataset again. Use the `clear_cache()` method to delete this
-data. You can set clear_disk = True to delete the local directory where the BACI data was saver (defaults to False).
->>> baci.clear_cache(clear_disk=True)
 """
 
-import io
 import pandas as pd
-import requests
-from pathlib import Path
-import shutil
+import os
 
-from bblocks.data_importers.config import logger, Fields
-from bblocks.data_importers.utilities import convert_dtypes
-from bblocks.data_importers.data_validators import DataFrameValidator
-from bblocks.data_importers.cepii.baci_utils import (
-    get_available_versions,
-    extract_zip,
-    rename_columns,
-    map_country_codes,
-    organise_columns,
-    combine_data,
-    save_parquet,
-    load_parquet,
-    cleanup_csvs,
-    generate_metadata,
-    validate_years,
-    verify_years,
-)
-
-BASE_URL = "https://www.cepii.fr/DATA_DOWNLOAD/baci/data"
-
-VERSIONS_DICT = get_available_versions()
-VALID_BACI_VERSIONS = VERSIONS_DICT.keys()
-
-
-def get_baci_versions() -> dict[str, dict[str, list[int] or bool]]:
-    """Returns a dictionary with the different BACI versions available and their supported HS versions, as well as
-    bool indicator to identify the latest BACI version.
-
-    Returns:
-        dict: Dictionary mapping BACI to HS versions and latest flag.
-    """
-    return VERSIONS_DICT
+from bblocks.data_importers.config import logger
+from bblocks.data_importers.cepii.extract import BaciDataManager
+from bblocks.data_importers.cepii.baci_versions import parse_baci_and_hs_versions
 
 
 class BACI:
-    """
-    Importer for the CEPII BACI international trade dataset.
+    """Importer object for the CEPII BACI international trade dataset.
 
     The BACI database provides highly detailed bilateral trade data across more than 200 countries and 5,000 products
-    classified at the 6-digit Harmonized System (HS) level. This class provides methods to download, extract, cache,
-    and structure BACI trade data, along with associated metadata and product descriptions.
-
-    Features:
-        - Download and process BACI data from the CEPII repository.
-        - Automatically detect and use the latest available BACI version.
-        - Support for multiple HS classifications.
-        - Filter datasets by year and include country names if desired.
-        - Cache formatted DataFrames and metadata to avoid redundant processing.
-        - Export mappings of HS product codes to descriptions.
-
-    Attributes:
-        _data_path (Path): Local root path where BACI data is stored.
-        _baci_version (str): Version string of the BACI release in use.
-        _hs_version (str): Selected Harmonized System code version (e.g. "22" for HS2022).
-        _data_directory (str): Folder name where BACI data is expected (e.g. 'BACI_HS22_V202501').
-        _extract_path (Path): Full path to the directory where the BACI data is extracted.
-        _include_country_names (bool): Whether to include country names in final DataFrame.
-        _data (pd.DataFrame | None): Cached BACI data.
-        _metadata (dict | None): Cached metadata extracted from the dataset's Readme.txt.
-        _loaded_years (set[int] | None): Years included in the current `_data` cache.
+    classified at the 6-digit Harmonized System (HS) level. This method allows users to easily access BACI data
+    for different HS versions and BACI versions.
 
     Usage:
 
-        # Initiate the object by specifying directory where the data will be downloaded
-        >>> baci = bbdata.BACI(data_path="my/local/folder", baci_version="latest", hs_version="22")
+    To use this import first instantiate an object:
+    >>> baci = BACI()
 
-        # To check the available BACI and HS versions, use the `get_versions()` method:
-        >>> versions = bbdata.get_baci_versions()
+    This object will give you access to all available BACI versions and their supported HS classifications.
+    To see the available versions and HS classifications, call the `get_available_versions()` method:
+    >>> versions = baci.get_available_versions()
 
-        # Get data as a DataFrame, specifying where to include country names and filtering specific years
-        # The traded amounts are specified in columns `value` (current thousand USD) and `quantity` (metric tons).
-        >>> df = baci.get_data(include_country_names=True, years=range(2022, 2024))
+    This will return a dictionary with the different BACI versions available and their supported HS versions,
+    as well as a bool indicator to identify the latest BACI version.
 
-        # Access metadata and HS code to product description map.
-        >>> metadata = baci.get_metadata()
-        >>> hs_map = baci.get_hs_map()
+    To get the data use the `get_data()` method:
+    >>> data = baci.get_data(hs_version="HS22")
 
-        # Clear cache and delete local files
-        >>> baci.clear_cache(clear_disk=True)
+    This will return a pandas DataFrame with the trade data for 2022 HS version and the latest BACI version. Different
+    HS versions can be specified such as "HS22", "HS17", ... "HS92". The data includes trade values in thousands of USD
+    and quantities in metric tons, with columns for exporter and importer countries, product codes, and years.
+    For more information about the data call the `get_metadata()` method:
+
+    >>> metadata = baci.get_metadata(hs_version="HS22")
+
+    By default, the latest BACI version is used,
+    but you can specify a specific version by passing the `baci_version` parameter:
+    >>> data = baci.get_data(hs_version="HS22", baci_version="202401b")
+
+    The data is cached to avoid unnecessary downloads. Because the BACI dataset is large, the data is cached to
+    a temporary directory as Parquet files. The cache is deleted automatically when the object is deleted or the
+    session ends. To clear the cache manually, call the `clear_cache()` method:
+
+    >>> baci.clear_cache()
+
+    You can filter the data for specific years or products using the `years` and `products` parameters:
+
+    >>> data = baci.get_data(hs_version="HS22", years=2022, products=10121)
+
+    This will return the trade data for the year 2022 and product code 10121 - "Horses: live, pure-bred
+    breeding animals".
+
+    You can also specify a list of years or products, or a range of years/products:
+
+    >>> data = baci.get_data(hs_version="HS17", years=[2020, 2022] products=[10121, 10190])
+
+    This will return the trade data for the years 2020 and 2022, and products 10121 and 10190.
+
+    >>> data = baci.get_data(hs_version="HS17", years=range(2020, 2023), products=range(10121, 10190))
+
+    This will return the trade data for the year range 2020 to 2022, and product range 10121 to 10190 (exclusive of 10190).
+    Note that this uses the python `range` function, which generates a sequence of numbers from the start
+    to the end value, so the end value is exclusive.
+
+    You can specify as a tuple of two integers the start and end values for years or products, in which case the
+    end value is inclusive:
+
+    >>> data = baci.get_data(hs_version="HS17", years=(2010, 2023), products=(10121, 10190))
+
+    This will return the trade data for the years 2010 to 2023 (inclusive) and products 10121 to 10190 (inclusive).
+
+    You can also include country and product labels in the returned DataFrame by setting the
+    `incl_country_labels` and `incl_product_labels` parameters to True:
+
+    >>> data = baci.get_data(hs_version="HS22", incl_country_labels=True, incl_product_labels=True)
+
+    This will return the trade data with additional columns for country names and ISO3 codes, and product descriptions.
+
+    You can see the available product descriptions, countries, and years for a specific HS version:
+    >>> product_descriptions = baci.get_product_descriptions(hs_version="HS22")
+    >>> available_countries = baci.get_available_countries(hs_version="HS22")
+    >>> available_years = baci.get_available_years(hs_version="HS22")
+
+    This will return a list of product descriptions, exporter and importer country codes, names and ISO codes,
+    and available years.
+
+    To save the raw data to a local directory as a zip file, use the `save_raw_data()` method:
+    >>> baci.save_raw_data(path="path/to/save/baci_data.zip", hs_version="HS22")
     """
 
-    def __init__(
-        self,
-        data_path: Path | str,
-        baci_version: str = "latest",
-        hs_version: str = "22",
-    ):
-        """Initialize a BACI importer instance.
+    def __init__(self):
 
-        Args:
-            data_path: Base path to extract downloaded data.
-            baci_version: BACI version to use (default: 'latest').
-            hs_version: HS version to use (default: '22').
-        """
+        # dictionary to hold loaded BACI data, keyed by version and HS version
+        # Each version and HS version will be injected with a BaciDataManager instance
+        self._data: dict = {}
 
-        # Validate data path
-        if data_path is None:
-            raise ValueError("`data_path` must be defined.")
+        # dictionary to hold available BACI versions and their supported HS versions
+        self._versions: dict | None = None
 
-        path = Path(data_path).resolve()
-
-        if not path.exists():
-            raise FileNotFoundError(
-                f"The path `{path}` does not exist. Please provide a valid directory."
-            )
-
-        self._data_path = path
-
-        # validate BACI version
-        if baci_version == "latest":
-            self._baci_version = next(
-                v for v, d in VERSIONS_DICT.items() if d["latest"]
-            )
-        else:
-            if baci_version not in VALID_BACI_VERSIONS:
-                raise ValueError(
-                    f"Unsupported BACI version: {baci_version}. Available versions: {list(VALID_BACI_VERSIONS) + ['latest']}"
-                )
-            else:
-                self._baci_version = baci_version
-
-        # Validate HS version
-        valid_hs_version = VERSIONS_DICT[self._baci_version]["hs"]
-        if hs_version not in valid_hs_version:
-            raise ValueError(
-                f"Invalid HS version: {hs_version}. Available versions for BACI {self._baci_version}: {valid_hs_version}"
-            )
-        else:
-            self._hs_version = hs_version
-
-        self._data_directory = f"BACI_HS{self._hs_version}_V{self._baci_version}"
-        self._extract_path = self._data_path / self._data_directory
-
-        self._include_country_names: bool = True
-
-        self._data: pd.DataFrame | None = None
-        self._metadata: dict | None = None
-        self._loaded_years: set[int] | None = None
+        # string to hold the latest BACI version
+        self._latest_version: str | None = None
 
     def __repr__(self) -> str:
         """String representation of the BACI object"""
+        loaded_versions = {}
+        if self._data:
+            for version, hs_versions in self._data.items():
+                loaded_versions[version] = list(hs_versions.keys())
+
+        latest_version_text = ""
+        if self._latest_version:
+            latest_version_text = f", latest_version={self._latest_version!r}"
+
         return (
             f"{self.__class__.__name__}("
-            f"data_path='{self._data_path}', "
-            f"baci_version='{self._baci_version}', "
-            f"hs_version='{self._hs_version}', "
-            f"include_country_names={self._include_country_names}, "
-            f"loaded_years={sorted(self._loaded_years) if self._loaded_years else None}, "
-            f"data_loaded={self._data is not None})"
+            f"loaded_versions={loaded_versions!r}"
+            f"{latest_version_text}"
             f")"
         )
 
-    def _download_zip(self) -> io.BytesIO:
-        """Download ZIP file from the BACI database."""
-        download_url = f"{BASE_URL}/{self._data_directory}.zip"
-        logger.info("Downloading BACI data. This may take a while...")
+    def get_available_versions(self):
+        """Get available BACI versions
 
-        response = requests.get(download_url)
-        response.raise_for_status()
-
-        return io.BytesIO(response.content)
-
-    def _load_country_codes(self) -> pd.DataFrame:
-        """Load the country code mapping CSV."""
-        path = self._extract_path / f"country_codes_V{self._baci_version}.csv"
-        return pd.read_csv(path)
-
-    def _format_data(self, raw_df: pd.DataFrame) -> pd.DataFrame:
-        """Orchestrates formatting of raw BACI data by 1) renaming, 2) mapping BACI country codes to ISO-3 codes and
-        country names and 3) ordering columns and dropping unnecessary ones.
-
-        Args:
-            raw_df: Raw consolidated BACI DataFrame.
-
-        Returns:
-            Formatted DataFrame.
+        This method returns a dictionary with the different BACI versions available and their supported HS versions,
+        as well as a bool indicator to identify the latest BACI version.
         """
-        country_codes_df = self._load_country_codes()
-        df = rename_columns(raw_df)
-        df = map_country_codes(df, country_codes_df, self._include_country_names)
-        df = organise_columns(df)
 
-        return convert_dtypes(df)
+        if not self._versions:
+            self._load_versions()
 
-    def _ensure_parquet_data_exists(self, force_reload: bool = False):
-        """Ensure the Parquet data directory exists; if not, download and process the raw ZIP. If the force_reload option is
-        set to True, the data will be downloaded regardless of whether it exists locally or not.
-        """
-        parquet_dir = self._extract_path / "parquet"
+        return self._versions
 
-        if (
-            not force_reload
-            and parquet_dir.exists()
-            and any(parquet_dir.rglob("*.parquet"))
-        ):
-            return parquet_dir
+    def _load_versions(self):
+        """Load available BACI versions and HS classifications."""
 
-        zip_file = self._download_zip()
-        self._extract_path.mkdir(parents=True, exist_ok=True)
-        extract_zip(zip_file, self._extract_path)
+        logger.info("Finding available BACI versions and HS classifications")
 
-        table = combine_data(self._extract_path)
-        save_parquet(table, parquet_dir)
+        self._versions = parse_baci_and_hs_versions()
 
-        cleanup_csvs(self._extract_path)
+        # set the latest version
+        for k, v in self._versions.items():
+            # if latest key in v, return v
+            if "latest" in v and v["latest"]:
+                self._latest_version = k
+                break
 
-        return parquet_dir
+    def _load_data(self, baci_version: str, hs_version: str) -> None:
+        """Load BACI data to the object"""
 
-    def _load_data(self, filter_years: set[int] | None, force_reload: bool = False):
-        """Load, format, and cache BACI data for the given filter years. The force_reload option is passed onto
-        `_ensure_parquet_data_exists()` to download new data regardless of whether it exists locally or not.
-        """
-        parquet_dir = self._ensure_parquet_data_exists(force_reload=force_reload)
-        filter_years = verify_years(parquet_dir, filter_years)
+        # load available versions if not already loaded
+        if not self._versions:
+            self._load_versions()
 
-        logger.info(f"Loading consolidated BACI dataset from {parquet_dir}")
-        raw_df = load_parquet(parquet_dir, filter_years)
+        # if the version is not set or is set to "latest", use the latest version available
+        if baci_version == "latest":
+            baci_version = self._latest_version
 
-        df = self._format_data(raw_df)
+        # check if the version and hs_version are valid
+        if baci_version not in self._versions:
+            raise ValueError(
+                f"{baci_version} is not a valid BACI version. Call `get_available_versions()` to see available versions,"
+                f" or use 'latest' to get the most recent version."
+            )
+        if hs_version not in self._versions[baci_version]["hs_versions"]:
+            raise ValueError(
+                f"{hs_version} is not a valid HS version for BACI version {baci_version}."
+                f"Available HS versions for BACI version {baci_version} are: {self._versions[baci_version]['hs_versions']}"
+            )
 
-        required_cols = [
-            Fields.year,
-            Fields.exporter_iso3_code,
-            Fields.importer_iso3_code,
-            Fields.product_code,
-            Fields.value,
-            Fields.quantity,
-        ]
+        # if data for the version and hs_version is not loaded, load it
+        if baci_version in self._data:
+            if hs_version in self._data[baci_version]:
+                return
 
-        if self._include_country_names:
-            required_cols += [Fields.exporter_name, Fields.importer_name]
+        # Create a BaciDataManager instance to handle data extraction
+        baci_data_manager = BaciDataManager(
+            version=baci_version,
+            hs_version=hs_version,
+        )
 
-        DataFrameValidator().validate(df, required_cols=required_cols)
+        # Load the data
+        baci_data_manager.load_data()
 
-        self._data = df
-        self._loaded_years = filter_years
-        logger.info("Data loaded successfully")
+        # Store the loaded data in the object
+        if baci_version not in self._data:
+            self._data[baci_version] = {hs_version: baci_data_manager}
+        else:
+            self._data[baci_version][hs_version] = baci_data_manager
 
     def get_data(
         self,
-        include_country_names: bool = True,
-        years: int | list[int] | range | set[int] | None = None,
-        force_reload: bool = False,
+        hs_version: str,
+        years: int | list[int] | range | tuple[int, int] | None = None,
+        products: int | list[int] | range | tuple[int, int] | None = None,
+        incl_country_labels: bool = False,
+        incl_product_labels: bool = False,
+        baci_version: str = "latest",
     ) -> pd.DataFrame:
         """Get the BACI data.
 
-        This method returns a DataFrame with BACI data. It uses internal caching to avoid reloading the dataset if
-        the requested parameters (`include_country_names`, `years`) match the previous call. Otherwise, it triggers
-        a reload from local or remote source.
+        This method returns a pandas DataFrame with the trade data for the specified HS version and BACI version.
+        By default, it returns the latest BACI version data. This method allows filtering by years and products,
+        and includes options to include country and product labels in the returned DataFrame.
+        The data will include trade values in thousands of USD and quantities in metric tons,
+        with columns for exporter and importer countries, product codes, and years, and optionally
+        country labels (names and ISO3 codes) and product descriptions.
 
         Args:
-            include_country_names (bool): Whether to include country names in addition to ISO-3 codes (default: True).
-            years (int | list[int] | range | set[int] | None): Year(s) to filter by. None returns all available years.
-            force_reload (bool): Force re-download and reprocessing of data (default: False).
+            hs_version: The Harmonized System version to use (e.g., "HS22", "HS17").
+            years: The year(s) to filter the data by. Defaults to None, which includes all available years.
+                This can be a single year (int), a list of years, a range (e.g., range(2010, 2023)),
+                or a tuple of two integers denoting the start and end years (inclusive).
+            products: The product code(s) to filter the data by.
+                Defaults to None, which includes all available products.
+                This can be a single product code (int), a list of product codes, a range (e.g., range(10121, 10190)),
+                or a tuple of two integers denoting the start and end product codes (inclusive).
+            incl_country_labels: Whether to include country names and ISO3 codes in the DataFrame.
+                Defaults to False.
+            incl_product_labels: Whether to include product descriptions in the DataFrame.
+                Defaults to False.
+            baci_version: The BACI version to use. Defaults to "latest".
 
         Returns:
-            pd.DataFrame: BACI trade data.
+            A pandas DataFrame containing the trade data
         """
 
-        validated_years = validate_years(years)
+        # Load the data if not already loaded
+        self._load_data(baci_version=baci_version, hs_version=hs_version)
 
-        # Determine if cache is still valid
-        config_changed = (
-            self._include_country_names != include_country_names
-            or self._loaded_years != years
+        if baci_version == "latest":
+            baci_version = self._latest_version
+
+        return self._data[baci_version][hs_version].get_data_frame(
+            years=years,
+            products=products,
+            incl_country_labels=incl_country_labels,
+            incl_product_labels=incl_product_labels,
         )
 
-        if self._data is not None and not config_changed and not force_reload:
-            return self._data
+    def get_available_years(
+        self, hs_version: str, baci_version: str = "latest"
+    ) -> list[int]:
+        """Get the available years for an HS version and BACI version.
 
-        # Commit config only if a reload is needed
-        self._include_country_names = include_country_names
-        self._load_data(filter_years=validated_years, force_reload=force_reload)
-
-        return self._data
-
-    def _extract_hs_map(self) -> dict[str, str]:
-        """Extract HS map from product_codes_HSXX_XXXX.csv if present."""
-
-        file_name = f"product_codes_HS{self._hs_version}_V{self._baci_version}.csv"
-        file_path = self._extract_path / file_name
-        parquet_path = self._extract_path / "parquet"
-
-        if not file_path.exists():
-            if parquet_path.exists():
-                raise FileNotFoundError(
-                    f"HS map file {file_name} not found in {self._extract_path}. "
-                    "You may have an incomplete local dataset.\n"
-                    f"To restore the local data, try running `get_data(force_reload=True)` or "
-                    f"`clear_cache(clean_disk=True)` followed by `get_data()`."
-                )
-            else:
-                logger.warning("BACI files not found locally.")
-                self._load_data(force_reload=True)
-
-        product_codes_df = pd.read_csv(
-            file_path,
-            dtype={"code": str},
-        )
-        product_dict = dict(
-            zip(product_codes_df["code"], product_codes_df["description"])
-        )
-
-        return product_dict
-
-    def get_hs_map(self, force_reload: bool = False) -> dict[str, str]:
-        """Get a dictionary mapping HS codes to product descriptions.
-
-        Arguments:
-            force_reload (bool): Whether to fetch new data even if it already exists locally (default: False).
+        Args:
+            hs_version: The Harmonized System version to use (e.g., "HS22", "HS17").
+            baci_version: The BACI version to use. Defaults to "latest".
 
         Returns:
-            dict: Map of HS codes to products.
+            A list of available years for the specified HS version and BACI version.
         """
 
-        if force_reload:
-            self._load_data(force_reload=force_reload)
+        # Load the data if not already loaded
+        self._load_data(baci_version=baci_version, hs_version=hs_version)
 
-        return self._extract_hs_map()
+        if baci_version == "latest":
+            baci_version = self._latest_version
 
-    def _extract_metadata(self):
-        """Extract metadata from Readme.txt if present."""
+        return self._data[baci_version][hs_version].available_years
 
-        readme_path = self._extract_path / "Readme.txt"
-        parquet_path = self._extract_path / "parquet"
+    def get_available_countries(
+        self, hs_version: str, baci_version: str = "latest"
+    ) -> pd.DataFrame:
+        """Get the available exporter and importer countries for an HS version and BACI version.
 
-        if not readme_path.exists():
-            if parquet_path.exists():
-                raise FileNotFoundError(
-                    f"Metadata file 'Readme.txt' not found in {self._extract_path}. "
-                    "You may have an incomplete local dataset.\n"
-                    f"To restore the local data, try running `get_data(force_reload=True)` or "
-                    f"`clear_cache(clean_disk=True)` followed by `get_data()`."
-                )
-            else:
-                logger.warning("BACI files not found locally.")
-                self._load_data(force_reload=True)
-
-        self._metadata = generate_metadata(readme_path)
-
-    def get_metadata(self, force_reload: bool = False) -> dict:
-        """Get the BACI metadata
-
-        Returns a dictionary with BACI metadata including version, release data, weblink, and more.
-
-        Arguments:
-            force_reload (bool): Whether to fetch new data even if it already exists locally. (default: False).
+        Args:
+            hs_version: The Harmonized System version to use (e.g., "HS22", "HS17").
+            baci_version: The BACI version to use. Defaults to "latest".
 
         Returns:
-            dict: BACI metadata.
+            A pandas DataFrame containing the available exporter and importer countries,
+            with columns for country codes, names, and ISO codes.
         """
 
-        if force_reload:
-            self.load_data(force_reload=force_reload)
+        # Load the data if not already loaded
+        self._load_data(baci_version=baci_version, hs_version=hs_version)
 
-        if self._metadata is None:
-            self._extract_metadata()
+        if baci_version == "latest":
+            baci_version = self._latest_version
 
-        return self._metadata
+        return self._data[baci_version][hs_version].country_codes
 
-    def clear_cache(self, clear_disk: bool = False):
-        """Clear cached data in the object, and optionally clear the cached data in disk.
+    def save_raw_data(
+        self,
+        path: str | os.PathLike,
+        hs_version: str,
+        baci_version: str = "latest",
+        override: bool = False,
+    ) -> None:
+        """Save the raw data to disk as a zip file for a specific HS version and BACI version.
 
-        This method will clear any data cached in the object including metadata. The BACI importer will also cache data
-        to disk. By default, the cache in disk is not cleared. To clear cached data in disk set `clear_disk = True`.
-
-        Arguments:
-             clear_disk (bool): Whether to delete local data directory (default: False).
+        Args:
+            path: The path to save the raw data to. This should be a valid file path where the zip file will be saved,
+                and a file name with a .zip extension.
+            hs_version: The Harmonized System version to use (e.g., "HS22", "HS17").
+            baci_version: The BACI version to use. Defaults to "latest".
+            override: Whether to override the existing file if it already exists. Defaults to False.
         """
 
-        self._data = None
-        self._metadata = None
+        # Load the data if not already loaded
+        self._load_data(baci_version=baci_version, hs_version=hs_version)
 
-        if clear_disk and self._extract_path.exists():
-            shutil.rmtree(self._extract_path)
-            logger.info(
-                f"Object cache cleared and local BACI directory deleted: {self._extract_path}"
-            )
-        else:
-            logger.info(
-                f"Object cache cleared. Local BACI directory still available at: {self._extract_path}"
-            )
+        if baci_version == "latest":
+            baci_version = self._latest_version
+
+        # Save the raw data to a local directory
+        self._data[baci_version][hs_version].save_zip_file(path=path, override=override)
+
+    def get_metadata(self, hs_version: str, baci_version: str = "latest") -> dict:
+        """Get the metadata for a specific HS version and BACI version.
+
+        Args:
+            hs_version: The Harmonized System version to use (e.g., "HS22", "HS17").
+            baci_version: The BACI version to use. Defaults to "latest".
+
+        Returns:
+            A dictionary containing metadata for the specified HS version and BACI version
+        """
+
+        # Load the data if not already loaded
+        self._load_data(baci_version=baci_version, hs_version=hs_version)
+
+        if baci_version == "latest":
+            baci_version = self._latest_version
+
+        return self._data[baci_version][hs_version].metadata
+
+    def get_product_descriptions(
+        self, hs_version: str, baci_version: str = "latest"
+    ) -> pd.DataFrame:
+        """Get the product descriptions for a specific HS version and BACI version.
+
+        Args:
+            hs_version: The Harmonized System version to use (e.g., "HS22", "HS17").
+            baci_version: The BACI version to use. Defaults to "latest".
+
+        Returns:
+            A pandas DataFrame containing the product codes and their descriptions.
+        """
+
+        # Load the data if not already loaded
+        self._load_data(baci_version=baci_version, hs_version=hs_version)
+
+        if baci_version == "latest":
+            baci_version = self._latest_version
+
+        return self._data[baci_version][hs_version].product_codes
+
+    def clear_cache(self) -> None:
+        """Clear cached data"""
+
+        self._data = {}
+        self._versions = None
+        self._latest_version = None
+        logger.info("Cache cleared.")
