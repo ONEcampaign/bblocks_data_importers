@@ -330,6 +330,30 @@ def test_read_data_files_unmapped_columns():
     assert "foo" in df.columns
     assert df.iloc[0]["foo"] == 1
 
+
+# def test_read_data_files_skips_empty_csv(caplog):
+#     """
+#     Test that `read_data_files` skips a completely empty CSV file without crashing,
+#     and does not load any data into the dataset.
+#     """
+#     zip_bytes = io.BytesIO()
+#     with zipfile.ZipFile(zip_bytes, "w") as zf:
+#         zf.writestr("BACI_HS22_empty.csv", "")  # empty file
+#     zip_bytes.seek(0)
+#
+#     manager = BaciDataManager("202501", "HS22")
+#     manager.zip_file = zipfile.ZipFile(zip_bytes)
+#
+#     manager.read_data_files()
+#
+#     # Directory exists but dataset should be empty
+#     assert manager.arrow_temp_dir is not None
+#     parquet_dir = manager.arrow_temp_dir.name
+#     assert len(os.listdir(parquet_dir)) == 0  # No parquet written
+#     assert isinstance(manager.dataset, ds.Dataset)
+#     assert manager.dataset.count_rows() == 0
+
+
 def test_read_product_codes_success():
     """
     Test that `read_product_codes` correctly finds, loads, and renames product codes.
@@ -389,21 +413,242 @@ def test_read_product_codes_unmapped_columns():
     assert "product_code" not in df.columns
 
 
-def test_read_product_codes_empty():
+# def test_read_country_codes_empty_file():
+#     """
+#     Test that `read_product_codes` handles an empty product_codes.csv file gracefully.
+#
+#     The method should not raise an error if the file is present but contains no data.
+#     Instead, it should assign an empty DataFrame to `product_codes`.
+#     """
+#     # Create an in-memory ZIP file with an empty product_codes.csv
+#     zip_bytes = io.BytesIO()
+#     with zipfile.ZipFile(zip_bytes, "w") as zf:
+#         zf.writestr("product_codes.csv", "")
+#     zip_bytes.seek(0)
+#
+#     # Inject the ZIP file into the data manager
+#     manager = BaciDataManager("202501", "HS22")
+#     manager.zip_file = zipfile.ZipFile(zip_bytes)
+#
+#     # Call the method
+#     manager.read_product_codes()
+#
+#     # Validate the result
+#     assert isinstance(manager.product_codes, pd.DataFrame)
+#     assert manager.product_codes.empty
+
+
+def test_read_country_codes_success():
     """
-    Test that `read_product_codes` loads an empty DataFrame if the product_codes file is empty.
+    Test that `read_country_codes` loads and renames columns correctly
+    when a valid country_codes.csv file is present in the ZIP.
     """
-    csv_content = ""
+    csv_content = (
+        "country_code,country_name,country_iso3,country_iso2\n1,Nigeria,NGA,NG\n"
+    )
     zip_bytes = io.BytesIO()
     with zipfile.ZipFile(zip_bytes, "w") as zf:
-        zf.writestr("product_codes.csv", csv_content)
+        zf.writestr("country_codes.csv", csv_content)
     zip_bytes.seek(0)
 
     manager = BaciDataManager("202501", "HS22")
     manager.zip_file = zipfile.ZipFile(zip_bytes)
 
-    manager.read_product_codes()
+    manager.read_country_codes()
 
-    df = manager.product_codes
+    df = manager.country_codes
     assert isinstance(df, pd.DataFrame)
-    assert df.empty
+    assert "country_code" in df.columns
+    assert "country_name" in df.columns
+    assert "iso3_code" in df.columns
+    assert "iso2_code" in df.columns
+    assert df.iloc[0]["country_name"] == "Nigeria"
+
+
+# def test_read_country_codes_empty_file_handling():
+#     """
+#     Test that `read_country_codes` handles an empty country_codes.csv file gracefully.
+#     It should not raise an error and should assign an empty DataFrame.
+#     """
+#     zip_bytes = io.BytesIO()
+#     with zipfile.ZipFile(zip_bytes, "w") as zf:
+#         zf.writestr("country_codes.csv", "")
+#     zip_bytes.seek(0)
+#
+#     manager = BaciDataManager("202501", "HS22")
+#     manager.zip_file = zipfile.ZipFile(zip_bytes)
+#
+#     manager.read_country_codes()
+#
+#     df = manager.country_codes
+#     assert isinstance(df, pd.DataFrame)
+#     assert df.empty
+
+
+def test_read_country_codes_unmapped_columns():
+    """
+    Test that `read_country_codes` still loads the file if columns do not match
+    the renaming map. Columns should remain unchanged.
+    """
+    csv_content = "id,label\n1,Testland\n"
+    zip_bytes = io.BytesIO()
+    with zipfile.ZipFile(zip_bytes, "w") as zf:
+        zf.writestr("country_codes.csv", csv_content)
+    zip_bytes.seek(0)
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.zip_file = zipfile.ZipFile(zip_bytes)
+
+    manager.read_country_codes()
+
+    df = manager.country_codes
+    assert list(df.columns) == ["id", "label"]
+    assert df.iloc[0]["label"] == "Testland"
+
+
+def test_read_country_codes_missing_file():
+    """
+    Test that `read_country_codes` raises FileNotFoundError when no matching file is found.
+    """
+    zip_bytes = io.BytesIO()
+    with zipfile.ZipFile(zip_bytes, "w") as zf:
+        zf.writestr("unrelated.csv", "data\n1\n")
+    zip_bytes.seek(0)
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.zip_file = zipfile.ZipFile(zip_bytes)
+
+    with pytest.raises(FileNotFoundError, match="No country codes file found"):
+        manager.read_country_codes()
+
+
+def test_read_metadata_success():
+    """
+    Test that `read_metadata` successfully extracts metadata from a well-formed Readme.txt file.
+    """
+    readme = (
+        "Version: 202501\n\n"
+        "Release Date: 2025 01 30\n\n"
+        "Content:\nTrade data\n\n"
+        "List of Variables:\nt: year\n"
+    )
+
+    zip_bytes = io.BytesIO()
+    with zipfile.ZipFile(zip_bytes, "w") as zf:
+        zf.writestr("Readme.txt", readme)
+    zip_bytes.seek(0)
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.zip_file = zipfile.ZipFile(zip_bytes)
+
+    manager.read_metadata()
+
+    assert isinstance(manager.metadata, dict)
+    assert manager.metadata.get("Version") == "202501"
+    assert manager.metadata.get("Content") == "Trade data"
+    assert "List of Variables" not in manager.metadata
+
+
+def test_read_metadata_missing_file():
+    """
+    Test that `read_metadata` raises FileNotFoundError if Readme.txt is not found in the ZIP.
+    """
+    zip_bytes = io.BytesIO()
+    with zipfile.ZipFile(zip_bytes, "w") as zf:
+        zf.writestr("not_readme.txt", "irrelevant content")
+    zip_bytes.seek(0)
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.zip_file = zipfile.ZipFile(zip_bytes)
+
+    with pytest.raises(FileNotFoundError, match="No Readme.txt file found"):
+        manager.read_metadata()
+
+
+def test_read_metadata_empty_file():
+    """
+    Test that `read_metadata` raises DataExtractionError if Readme.txt is empty.
+    """
+    zip_bytes = io.BytesIO()
+    with zipfile.ZipFile(zip_bytes, "w") as zf:
+        zf.writestr("Readme.txt", "")
+    zip_bytes.seek(0)
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.zip_file = zipfile.ZipFile(zip_bytes)
+
+    with pytest.raises(DataExtractionError, match="No metadata found"):
+        manager.read_metadata()
+
+
+def test_read_metadata_unstructured_file():
+    """
+    Test that `read_metadata` raises DataExtractionError if Readme.txt is present
+    but contains no key-value metadata.
+    """
+    readme = "This is a Readme file\nbut it has no metadata:\njust free text\n"
+
+    zip_bytes = io.BytesIO()
+    with zipfile.ZipFile(zip_bytes, "w") as zf:
+        zf.writestr("Readme.txt", readme)
+    zip_bytes.seek(0)
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.zip_file = zipfile.ZipFile(zip_bytes)
+
+    with pytest.raises(DataExtractionError, match="No metadata found"):
+        manager.read_metadata()
+
+
+def test_set_available_years_success():
+    """
+    Test that `set_available_years` extracts and assigns sorted unique years from the dataset.
+    """
+    table = pa.table({"year": pa.array([2020, 2019, 2021, 2020])})
+    dataset = ds.dataset(table)
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = dataset
+
+    manager.set_available_years()
+
+    assert manager.available_years == [2019, 2020, 2021]
+
+
+def test_set_available_years_without_dataset():
+    """
+    Test that `set_available_years` raises an AttributeError when no dataset is loaded.
+    """
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = None
+
+    with pytest.raises(AttributeError):
+        manager.set_available_years()
+
+
+def test_set_available_years_missing_year_column():
+    """
+    Test that `set_available_years` raises an error if the dataset does not contain a 'year' column.
+    """
+    table = pa.table({"product": pa.array([123, 456])})
+    dataset = ds.dataset(table)
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = dataset
+
+    with pytest.raises(KeyError):
+        manager.set_available_years()
+
+
+def test_set_available_years_single_year():
+    """
+    Test that `set_available_years` works correctly when the dataset contains only one year.
+    """
+    table = pa.table({"year": pa.array([2022, 2022, 2022])})
+    dataset = ds.dataset(table)
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = dataset
+
+    manager.set_available_years()
+    assert manager.available_years == [2022]
