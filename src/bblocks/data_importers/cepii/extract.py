@@ -311,7 +311,13 @@ class BaciDataManager:
 
         for file in self._list_data_files():
             with self.zip_file.open(file) as f:
-                table = pv.read_csv(f)
+                # Read CSV file into a PyArrow table and handle empty data files
+                try:
+                    table = pv.read_csv(f)
+                except pa.ArrowInvalid:
+                    logger.warning(f"Skipping empty data file: {file}")
+                    continue
+                    
                 table = rename_data_columns(table)
 
                 output_file = parquet_dir / f"{Path(file).stem}.parquet"
@@ -322,8 +328,6 @@ class BaciDataManager:
 
     def read_product_codes(self):
         """Read product codes from the ZIP file."""
-
-        # Find the product codes file in the ZIP archive
         product_code_file = next(
             (f for f in self.zip_file.namelist() if f.startswith("product_codes")), None
         )
@@ -331,8 +335,12 @@ class BaciDataManager:
         if not product_code_file:
             raise FileNotFoundError("No product codes file found in the ZIP file.")
 
-        # Read the product codes CSV file into a DataFrame
-        products = pd.read_csv(self.zip_file.open(product_code_file))
+        # Read the product codes CSV file into a DataFrame and handle empty data
+        try:
+            products = pd.read_csv(self.zip_file.open(product_code_file))
+        except pd.errors.EmptyDataError:
+            products = pd.DataFrame()
+
         products = rename_product_columns(products)
         self.product_codes = products
 
@@ -347,10 +355,15 @@ class BaciDataManager:
         if not country_codes_file:
             raise FileNotFoundError("No country codes file found in the ZIP file.")
 
-        # Read the country codes CSV file into a DataFrame
-        country_codes = pd.read_csv(self.zip_file.open(country_codes_file))
+        # Read the country codes CSV file into a DataFrame and handle empty data
+        try:
+            country_codes = pd.read_csv(self.zip_file.open(country_codes_file))
+        except pd.errors.EmptyDataError:
+            country_codes = pd.DataFrame()
+
         country_codes = rename_country_columns(country_codes)
         self.country_codes = country_codes
+
 
     def read_metadata(self) -> None:
         """Read metadata from the Readme.txt file in the ZIP archive."""
