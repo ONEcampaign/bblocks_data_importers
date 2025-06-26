@@ -22,7 +22,7 @@ WHO—has its own dedicated importer class with a consistent interface.
 
 Let’s walk through a basic example using the [World Economic Outlook (WEO)](https://www.imf.org/en/Publications/WEO) importer.
 
-### Step 1. Know the data you need
+### Step 1: Know the data you need
 
 Before using an importer, it’s helpful to know what the dataset contains and where it comes from.
 In this case, the World Economic Outlook (WEO) is a flagship publication from the International Monetary Fund (IMF), 
@@ -51,7 +51,7 @@ weo = WEO()
 ```
 
 At this stage, no data is downloaded yet. Importers are designed to load data lazily, meaning the dataset is only 
-fetched when you explicitly request it—typically using .get_data().
+fetched when you explicitly request it—typically using `.get_data()`.
 This avoids unnecessary memory usage and ensures your code runs efficiently, especially when working 
 with large or multiple datasets.
 
