@@ -13,3 +13,4 @@ nav:
         - UNAIDS: importers/unaids.md
         - Human Development Report: importers/hdr.md
         - World Food Programme: importers/wfp.md
+    - Changelog: changelog.md

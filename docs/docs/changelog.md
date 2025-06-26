@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.0.0 (in development)
+- Stable release of the `bblocks-data-importers` package
+
+## v0.5.0 (in development)
+- Refactor of World Bank importers
+- New data importer:
+  - `BACI` to access BACI harmonized international trade data
+
+## v0.4.0 (2025-06-26) (latest version)
+- Refactor of the package as a namespace package in the `bblocks` namespace
+
 ## v0.3.0 (7/4/2025)
 - New data importer - `HumanDevelopmentIndex` for UNDP Human Development Index data
 
