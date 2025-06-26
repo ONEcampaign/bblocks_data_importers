@@ -1299,7 +1299,19 @@ PyYAML = "*"
 requests = "*"
 tabulate = "*"
 
+[[package]]
+name = "xlsxwriter"
+version = "3.2.5"
+description = "A Python module for creating Excel XLSX files."
+optional = false
+python-versions = ">=3.8"
+groups = ["dev"]
+files = [
+    {file = "xlsxwriter-3.2.5-py3-none-any.whl", hash = "sha256:4f4824234e1eaf9d95df9a8fe974585ff91d0f5e3d3f12ace5b71e443c1c6abd"},
+    {file = "xlsxwriter-3.2.5.tar.gz", hash = "sha256:7e88469d607cdc920151c0ab3ce9cf1a83992d4b7bc730c5ffdd1a12115a7dbe"},
+]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "7ca3ba50d612dafa19a3eae6117693a7f4ce81717b20547182481e1bc09bd23d"
+content-hash = "80b4b2b6512c1c644bbccb129156f2e2a4e182f9ee09fb2cdd4afd4c648a9313"
