@@ -137,10 +137,11 @@ def parse_readme(readme_content: str) -> dict:
         if ":" in lines[0]:
             key, first_value_line = lines[0].split(":", 1)
             key = key.strip()
-            value_lines = [first_value_line.strip()] + [
-                line.strip() for line in lines[1:]
-            ]
-            metadata[key] = " ".join(value_lines)
+            # Strip each line individually and join with space
+            value_lines = [first_value_line] + lines[1:]
+            value = " ".join(line.strip() for line in value_lines).strip()
+            metadata[key] = value
+
 
     return metadata
 
