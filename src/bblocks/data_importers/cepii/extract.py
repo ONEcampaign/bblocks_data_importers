@@ -142,7 +142,6 @@ def parse_readme(readme_content: str) -> dict:
             value = " ".join(line.strip() for line in value_lines).strip()
             metadata[key] = value
 
-
     return metadata
 
 
