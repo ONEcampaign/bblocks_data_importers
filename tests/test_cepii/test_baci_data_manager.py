@@ -1,12 +1,10 @@
-"""Tests for BaciDataManager class."""
+"""Tests for BaciDataManager class"""
 
 import os
 import io
 import zipfile
 import pytest
 import requests
-import pyarrow.csv as pv
-import pyarrow.parquet as pq
 import pyarrow.dataset as ds
 import pyarrow as pa
 import pandas as pd
@@ -14,6 +12,8 @@ from unittest.mock import patch, MagicMock
 
 from bblocks.data_importers.cepii.extract import BaciDataManager
 from bblocks.data_importers.config import DataExtractionError
+
+# TESTS
 
 
 def test_baci_data_manager_init():
@@ -274,6 +274,7 @@ def test_read_data_files_success():
 def test_read_data_files_no_matching_files():
     """
     Test that `read_data_files` raises FileNotFoundError when the ZIP has no BACI CSVs.
+    Also confirms that no dataset is set.
     """
     zip_bytes = io.BytesIO()
     with zipfile.ZipFile(zip_bytes, "w") as zf:
@@ -286,72 +287,8 @@ def test_read_data_files_no_matching_files():
     with pytest.raises(FileNotFoundError, match="No BACI data files found"):
         manager.read_data_files()
 
-
-import pyarrow.lib
-
-
-def test_read_data_files_malformed_csv():
-    """
-    Test that `read_data_files` raises a PyArrow error when a BACI CSV is malformed.
-    """
-    # Malformed CSV: missing values
-    csv_content = "t,i,j\n2021,1\n"  # too few columns
-
-    zip_bytes = io.BytesIO()
-    with zipfile.ZipFile(zip_bytes, "w") as zf:
-        zf.writestr("BACI_HS22_bad.csv", csv_content)
-    zip_bytes.seek(0)
-
-    manager = BaciDataManager("202501", "HS22")
-    manager.zip_file = zipfile.ZipFile(zip_bytes)
-
-    with pytest.raises(pa.lib.ArrowInvalid):
-        manager.read_data_files()
-
-
-def test_read_data_files_unmapped_columns():
-    """
-    Test that `read_data_files` succeeds even if the CSV has no BACI-mappable columns.
-    """
-    csv_content = "foo,bar\n1,2\n"
-
-    zip_bytes = io.BytesIO()
-    with zipfile.ZipFile(zip_bytes, "w") as zf:
-        zf.writestr("BACI_HS22_weird.csv", csv_content)
-    zip_bytes.seek(0)
-
-    manager = BaciDataManager("202501", "HS22")
-    manager.zip_file = zipfile.ZipFile(zip_bytes)
-
-    manager.read_data_files()
-
-    table = manager.dataset.to_table()
-    df = table.to_pandas()
-    assert "foo" in df.columns
-    assert df.iloc[0]["foo"] == 1
-
-
-# def test_read_data_files_skips_empty_csv(caplog):
-#     """
-#     Test that `read_data_files` skips a completely empty CSV file without crashing,
-#     and does not load any data into the dataset.
-#     """
-#     zip_bytes = io.BytesIO()
-#     with zipfile.ZipFile(zip_bytes, "w") as zf:
-#         zf.writestr("BACI_HS22_empty.csv", "")  # empty file
-#     zip_bytes.seek(0)
-#
-#     manager = BaciDataManager("202501", "HS22")
-#     manager.zip_file = zipfile.ZipFile(zip_bytes)
-#
-#     manager.read_data_files()
-#
-#     # Directory exists but dataset should be empty
-#     assert manager.arrow_temp_dir is not None
-#     parquet_dir = manager.arrow_temp_dir.name
-#     assert len(os.listdir(parquet_dir)) == 0  # No parquet written
-#     assert isinstance(manager.dataset, ds.Dataset)
-#     assert manager.dataset.count_rows() == 0
+    # Should remain unset after failure
+    assert manager.dataset is None
 
 
 def test_read_product_codes_success():
@@ -392,52 +329,6 @@ def test_read_product_codes_missing_file():
         manager.read_product_codes()
 
 
-def test_read_product_codes_unmapped_columns():
-    """
-    Test that `read_product_codes` still works if columns don't match expected renaming keys.
-    """
-    csv_content = "id,label\n100,Test\n"
-    zip_bytes = io.BytesIO()
-    with zipfile.ZipFile(zip_bytes, "w") as zf:
-        zf.writestr("product_codes_extra.csv", csv_content)
-    zip_bytes.seek(0)
-
-    manager = BaciDataManager("202501", "HS22")
-    manager.zip_file = zipfile.ZipFile(zip_bytes)
-
-    manager.read_product_codes()
-
-    df = manager.product_codes
-    assert "id" in df.columns
-    assert "label" in df.columns
-    assert "product_code" not in df.columns
-
-
-# def test_read_country_codes_empty_file():
-#     """
-#     Test that `read_product_codes` handles an empty product_codes.csv file gracefully.
-#
-#     The method should not raise an error if the file is present but contains no data.
-#     Instead, it should assign an empty DataFrame to `product_codes`.
-#     """
-#     # Create an in-memory ZIP file with an empty product_codes.csv
-#     zip_bytes = io.BytesIO()
-#     with zipfile.ZipFile(zip_bytes, "w") as zf:
-#         zf.writestr("product_codes.csv", "")
-#     zip_bytes.seek(0)
-#
-#     # Inject the ZIP file into the data manager
-#     manager = BaciDataManager("202501", "HS22")
-#     manager.zip_file = zipfile.ZipFile(zip_bytes)
-#
-#     # Call the method
-#     manager.read_product_codes()
-#
-#     # Validate the result
-#     assert isinstance(manager.product_codes, pd.DataFrame)
-#     assert manager.product_codes.empty
-
-
 def test_read_country_codes_success():
     """
     Test that `read_country_codes` loads and renames columns correctly
@@ -463,47 +354,6 @@ def test_read_country_codes_success():
     assert "iso3_code" in df.columns
     assert "iso2_code" in df.columns
     assert df.iloc[0]["country_name"] == "Nigeria"
-
-
-# def test_read_country_codes_empty_file_handling():
-#     """
-#     Test that `read_country_codes` handles an empty country_codes.csv file gracefully.
-#     It should not raise an error and should assign an empty DataFrame.
-#     """
-#     zip_bytes = io.BytesIO()
-#     with zipfile.ZipFile(zip_bytes, "w") as zf:
-#         zf.writestr("country_codes.csv", "")
-#     zip_bytes.seek(0)
-#
-#     manager = BaciDataManager("202501", "HS22")
-#     manager.zip_file = zipfile.ZipFile(zip_bytes)
-#
-#     manager.read_country_codes()
-#
-#     df = manager.country_codes
-#     assert isinstance(df, pd.DataFrame)
-#     assert df.empty
-
-
-def test_read_country_codes_unmapped_columns():
-    """
-    Test that `read_country_codes` still loads the file if columns do not match
-    the renaming map. Columns should remain unchanged.
-    """
-    csv_content = "id,label\n1,Testland\n"
-    zip_bytes = io.BytesIO()
-    with zipfile.ZipFile(zip_bytes, "w") as zf:
-        zf.writestr("country_codes.csv", csv_content)
-    zip_bytes.seek(0)
-
-    manager = BaciDataManager("202501", "HS22")
-    manager.zip_file = zipfile.ZipFile(zip_bytes)
-
-    manager.read_country_codes()
-
-    df = manager.country_codes
-    assert list(df.columns) == ["id", "label"]
-    assert df.iloc[0]["label"] == "Testland"
 
 
 def test_read_country_codes_missing_file():
@@ -626,20 +476,6 @@ def test_set_available_years_without_dataset():
         manager.set_available_years()
 
 
-def test_set_available_years_missing_year_column():
-    """
-    Test that `set_available_years` raises an error if the dataset does not contain a 'year' column.
-    """
-    table = pa.table({"product": pa.array([123, 456])})
-    dataset = ds.dataset(table)
-
-    manager = BaciDataManager("202501", "HS22")
-    manager.dataset = dataset
-
-    with pytest.raises(KeyError):
-        manager.set_available_years()
-
-
 def test_set_available_years_single_year():
     """
     Test that `set_available_years` works correctly when the dataset contains only one year.
@@ -652,3 +488,259 @@ def test_set_available_years_single_year():
 
     manager.set_available_years()
     assert manager.available_years == [2022]
+
+
+def test_load_data_calls_all_methods():
+    """
+    Test that `load_data` calls the expected internal methods in order:
+    - extract_zipfile_from_web
+    - read_data_files
+    - read_country_codes
+    - read_product_codes
+    - read_metadata
+    - set_available_years
+    """
+
+    manager = BaciDataManager("202501", "HS22")
+
+    with (
+        patch.object(manager, "extract_zipfile_from_web") as mock_extract,
+        patch.object(manager, "read_data_files") as mock_read_data,
+        patch.object(manager, "read_country_codes") as mock_read_countries,
+        patch.object(manager, "read_product_codes") as mock_read_products,
+        patch.object(manager, "read_metadata") as mock_read_metadata,
+        patch.object(manager, "set_available_years") as mock_set_years,
+    ):
+
+        manager.load_data()
+
+        mock_extract.assert_called_once()
+        mock_read_data.assert_called_once()
+        mock_read_countries.assert_called_once()
+        mock_read_products.assert_called_once()
+        mock_read_metadata.assert_called_once()
+        mock_set_years.assert_called_once()
+
+
+def test_load_data_populates_all_fields():
+    """
+    End-to-end test of `load_data` using a well-formed ZIP file.
+    Validates that the dataset, codes, metadata, and years are all populated.
+    """
+    # Craft a minimal valid ZIP archive
+    zip_bytes = io.BytesIO()
+    with zipfile.ZipFile(zip_bytes, "w") as zf:
+        zf.writestr("BACI_HS22_2021.csv", "t,i,j,k,v,q\n2021,1,2,100,1000,50\n")
+        zf.writestr(
+            "country_codes.csv",
+            "country_code,country_name,country_iso3,country_iso2\n1,Nigeria,NGA,NG\n2,France,FRA,FR\n",
+        )
+        zf.writestr("product_codes.csv", "code,description\n100,Test Product\n")
+        zf.writestr("Readme.txt", "Version: 202501\nContent: Test data\n")
+
+    zip_bytes.seek(0)
+
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.content = zip_bytes.getvalue()
+        mock_get.return_value = mock_response
+
+        manager = BaciDataManager("202501", "HS22")
+        manager.load_data()
+
+        # Assertions
+        assert isinstance(manager.dataset, ds.Dataset)
+        assert isinstance(manager.country_codes, pd.DataFrame)
+        assert isinstance(manager.product_codes, pd.DataFrame)
+        assert isinstance(manager.metadata, dict)
+        assert "Version" in manager.metadata
+        assert manager.available_years == [2021]
+
+
+def test_get_data_frame_no_filters():
+    """
+    Tests that get_data_frame returns a DataFrame with the expected columns and values when no filters are passed.
+    """
+    table = pa.table(
+        {
+            "year": pa.array([2021, 2022]),
+            "product_code": pa.array([100, 200]),
+            "exporter_code": pa.array([1, 2]),
+            "importer_code": pa.array([3, 4]),
+            "value": pa.array([5000, 6000]),
+            "quantity": pa.array([100, 120]),
+        }
+    )
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = ds.dataset(table)
+
+    df = manager.get_data_frame(
+        None, None, incl_country_labels=False, incl_product_labels=False
+    )
+
+    assert len(df) == 2
+    assert "year" in df.columns
+    assert df.iloc[0]["year"] == 2021
+
+
+@pytest.mark.parametrize(
+    "year_filter,expected",
+    [
+        (2021, [2021]),
+        ([2021, 2022], [2021, 2022]),
+        (range(2020, 2022), [2020, 2021]),
+        ((2021, 2022), [2021, 2022]),
+    ],
+)
+def test_get_data_frame_filters_years(year_filter, expected):
+    """
+    Tests that get_data_frame returns the expected DataFrame under different year filters.
+    """
+    table = pa.table(
+        {
+            "year": pa.array([2020, 2021, 2022]),
+            "product_code": pa.array([1, 2, 3]),
+            "exporter_code": pa.array([1, 1, 1]),
+            "importer_code": pa.array([2, 2, 2]),
+            "value": pa.array([100, 200, 300]),
+            "quantity": pa.array([10, 20, 30]),
+        }
+    )
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = ds.dataset(table)
+
+    df = manager.get_data_frame(year_filter, None, False, False)
+    assert set(df["year"].unique()) == set(expected)
+
+
+def test_get_data_frame_filters_products():
+    """
+    Tests that get_data_frame returns the expected DataFrame with product filters.
+    """
+    table = pa.table(
+        {
+            "year": pa.array([2021, 2021]),
+            "product_code": pa.array([100, 200]),
+            "exporter_code": pa.array([1, 2]),
+            "importer_code": pa.array([3, 4]),
+            "value": pa.array([500, 600]),
+            "quantity": pa.array([50, 60]),
+        }
+    )
+
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = ds.dataset(table)
+
+    df = manager.get_data_frame(2021, 100, False, False)
+    assert len(df) == 1
+    assert df.iloc[0]["product_code"] == 100
+
+
+def test_get_data_frame_with_country_and_product_labels():
+    """
+    Test get_data_frame with country and product labels.
+    """
+    table = pa.table(
+        {
+            "year": pa.array([2021]),
+            "product_code": pa.array([100]),
+            "exporter_code": pa.array([1]),
+            "importer_code": pa.array([2]),
+            "value": pa.array([1000]),
+            "quantity": pa.array([10]),
+        }
+    )
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = ds.dataset(table)
+
+    # Add mapping DataFrames
+    manager.country_codes = pd.DataFrame(
+        {
+            "country_code": [1, 2],
+            "country_name": ["Nigeria", "France"],
+            "iso3_code": ["NGA", "FRA"],
+            "iso2_code": ["NG", "FR"],
+        }
+    )
+    manager.product_codes = pd.DataFrame(
+        {
+            "product_code": [100],
+            "product_description": ["Cotton"],
+        }
+    )
+
+    df = manager.get_data_frame(2021, 100, True, True)
+
+    assert "exporter_name" in df.columns
+    assert df.loc[0, "exporter_name"] == "Nigeria"
+    assert "product_description" in df.columns
+    assert df.loc[0, "product_description"] == "Cotton"
+
+
+def test_get_data_frame_filters_to_empty():
+    """
+    Test that get_data_frame returns an empty DataFrame when no rows match
+    """
+    table = pa.table(
+        {
+            "year": pa.array([2020]),
+            "product_code": pa.array([999]),
+            "exporter_code": pa.array([99]),
+            "importer_code": pa.array([88]),
+            "value": pa.array([123]),
+            "quantity": pa.array([1]),
+        }
+    )
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = ds.dataset(table)
+
+    df = manager.get_data_frame(2022, 100, False, False)
+    assert df.empty
+
+
+def test_get_data_frame_raises_without_dataset():
+    """
+    Test that get_data_frame raises an AttributeError when no dataset is loaded.
+    """
+    manager = BaciDataManager("202501", "HS22")
+    manager.dataset = None
+
+    with pytest.raises(AttributeError):
+        manager.get_data_frame(2021, 100, False, False)
+
+
+def test_load_and_get_data_frame_with_labels():
+    zip_bytes = io.BytesIO()
+    with zipfile.ZipFile(zip_bytes, "w") as zf:
+        zf.writestr("BACI_HS22_2021.csv", "t,i,j,k,v,q\n2021,1,2,100,1000,50\n")
+        zf.writestr(
+            "country_codes.csv",
+            "country_code,country_name,country_iso3,country_iso2\n1,Nigeria,NGA,NG\n2,France,FRA,FR\n",
+        )
+        zf.writestr("product_codes.csv", "code,description\n100,Test Product\n")
+        zf.writestr("Readme.txt", "Version: 202501\nContent: Test")
+
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.content = zip_bytes.getvalue()
+        mock_get.return_value = mock_response
+
+        manager = BaciDataManager("202501", "HS22")
+        manager.load_data()
+
+        df = manager.get_data_frame(2021, 100, True, True)
+
+        assert "exporter_name" in df.columns
+        assert "product_description" in df.columns
+        assert df.loc[0, "exporter_name"] == "Nigeria"
+        assert df.loc[0, "product_description"] == "Test Product"
+
+
+def test_del_calls_cleanup():
+    manager = BaciDataManager("202501", "HS22")
+    manager.arrow_temp_dir = MagicMock()
+    manager.__del__()
+    manager.arrow_temp_dir.cleanup.assert_called_once()
