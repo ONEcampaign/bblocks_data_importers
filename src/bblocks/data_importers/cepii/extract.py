@@ -142,7 +142,6 @@ def parse_readme(readme_content: str) -> dict:
             value = " ".join(line.strip() for line in value_lines).strip()
             metadata[key] = value
 
-
     return metadata
 
 
@@ -317,7 +316,7 @@ class BaciDataManager:
                 except pa.ArrowInvalid:
                     logger.warning(f"Skipping empty data file: {file}")
                     continue
-                    
+
                 table = rename_data_columns(table)
 
                 output_file = parquet_dir / f"{Path(file).stem}.parquet"
@@ -363,7 +362,6 @@ class BaciDataManager:
 
         country_codes = rename_country_columns(country_codes)
         self.country_codes = country_codes
-
 
     def read_metadata(self) -> None:
         """Read metadata from the Readme.txt file in the ZIP archive."""
