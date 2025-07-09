@@ -50,7 +50,7 @@ class BACI:
 
     By default, the latest BACI version is used,
     but you can specify a specific version by passing the `baci_version` parameter:
-    >>> data = baci.get_data(hs_version="HS22", baci_version="202401b")
+    >>> data = baci.get_data(hs_version="HS17", baci_version="202401b")
 
     The data is cached to avoid unnecessary downloads. Because the BACI dataset is large, the data is cached to
     a temporary directory as Parquet files. The cache is deleted automatically when the object is deleted or the
@@ -67,7 +67,7 @@ class BACI:
 
     You can also specify a list of years or products, or a range of years/products:
 
-    >>> data = baci.get_data(hs_version="HS17", years=[2020, 2022] products=[10121, 10190])
+    >>> data = baci.get_data(hs_version="HS17", years=[2020, 2022], products=[10121, 10190])
 
     This will return the trade data for the years 2020 and 2022, and products 10121 and 10190.
 
@@ -80,9 +80,9 @@ class BACI:
     You can specify as a tuple of two integers the start and end values for years or products, in which case the
     end value is inclusive:
 
-    >>> data = baci.get_data(hs_version="HS17", years=(2010, 2023), products=(10121, 10190))
+    >>> data = baci.get_data(hs_version="HS17", years=(2020, 2023), products=(10121, 10190))
 
-    This will return the trade data for the years 2010 to 2023 (inclusive) and products 10121 to 10190 (inclusive).
+    This will return the trade data for the years 2020 to 2023 (inclusive) and products 10121 to 10190 (inclusive).
 
     You can also include country and product labels in the returned DataFrame by setting the
     `incl_country_labels` and `incl_product_labels` parameters to True:
