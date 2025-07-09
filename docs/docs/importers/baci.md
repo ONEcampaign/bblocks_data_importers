@@ -1,6 +1,6 @@
-# BACI trade database Importer
+# BACI trade database importer
 
-The `BACI` importer provides access to BACI database on international trade.
+The `BACI` importer provides access to the BACI database on international trade.
 
 ## About the BACI database
 
@@ -9,79 +9,111 @@ more than 200 countries and territories, covering over 5,000 products at the 6-d
 Trade values are reported in thousands of USD and quantities in metric tons. BACI is built using the UN COMTRADE
 database and includes reconciliation procedures.
 
-More information and access to the raw data can be found at: https://www.cepii.fr/CEPII/en/bdd_modele/presentation.asp?id=37
+More information and access to the raw data can be found [here](https://www.cepii.fr/CEPII/en/bdd_modele/presentation.asp?id=37).
 
-This importer provides functionality to easily access the latest BACI data (or data from a specific version),
-automatically download and extract data if not already available locally, and return formatted trade data.
+This importer provides functionality to easily access the BACI data for different versions and HS classifications.
 
 ## Basic usage
 
-Begin by instantiating a `BACI` object with a path to save the data locally. 
+Begin by instantiating a `BACI` object. You must specify an HS classification in the `get_data()` method. 
 
 ```python
-import bblocks.data_importers as bbdata
+from bblocks.data_importers import BACI
 
 # Create an importer instance
-baci = bbdata.BACI(data_path="my/local/folder")
+baci = BACI()
 
-# Get data from the latest release
-df = baci.get_data(
-    # years=range(2022, 2024) # Optional: filter years
-)
+# Get all data from the latest release and HS22 classification
+df = baci.get_data(hs_version="HS22")
 
 # Preview
 print(df.sample(3))
 
 # Output:
-#           year exporter_iso3_code    exporter_name  ... product_code      value quantity
-# 2685311   2022           FIN          Finland  ...       320990     16.292    4.972
-# 17120141  2023           MDA  Rep. of Moldova  ...       841459      0.575    0.019
-# 10229678  2022           GBR   United Kingdom  ...       621143  44.633999     1.31
+#           year  exporter_code  importer_code  product_code    value  quantity
+# 21252611  2023            804            246        910199    0.182     0.001
+# 4855297   2022            392            446        151319    2.415     0.649
+# 7142310   2022            620            276        871494  180.266     5.269
 ```
 
-The traded amounts are specified in columns `value` (current thousand USD) and `quantity` (metric tons).
+The traded amounts are specified in columns `value` (current thousands of USD) and `quantity` (metric tons).
+
+You can also include country and product labels in the returned DataFrame by setting the `incl_country_labels` and 
+`incl_product_labels` parameters to `True`:
+
+```python
+df = baci.get_data(hs_version="HS22", incl_country_labels=True, incl_product_labels=True)
+```
 
 ## Specify a version
 
-By default, the importer will return the latest BACI version available, but you may specify a different one. You may 
-also indicate an HS classification. Note that hs_version determines how far back in time the data goes. For example, 
-the default value "22" returns data from 2022 onward.
-
-The `get_baci_versions()` method returns a dictionary with the different BACI versions available and their supported HS
-classifications, as well as bool indicator to identify the latest BACI version.
+A `BACI` object gives you access to all available BACI versions and their supported HS classifications.
+To see the available versions and HS classifications, call the `get_available_versions()` method:
 
 ```python
-versions = bbdata.get_baci_versions()
+versions = baci.get_available_versions()
+
+
+print(versions)
+
+# Output:
+# {
+#   '202501': {'hs_versions': ['HS92', 'HS96', 'HS02', 'HS07', 'HS12', 'HS17', 'HS22'], 'latest': True}, 
+#   '202401b': {'hs_versions': ['HS92', 'HS96', 'HS02', 'HS07', 'HS12', 'HS17']},
+#   ...
+# }
+
+# Get all data from the 202401b release and HS17 classification
+df = baci.get_data(hs_version="HS17", baci_version="202401b")
 ```
 
-```python
-baci = bbdata.BACI(
-    data_path="my/local/folder",
-    baci_version="202301",
-    hs_version="07"
-)
+## Filtering
 
-df = baci.get_data()
+You can filter the data for specific years or products. To view the available options for a specific HS version:
+```python
+product_descriptions = baci.get_product_descriptions(hs_version="HS22")
+available_years = baci.get_available_years(hs_version="HS22")
+```
+
+Depending on your needs, you can pass single values, lists, ranges, or tuples to the `years` and `products` parameters 
+in `get_data()`.
+
+```python
+# Returns data for the years 2022 and product code 10121 - "Horses: live, pure-bred breeding animals"
+df_value = baci.get_data(hs_version="HS22", years=2022, products=10121)
+
+# Returns data for years 2020 and 2022, and products 10121 and 10190
+df_list = baci.get_data(hs_version="HS22", years=[2020, 2022], products=[10121, 10190])
+
+# Returns data for the years 2020 to 2022, and products 10121 to 10189
+df_range = baci.get_data(hs_version="HS22", years=range(2020, 2023), products=range(10121, 10190))
+
+# Returns data for the years 2020 to 2023, and products 10121 to 10190
+df_tuple = baci.get_data(hs_version="HS22", years=(2020, 2023), products=(10121, 10190))
 ```
 
 ## Metadata
 
-To access metadata from a BACI object:
+You can access metadata for a specific BACI version and HS classification with the `get_metadata()` method. By default,
+`baci_version="latest"`. 
 
 ```python
-metadata = baci.get_metadata()
+metadata = baci.get_metadata(hs_version="HS22")
 ```
 
-A dictionary that maps HS codes to product descriptions is available with:
+## Saving data locally
+
+To save the raw data to a local directory as a zip file, use the `save_raw_data()` method:
 
 ```python
-hs_map = baci.get_hs_map()
+baci.save_raw_data(path="path/to/save/baci_data.zip", hs_version="HS22")
 ```
 
 ## Data caching
 
-The data and metadata are cached to avoid loading the dataset repeatedly. Use the `clear_cache()` method to delete this
-data. You can set clear_disk = True to delete the local directory where the BACI data was saver (defaults to False).
+The data is cached to avoid unnecessary downloads. Because the BACI dataset is large, the data is cached to
+a temporary directory as Parquet files. The cache is deleted automatically when the object is deleted or the
+session ends. To clear the cache manually, call the `clear_cache()` method:
 
 ```python
 baci.clear_cache(clear_disk=True)
