@@ -73,7 +73,7 @@ def _parse_latest_version(latest_div: bs4.Tag) -> dict:
 
 
 def _parse_archive_versions(archive_div: bs4.Tag) -> dict[int, list[str]]:
-    """ """
+    """Get older BACI versions"""
 
     # Step 1: Split by version headers
     blocks = re.split(r"\n+(?=\d{6}[a-z]?\s+version:)", archive_div.text)
