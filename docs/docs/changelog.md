@@ -8,6 +8,9 @@
 - New data importer:
   - `BACI` to access BACI harmonized international trade data
 
+## v0.4.1 (2025-07-16)
+- Bug fix in utilities for dependency logging settings
+
 ## v0.4.0 (2025-06-26) (latest version)
 - Refactor of the package as a namespace package in the `bblocks` namespace
 
