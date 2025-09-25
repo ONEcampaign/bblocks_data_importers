@@ -3,10 +3,14 @@
 ## v1.0.0 (in development)
 - Stable release of the `bblocks-data-importers` package
 
-## v0.5.0 (in development)
+## v0.6.0 (in development)
 - Refactor of World Bank importers
 - New data importer:
   - `BACI` to access BACI harmonized international trade data
+
+## v0.5.0 (2025-09-25)
+- Introduce an importer for the IMF Debt Sustainability Assessments. This importer
+downloads and parses the DSA pdf from the IMF website into a Pandas DataFrame
 
 ## v0.4.1 (2025-07-16)
 - Bug fix in utilities for dependency logging settings
