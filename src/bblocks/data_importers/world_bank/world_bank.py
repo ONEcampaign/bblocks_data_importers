@@ -338,9 +338,9 @@ class WorldBank:
             entity_code=tuple(entity_code) if isinstance(entity_code, list) else entity_code,
             time = self._get_time_range(start_year, end_year),
             skip_blanks=skip_blanks,
-            skipAggs=skip_aggs,
+            skip_aggs=skip_aggs,
             include_labels=include_labels,
-            params=_make_hashable(params),
+            params_items=_make_hashable(params),
             extra_items=_make_hashable(kwargs)
 
         )
