@@ -1,13 +1,24 @@
 """World Bank"""
 
 from functools import lru_cache
-from typing import Generator
+from typing import Generator, Iterable
 import pandas as pd
 import wbgapi as wb
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 from bblocks.data_importers.config import logger, Fields, DataExtractionError
 from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.data_validators import DataFrameValidator
+
+
+_BATCH_SIZE: int = 1 # number of indicators to fetch per batch
+_NUM_THREADS: int = 4 # number of threads to use for fetching data
+
+def _batch(iterable: list, n: int) -> Generator:
+    """Yield successive n-sized chunks from iterable."""
+    for i in range(0, len(iterable), n):
+        yield iterable[i:i + n]
 
 
 def _make_hashable(value) -> object:
@@ -141,8 +152,48 @@ class WorldBank:
     #
     #     return self._regions
 
+    @staticmethod
+    def _parse_df(wb_generator: Generator) -> pd.DataFrame:
+        """Parse the generator returned from wbgapi into a DataFrame.If no data is returned, an empty
+        DataFrame is returned.
+        """
+
+        # check if any data was returned
+        try:
+            first = next(wb_generator)
+        except StopIteration:
+            # raise DataExtractionError("No data returned from World Bank API.")
+            return pd.DataFrame()  # return empty dataframe if no data
+
+        data = [first]  # initialize with the first row
+        for row in wb_generator:
+            data.append(row)
+
+        # flatten the structure
+        return pd.json_normalize(data, sep="_")
+
+
+    def _fetch_batch(self, api_params: dict) -> pd.DataFrame:
+        """Fetch a batch of indicators from the World Bank API.
+
+        This method fetches a batch of indicators using the provided API parameters and
+        parses generated data into a DataFrame.
+        """
+
+        try:
+            wb_generator = wb.data.fetch(**api_params)
+            return WorldBank._parse_df(wb_generator)
+
+        except Exception as e:
+            raise DataExtractionError(f"Failed to fetch data from World Bank API. Error: {e}")
+
+
+
+
+
     @lru_cache(maxsize=8)
-    def _fetch_data(self, indicator_code: str | tuple[str],
+    def _fetch_data(self,
+                    indicators: Iterable[str],
                     db: int | None,
                     entity_code: str | tuple[str] | None,
                     time: int | range,
@@ -150,23 +201,28 @@ class WorldBank:
                     skip_aggs: bool,
                     include_labels: bool,
                     params_items: tuple | None,
-                    extra_items: tuple) -> pd.DataFrame:
+                    extra_items: tuple,
+                    batch_size: int,
+                    thread_num: int) -> pd.DataFrame:
         """Fetch data from the World Bank API.
 
-        Fetches data using wbgapi with caching to avoid redundant API calls. Cache size is limited to 8 unique queries.
-        The returned generator from wbgapi is checked for data presence before processing. If no data is returned,
-        a DataExtractionError is raised. The data is then flattened into a DataFrame.
-
+        This method handles preparing the wbgapi parameters, fetching the data by batching indicators and
+        multithreading for faster retrieval. Data is cached using last recently used (LRU) caching to avoid
+        redundant API calls for the same queries. Cache size is limited to 8 unique queries (due to the potential
+        size of World Bank API responses).
         """
 
+        logger.info("Fetching data from World Bank API...")
+
+        # prepare parameters
         params = dict(params_items) if params_items is not None else None
         extra = dict(extra_items)
 
-        api_params = {"series": indicator_code,
+        api_params = {
                       "db": db,
                       "labels": include_labels,
                       "skipBlanks": skip_blanks,
-                        "skipAggs": skip_aggs,
+                      "skipAggs": skip_aggs,
                       "economy": entity_code,
                       "time": time,
                       "numericTimeKeys": True,
@@ -174,17 +230,31 @@ class WorldBank:
                       **extra
                       }
 
-        # remove any nulls
-        api_params = {k: v for k, v in api_params.items() if v is not None}
+        api_params = {k: v for k, v in api_params.items() if v is not None} # remove None values
 
-        logger.info("Fetching data from World Bank API...")
+        # fetch data in batches using multithreading
+        batches = _batch(indicators, batch_size) # create batches of indicators
+        results = [] # results list
 
-        try:
-            wb_generator = wb.data.fetch(**api_params)
-            df = WorldBank._parse_df(wb_generator)
+        with ThreadPoolExecutor(max_workers=thread_num) as executor:
+            futures = []
+            for batch_indicators in batches:
+                futures.append(
+                    executor.submit(
+                        self._fetch_batch,
+                        {**api_params, "series": batch_indicators}
+                    )
+                )
 
-        except Exception as e:
-            raise DataExtractionError(f"Failed to fetch data from World Bank API. Error: {e}")
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        # concatenate results
+        df = pd.concat(results, ignore_index=True)
+
+        # if the dataframe is empty raise an error
+        if df.empty:
+            raise DataExtractionError("No data returned from World Bank API.")
 
         logger.info("Data fetched successfully from World Bank API.")
         return df
@@ -206,22 +276,7 @@ class WorldBank:
 
         return range(start, end + 1)
 
-    @staticmethod
-    def _parse_df(wb_generator: Generator) -> pd.DataFrame:
-        """Parse the generator returned from wbgapi into a DataFrame."""
 
-        # check if any data was returned
-        try:
-            first = next(wb_generator)
-        except StopIteration:
-            raise DataExtractionError("No data returned from World Bank API.")
-
-        data = [first] # initialize with the first row
-        for row in wb_generator:
-            data.append(row)
-
-        # flatten the structure
-        return pd.json_normalize(data, sep="_")
 
 
     def _clean_df(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -292,6 +347,8 @@ class WorldBank:
                  include_labels: bool = False,
                  *,
                  params: dict | None = None,
+                 batch_size: int = _BATCH_SIZE,
+                 thread_num: int = _NUM_THREADS,
                  **kwargs
                  ) -> pd.DataFrame:
         """ Get the data as a dataframe
@@ -306,6 +363,8 @@ class WorldBank:
             skip_aggs: whether to skip aggregate entities
             include_labels: whether to include labels instead of codes. Defaults to False.
             params: extra query parameters to pass to the API
+            batch_size: number of indicators to fetch per batch. Defaults to 1.
+            thread_num: number of threads to use for fetching data. Defaults to 4.
             **kwargs: extra dimensions, database specific (e.g., version)
                 - mrv: return only the specified number of most recent values (same time period for all economies)
                 - mrnev: return only the specified number of non-empty most recent values (time period varies)
@@ -323,32 +382,33 @@ class WorldBank:
 
         self._check_valid_db(db)
 
-        # if isinstance(indicator_code, str):
-        #     indicator_code = [indicator_code]
 
-        # check that all the indicators exist in the database
-        # available_indicators = self.get_available_indicators(db)[Fields.indicator_code].tolist()
-        # for ind in indicator_code:
-        #     if ind not in available_indicators:
-        #         raise ValueError(f"Indicator code {ind} is not available in database {db}.")
+        if isinstance(indicator_code, str):
+            indicator_code = [indicator_code]
 
+        indicator_list = sorted(indicator_code)
+
+        # fetch data
         df = self._fetch_data(
-            indicator_code=tuple(indicator_code) if isinstance(indicator_code, list) else indicator_code,
+            indicators=tuple(indicator_list),
             db=db,
             entity_code=tuple(entity_code) if isinstance(entity_code, list) else entity_code,
-            time = self._get_time_range(start_year, end_year),
+            time=self._get_time_range(start_year, end_year),
             skip_blanks=skip_blanks,
             skip_aggs=skip_aggs,
             include_labels=include_labels,
-            params_items=_make_hashable(params),
-            extra_items=_make_hashable(kwargs)
-
+            params_items = _make_hashable(params),
+            extra_items = _make_hashable(kwargs),
+            batch_size = batch_size,
+            thread_num = thread_num
         )
 
+        # cleaning steps
         df = self._clean_df(df)
 
         # validate dataframe
-        DataFrameValidator().validate(df, required_cols=[Fields.year, Fields.indicator_code, Fields.entity_code, Fields.value])
+        DataFrameValidator().validate(df, required_cols=[Fields.year, Fields.indicator_code,
+                                                         Fields.entity_code, Fields.value])
 
         return df
 
