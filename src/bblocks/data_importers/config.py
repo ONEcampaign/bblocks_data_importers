@@ -83,6 +83,9 @@ class Fields:
     counterpart_code = "counterpart_code"
     counterpart_name = "counterpart_name"
     region_code = "region_code"
+    income_level_code = "income_level_code"
+    income_level_name = "income_level_name"
+
 
     # time fields
     year = "year"
