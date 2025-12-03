@@ -1,7 +1,75 @@
-"""World Bank"""
+"""Importer for the World Bank
+
+The World Bank offers data through its API for various databases, such as the World Development Indicators (WDI).
+
+This importer provides functionality to get data for different World Bank databases, access metadata on indicators
+and entities, and see the available databases.
+
+Usage example:
+
+To see the available databases:
+>>> print(get_wb_databases())
+This will return a DataFrame with the available World Bank databases, their IDs, names, codes, and last updated dates.
+You will need the IDs to specify which database to query.
+
+To start querying data, fisrt create an instance of the WorldBank class, specifying the database ID you want to use:
+>>> wb_importer = WorldBank(db=2)  # 2 is the ID for
+
+By default, if no database is specified, the World Development Indicators database (id=2) is used.
+>>> wb_importer = WorldBank()  # uses WDI by default
+
+
+To get available indicators in the database:
+>>> indicators_df = wb_importer.get_available_indicators()
+This will return a DataFrame with the available indicator (their codes and names) for the specified database. You
+will need the indicator codes to query data.
+
+To get data for specific indicators:
+>>> data_df = wb_importer.get_data(indicator_code='SP.POP.TOTL') # total population indicator code
+This will return a DataFrame with the data for the specified indicator across all entities and years
+available in the database.
+
+Multiple indicators can be queried. Batching and multithreading are used to speed up data retrieval for
+multiple indicators. Indicators are batched into groups of 1 by default, and 4 threads are used for fetching data.
+Different batch sizes and thread numbers can be specified using the `batch_size` and `thread_num` parameters.
+
+Other parameters can be used to filter the data, such as specifying entity codes, year ranges, whether to skip blank
+observations, whether to include labels, etc. and any other parameter supported by the World Bank API (read the wbgapi
+documentation for more details)[https://github.com/tgherzog/wbgapi]
+
+>>> data_df = wb_importer.get_data(
+...     indicator_code=['SP.POP.TOTL', 'NY.GDP.MKTP.CD'], # total population and gdp indicator codes
+...     entity_code=['ZWE', 'KEN'], # Zimbabwe and Kenya
+...     start_year=2000,
+...     end_year=2020,
+...     skip_blanks=True,
+...     include_labels=False,
+...     batch_size=2,
+...     thread_num=2)
+
+Data is cached by default to avoid redundant API calls for the same queries. To clear the cache, use the `clear_cache` method:
+>>> wb_importer.clear_cache()
+
+To get metadata for specific indicators:
+>>> metadata_df = wb_importer.get_indicator_metadata(indicator_code='SP.POP.TOTL')
+This will return a DataFrame with the metadata for the specified indicator.
+
+To specify entities to query, their codes need to be used. To get the available entities and their codes, as well
+as other entity metadata such as region and income level, use the `get_available_entities` method:
+>>> entities_df = wb_importer.get_available_entities()
+This will return a DataFrame with the available entities and their metadata for the specified database.
+
+To get all the available entities maintained by the World Bank across all databases, use the `get_wb_entities` function:
+>>> all_entities_df = get_wb_entities()
+This will return a DataFrame with all the available entities and their metadata.
+
+Optionally aggregate entities can be skipped using the `skip_aggs` parameter:
+>>> entities_df = wb_importer.get_available_entities(skip_aggs=True)
+This will return a DataFrame with the available non-aggregate entities and their metadata for the specified
+"""
 
 from functools import lru_cache
-from typing import Generator, Iterable
+from typing import Generator
 import pandas as pd
 import wbgapi as wb
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -15,13 +83,13 @@ from bblocks.data_importers.data_validators import DataFrameValidator
 _BATCH_SIZE: int = 1 # number of indicators to fetch per batch
 _NUM_THREADS: int = 4 # number of threads to use for fetching data
 
-def _batch(iterable: list, n: int) -> Generator:
+def _batch(iterable: tuple[str] | list[str], n: int) -> Generator:
     """Yield successive n-sized chunks from iterable."""
     for i in range(0, len(iterable), n):
         yield iterable[i:i + n]
 
 
-def _make_hashable(value) -> object:
+def _make_hashable(value) -> tuple:
     """Convert unhashable types to hashable types for caching purposes."""
     if isinstance(value, list):
         return tuple(value)
@@ -30,60 +98,300 @@ def _make_hashable(value) -> object:
     return value
 
 
+@lru_cache
+def get_wb_databases() -> pd.DataFrame:
+    """Get the available World Bank databases.
+
+    Returns:
+        A DataFrame with the available World Bank databases.
+    """
+
+    l = [i for i in wb.source.list()]
+    df = (pd.json_normalize(l).rename(columns={"lastupdated": "last_updated"}).loc[:, ["id", "name", "code", "last_updated"]])
+
+    # convert id to integer
+    df["id"] = df["id"].astype(int)
+
+    # convert last_updated to datetime
+    df["last_updated"] = pd.to_datetime(df["last_updated"])
+
+    return convert_dtypes(df)
+
+
+@lru_cache(maxsize=10)
+def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFrame:
+    """Get entities available in World Bank databases or a specific database, including metadata.
+
+    Args:
+        db: The database id. If None, uses the global database.
+        skip_aggs: Whether to skip aggregate entities.
+
+    Returns:
+        A DataFrame with the available entities for the specified database including their metadata.
+    """
+
+    l = [i for i in wb.economy.list(db=db, labels=True, skipAggs=skip_aggs)]
+    df = pd.json_normalize(l, sep="_")
+
+    cols= {
+        'id': Fields.entity_code,
+        'value': Fields.entity_name,
+        'aggregate': "is_aggregate",
+        'longitude': 'longitude',
+        'latitude': 'latitude',
+        'capitalCity': "capital_city",
+        'region_id': Fields.region_code,
+        'region_value': Fields.region_name,
+        'adminregion_id': "admin_region_code",
+        'adminregion_value': "admin_region_name",
+        'lendingType_id': "lending_type_code",
+        'lendingType_value': "lending_type_name",
+        'incomeLevel_id': Fields.income_level_code,
+        'incomeLevel_value': Fields.income_level_name
+    }
+
+    df = df.rename(columns=cols).loc[:, cols.values()]
+
+    # find any empty strings and replace with NaN
+    df = df.replace("", pd.NA)
+
+
+    return convert_dtypes(df)
+
+@lru_cache(maxsize=10)
+def get_wb_indicators(db: int | None = None) -> pd.DataFrame:
+    """Get indicators available in World Bank databases or a specific database
+
+    Args:
+        db: The database id. If None, uses the global database.
+
+    Returns:
+        A DataFrame with the available indicators for the specified database.
+    """
+
+    l = [i for i in wb.series.list(db=db)]
+    df = pd.json_normalize(l).rename(columns={"id": Fields.indicator_code, "value": Fields.indicator_name})
+
+    return convert_dtypes(df)
+
+
+def _check_valid_db(db: int) -> None:
+    """Check if the provided database id is valid."""
+
+    if db not in get_wb_databases()["id"].unique():
+        raise ValueError(f"Database ID {db} is not valid.")
+
+
+@lru_cache(maxsize=32)
+def _get_cached_metadata(**kwargs) -> list:
+    """Helper function to get cached metadata from World Bank API."""
+
+    return [i for i in wb.series.metadata.fetch(**kwargs)]
+
+def get_indicator_metadata(indicator_code: str | list[str], db: int | None = None) -> pd.DataFrame:
+    """Get indicator metadata for a given indicator code.
+
+    Args:
+        indicator_code: The indicator code.
+        db: The database id. If None, uses the global database.
+
+    Returns:
+        A DataFrame with the indicator metadata.
+    """
+
+    if isinstance(indicator_code, str):
+        indicator_code = [indicator_code]
+
+    metadata = _get_cached_metadata(db=db, id=tuple(indicator_code))
+
+    # check if no metadata was returned
+    if not metadata:
+        raise DataExtractionError(f"No metadata found for indicator code(s).")
+
+    return (pd.DataFrame([{Fields.indicator_code: indicator_code[i], **metadata[i].metadata} for i in range(len(indicator_code))])
+          .rename(columns = {"IndicatorName": Fields.indicator_name,
+                             'Aggregationmethod': "aggregation_method",
+                             'Dataset': "dataset",
+                             'Developmentrelevance': "development_relevance",
+                             'License_Type': 'license_Type',
+                              'License_URL': 'license_url',
+                              'Limitationsandexceptions': "limitations_and_exceptions" ,
+                              'Longdefinition': 'long_definition',
+                              'Othernotes': 'other_notes',
+                              'Periodicity': 'periodicity',
+                              'Referenceperiod': 'reference_period',
+                              'Shortdefinition': 'short_definition',
+                              'Source': 'source',
+                              'Statisticalconceptandmethodology': 'statistical_concept_and_methodology',
+                              'Topic': 'topic',
+                              'Unitofmeasure': Fields.unit,
+                             })
+          )
+
+
+
+
+def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean the dataframe returned from the World Bank API into standard format.
+
+    Steps
+    - rename columns to standard names
+    - drop unnecessary columns (time_id)
+    - convert dtypes to pyarrow compatible types
+
+    """
+
+    # cleaning steps
+    if "time_id" in df.columns:
+        df = df.drop(columns=["time_id"])
+    if "time_value" in df.columns:
+        df = df.rename(columns={"time_value": Fields.year})
+    if "time" in df.columns:
+        df = df.rename(columns={"time": Fields.year})
+
+    # replace "economy" columns
+    if "economy" in df.columns:
+        df = df.rename(columns={"economy": Fields.entity_code})
+    if "economy_id" in df.columns:
+        df = df.rename(columns={"economy_id": Fields.entity_code})
+    if "economy_value" in df.columns:
+        df = df.rename(columns={"economy_value": Fields.entity_name})
+
+    # replace "aggregate" columns
+    if "economy_aggregate" in df.columns:
+        df = df.rename(columns={"economy_aggregate": "is_aggregate"})
+    if "aggregate" in df.columns:
+        df = df.rename(columns={"aggregate": "is_aggregate"})
+
+    # replace series columns
+    if "series" in df.columns:
+        df = df.rename(columns={"series": Fields.indicator_code})
+    if "series_id" in df.columns:
+        df = df.rename(columns={"series_id": Fields.indicator_code})
+    if "series_value" in df.columns:
+        df = df.rename(columns={"series_value": Fields.indicator_name})
+
+    # replace counterpart area columns
+    if "counterpart_area" in df.columns:
+        df = df.rename(columns={"counterpart_area": Fields.counterpart_code})
+    if "counterpart_area_id" in df.columns:
+        df = df.rename(columns={"counterpart_area_id": Fields.counterpart_code})
+    if "counterpart_area_value" in df.columns:
+        df = df.rename(columns={"counterpart_area_value": Fields.counterpart_name})
+
+    # replace value column
+    if "value" in df.columns:
+        df = df.rename(columns={"value": Fields.value})
+
+    # convert dtypes
+    df = convert_dtypes(df)
+
+    return df
+
+
+def get_data(api_params: dict) -> pd.DataFrame:
+    """Fetch data from the World Bank API using wbgapi with the provided parameters. And parse the
+    response into a cleaned dataframe.
+
+    If no data is returned from the api, an empty dataframe is returned.
+    """
+
+    try:
+        l = [i for i in wb.data.fetch(**api_params)]
+
+        # if no data was returned, return empty dataframe
+        if not l:
+            return pd.DataFrame()
+
+        df= pd.json_normalize(l, sep="_")
+        return _clean_df(df)
+
+    except Exception as e:
+        raise DataExtractionError(f"Failed to fetch data from World Bank API. Error: {e}")
+
+
+def _get_time_range(start: int | None, end: int | None) -> range | None:
+    """Get a range of years from start to end, inclusive."""
+
+    # if both are None, return None
+    if start is None and end is None:
+        return None
+
+    # set defaults
+    if start is None:
+        start = 1800 # set a very early year
+
+    if end is None:
+        end = 2099 # set a very late year
+
+    return range(start, end + 1)
+
+
 class WorldBank:
-    """ """
+    """Importer for World Bank data.
+
+    The World Bank offers data through its API for various databases, such as the World Development Indicators (WDI).
+    This importer provides functionality to connect to a specified World Bank database, get data for different indicators,
+    and access metadata on indicators and entities.
+
+    Usage example:
+
+    This class connects to a specified World Bank database using its ID. To see the available databases,
+    use the `get_wb_databases` function.
+    >>> print(get_wb_databases())
+
+    Instantiate the WorldBank class, specifying the database ID you want to use:
+    >>> wb_importer = WorldBank(db=2)  # 2 is the ID
+
+    By default, if no database is specified, the World Development Indicators database (id=2) is used.
+    >>> wb_importer = WorldBank()  # uses WDI by default
+
+    To get available indicators in the database:
+    >>> indicators_df = wb_importer.get_available_indicators()
+
+    To get data for specific indicators:
+    >>> data_df = wb_importer.get_data(indicator_code='SP.POP.TOTL') # total population indicator code
+
+    Multiple indicators can be queried. Batching and multithreading are used to speed up data retrieval for
+    multiple indicators. Indicators are batched into groups of 1 by default, and 4 threads are used for fetching data.
+    Different batch sizes and thread numbers can be specified using the `batch_size` and `thread_num` parameters.
+    Additional parameters can be used including specifying entity codes, year ranges, whether to skip blank
+    observations, whether to include labels, etc. and any other parameter supported by the World Bank API (read the wbgapi
+    documentation for more details)[https://github.com/tgherzog/wbgapi]
+
+    >>> data_df = wb_importer.get_data(
+    ...     indicator_code=['SP.POP.TOTL', 'NY.GDP.MKTP.CD'], # total population and gdp indicator codes
+    ...     entity_code=['ZWE', 'KEN'], # Zimbabwe and Kenya
+    ...     start_year=2000,
+    ...     end_year=2020,
+    ...     skip_blanks=True,
+    ...     include_labels=False,
+    ...     batch_size=2,
+    ...     thread_num=2)
+
+    To get metadata for specific indicators:
+    >>> metadata_df = wb_importer.get_indicator_metadata(indicator_code='SP.POP.TOTL')
+
+    To get the available entities and their codes, as well as other entity metadata such as region and income level,
+    use the `get_available_entities` method:
+    >>> entities_df = wb_importer.get_available_entities()
+
+    Data is cached by default to avoid redundant API calls for the same queries. To clear the cache, use the `clear_cache` method:
+    >>> wb_importer.clear_cache()
+
+    """
 
     def __init__(self, db: int | None = None):
-
-        self._databases: pd.DataFrame | None = None # available databases
-        self._indicators: dict[int, pd.DataFrame] = {} # dictionary of indicators per database
-
-        # self._economies: pd.DataFrame | None = None
-        # self._regions: pd.DataFrame | None = None
 
 
         # Set the database if provided
         if db is not None:
-            self.set_db(db)
+            _check_valid_db(db)
+            self._db = db
         else:
             self._db = wb.db
-            logger.info(f"World Bank database set to {self._db}.")
 
-
-    def _clean_wb_series_list(self, series: pd.Series, columns: list[str]) -> pd.DataFrame:
-        """Clean returned wbgapi series list eg databases, economies etc into a standard DataFrame
-
-        Args:
-            series: The pandas Series returned from wbgapi
-            columns: The desired column names for the DataFrame
-        Returns:
-            A cleaned DataFrame
-        """
-
-        df = series.reset_index()
-        df.columns = columns
-
-        return df
-
-    def get_available_databases(self) -> pd.DataFrame:
-        """Get the available World Bank databases."""
-
-        if self._databases is None:
-            self._databases = (self._clean_wb_series_list(wb.source.Series(),
-                                                        columns=["db_id", "db_name"]
-                                                     )
-                               # set db_id as integer
-                                 .assign(db_id=lambda d: d.db_id.astype(int))
-                               )
-        return self._databases
-
-    def _check_valid_db(self, db: int) -> None:
-        """Check if the provided database id is valid."""
-
-        if db not in self.get_available_databases()["db_id"].unique():
-            raise ValueError(f"Database ID {db} is not valid.")
-
-
+        logger.info(f"World Bank database set to {self._db}.")
 
     @property
     def db(self) -> int:
@@ -96,104 +404,47 @@ class WorldBank:
                                  " World Development Indicators database (id=2)")
         return self._db
 
-    def set_db(self, db: int) -> None:
-        """Set the World Bank database to use.
-        To see the available databases, use the `get_available_databases` method.
 
-        Args:
-            db: The database id.
-        """
-
-        self._check_valid_db(db)
-        self._db = db
-        logger.info(f"World Bank database set to {db}.")
-
-
-    def get_available_indicators(self, db: int | None = None) -> pd.DataFrame:
-        """Get available indicators for the current or specified database.
-
-        Args:
-            db: The database id. If None, uses the currently set database.
+    def get_available_indicators(self) -> pd.DataFrame:
+        """Get available indicators in the database
 
         Returns:
             A DataFrame with the available indicators for the specified database.
         """
 
-        if db is None:
-            db = self.db
-
-        self._check_valid_db(db)
-
-        if db not in self._indicators:
-            wb.db = db # set the database in the wbgapi
-            self._indicators[db] = self._clean_wb_series_list(wb.series.Series(),
-                                                              columns=[Fields.indicator_code, Fields.indicator_name])
-
-        return self._indicators[db]
+        return get_wb_indicators(db=self.db)
 
 
-    # def get_available_entities(self) -> pd.DataFrame:
-    #     """Get available economies from the World Bank."""
-    #
-    #     if self._economies is None:
-    #         self._economies = self._clean_wb_series_list(wb.economy.Series(),
-    #                                                      columns=[Fields.entity_code, Fields.entity_name]
-    #                                                   )
-    #
-    #     return self._economies
+    def get_available_entities(self, skip_aggs: bool = False) -> pd.DataFrame:
+        """Get available economies for a database
 
-    # def get_available_regions(self) -> pd.DataFrame:
-    #     """Get available regions from the World Bank."""
-    #
-    #     if self._regions is None:
-    #         self._regions = self._clean_wb_series_list(wb.region.Series(),
-    #                                                    columns=[Fields.region_code, Fields.region_name]
-    #                                                 )
-    #
-    #     return self._regions
+        Args:
+            skip_aggs: Whether to skip aggregate entities.
 
-    @staticmethod
-    def _parse_df(wb_generator: Generator) -> pd.DataFrame:
-        """Parse the generator returned from wbgapi into a DataFrame.If no data is returned, an empty
-        DataFrame is returned.
+        Returns:
+            A DataFrame with the available entities and their metadata
         """
 
-        # check if any data was returned
-        try:
-            first = next(wb_generator)
-        except StopIteration:
-            # raise DataExtractionError("No data returned from World Bank API.")
-            return pd.DataFrame()  # return empty dataframe if no data
-
-        data = [first]  # initialize with the first row
-        for row in wb_generator:
-            data.append(row)
-
-        # flatten the structure
-        return pd.json_normalize(data, sep="_")
+        return get_wb_entities(db=self.db, skip_aggs=skip_aggs)
 
 
-    def _fetch_batch(self, api_params: dict) -> pd.DataFrame:
-        """Fetch a batch of indicators from the World Bank API.
 
-        This method fetches a batch of indicators using the provided API parameters and
-        parses generated data into a DataFrame.
+    def get_indicator_metadata(self, indicator_code: str | list[str]) -> pd.DataFrame:
+        """Get indicator metadata for a given indicator code.
+
+        Args:
+            indicator_code: The indicator code.
+
+        Returns:
+            A dictionary with the indicator metadata.
         """
 
-        try:
-            wb_generator = wb.data.fetch(**api_params)
-            return WorldBank._parse_df(wb_generator)
-
-        except Exception as e:
-            raise DataExtractionError(f"Failed to fetch data from World Bank API. Error: {e}")
-
-
-
+        return get_indicator_metadata(indicator_code=indicator_code, db=self.db)
 
 
     @lru_cache(maxsize=8)
     def _fetch_data(self,
-                    indicators: Iterable[str],
+                    indicators: tuple,
                     db: int | None,
                     entity_code: str | tuple[str] | None,
                     time: int | range,
@@ -241,7 +492,7 @@ class WorldBank:
             for batch_indicators in batches:
                 futures.append(
                     executor.submit(
-                        self._fetch_batch,
+                        get_data,
                         {**api_params, "series": batch_indicators}
                     )
                 )
@@ -256,89 +507,15 @@ class WorldBank:
         if df.empty:
             raise DataExtractionError("No data returned from World Bank API.")
 
+        # validate dataframe
+        DataFrameValidator().validate(df, required_cols=[Fields.year, Fields.indicator_code,
+                                                         Fields.entity_code, Fields.value])
+
         logger.info("Data fetched successfully from World Bank API.")
-        return df
-
-    @staticmethod
-    def _get_time_range(start: int | None, end: int | None) -> range | None:
-        """Get a range of years from start to end, inclusive."""
-
-        # if both are None, return None
-        if start is None and end is None:
-            return None
-
-        # set defaults
-        if start is None:
-            start = 1800 # set a very early year
-
-        if end is None:
-            end = 2099 # set a very late year
-
-        return range(start, end + 1)
-
-
-
-
-    def _clean_df(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Clean the dataframe returned from the World Bank API into standard format.
-
-        Steps
-        - rename columns to standard names
-        - drop unnecessary columns (time_id)
-        - convert dtypes to pyarrow compatible types
-
-        """
-
-        # cleaning steps
-        if "time_id" in df.columns:
-            df = df.drop(columns=["time_id"])
-        if "time_value" in df.columns:
-            df = df.rename(columns={"time_value": Fields.year})
-        if "time" in df.columns:
-            df = df.rename(columns={"time": Fields.year})
-
-        # replace "economy" columns
-        if "economy" in df.columns:
-            df = df.rename(columns={"economy": Fields.entity_code})
-        if "economy_id" in df.columns:
-            df = df.rename(columns={"economy_id": Fields.entity_code})
-        if "economy_value" in df.columns:
-            df = df.rename(columns={"economy_value": Fields.entity_name})
-
-        # replace "aggregate" columns
-        if "economy_aggregate" in df.columns:
-            df = df.rename(columns={"economy_aggregate": "is_aggregate"})
-        if "aggregate" in df.columns:
-            df = df.rename(columns={"aggregate": "is_aggregate"})
-
-        # replace series columns
-        if "series" in df.columns:
-            df = df.rename(columns={"series": Fields.indicator_code})
-        if "series_id" in df.columns:
-            df = df.rename(columns={"series_id": Fields.indicator_code})
-        if "series_value" in df.columns:
-            df = df.rename(columns={"series_value": Fields.indicator_name})
-
-        # replace counterpart area columns
-        if "counterpart_area" in df.columns:
-            df = df.rename(columns={"counterpart_area": Fields.counterpart_code})
-        if "counterpart_area_id" in df.columns:
-            df = df.rename(columns={"counterpart_area_id": Fields.counterpart_code})
-        if "counterpart_area_value" in df.columns:
-            df = df.rename(columns={"counterpart_area_value": Fields.counterpart_name})
-
-        # replace value column
-        if "value" in df.columns:
-            df = df.rename(columns={"value": Fields.value})
-
-        # convert dtypes
-        df = convert_dtypes(df)
-
         return df
 
     def get_data(self,
                  indicator_code: str | list[str],
-                 db: int | None = None,
                  entity_code: str | list[str] | None = None,
                  start_year: int | None = None,
                  end_year: int | None = None,
@@ -351,11 +528,13 @@ class WorldBank:
                  thread_num: int = _NUM_THREADS,
                  **kwargs
                  ) -> pd.DataFrame:
-        """ Get the data as a dataframe
+        """Get World Bank data for specified indicators
+
+        This function queries the World Bank database API for specified indicators and other parameters,
+        returning the data as a pandas DataFrame.
 
         Args:
             indicator_code: an indicator code or list of indicator codes
-            db: the database id. If None, uses the currently set database.
             entity_code: an economy code or list of economy codes. If None, all economies are included.
             start_year: the start year for the data. If None, uses the earliest available year.
             end_year: the end year for the data. If None, uses the latest available year.
@@ -375,50 +554,38 @@ class WorldBank:
 
         """
 
-        if db is None:
-            db = self.db
-        else:
-            logger.info(f"Using database {db}.")
-
-        self._check_valid_db(db)
-
-
+        # prepare indicator and entity codes
         if isinstance(indicator_code, str):
             indicator_code = [indicator_code]
+        indicator_code = tuple(sorted(indicator_code))
 
-        indicator_list = sorted(indicator_code)
+        if entity_code is not None:
+            if isinstance(entity_code, str):
+                entity_code = [entity_code]
+            entity_code = tuple(sorted(entity_code))
+
 
         # fetch data
         df = self._fetch_data(
-            indicators=tuple(indicator_list),
-            db=db,
-            entity_code=tuple(entity_code) if isinstance(entity_code, list) else entity_code,
-            time=self._get_time_range(start_year, end_year),
+            indicators=indicator_code,
+            db=self._db,
+            entity_code=entity_code,
+            time=_get_time_range(start_year, end_year),
             skip_blanks=skip_blanks,
             skip_aggs=skip_aggs,
             include_labels=include_labels,
-            params_items = _make_hashable(params),
-            extra_items = _make_hashable(kwargs),
+            params_items=_make_hashable(params),
+            extra_items=_make_hashable(kwargs),
             batch_size = batch_size,
             thread_num = thread_num
         )
 
-        # cleaning steps
-        df = self._clean_df(df)
-
-        # validate dataframe
-        DataFrameValidator().validate(df, required_cols=[Fields.year, Fields.indicator_code,
-                                                         Fields.entity_code, Fields.value])
-
-        return df
+        return df.copy(deep=False) # return a copy of the dataframe to avoid accidental modifications to cached data
 
     def clear_cache(self) -> None:
         """Clear the cache"""
 
         self._fetch_data.cache_clear()
-        # TODO: Clear class attributes
-        self._indicators = {}
-        self._databases = None
 
         logger.info("Cache cleared.")
 
