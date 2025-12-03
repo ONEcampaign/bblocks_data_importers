@@ -80,13 +80,14 @@ from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.data_validators import DataFrameValidator
 
 
-_BATCH_SIZE: int = 1 # number of indicators to fetch per batch
-_NUM_THREADS: int = 4 # number of threads to use for fetching data
+_BATCH_SIZE: int = 1  # number of indicators to fetch per batch
+_NUM_THREADS: int = 4  # number of threads to use for fetching data
+
 
 def _batch(iterable: tuple[str] | list[str], n: int) -> Generator:
     """Yield successive n-sized chunks from iterable."""
     for i in range(0, len(iterable), n):
-        yield iterable[i:i + n]
+        yield iterable[i : i + n]
 
 
 def _make_hashable(value) -> tuple:
@@ -107,7 +108,11 @@ def get_wb_databases() -> pd.DataFrame:
     """
 
     l = [i for i in wb.source.list()]
-    df = (pd.json_normalize(l).rename(columns={"lastupdated": "last_updated"}).loc[:, ["id", "name", "code", "last_updated"]])
+    df = (
+        pd.json_normalize(l)
+        .rename(columns={"lastupdated": "last_updated"})
+        .loc[:, ["id", "name", "code", "last_updated"]]
+    )
 
     # convert id to integer
     df["id"] = df["id"].astype(int)
@@ -133,21 +138,21 @@ def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFr
     l = [i for i in wb.economy.list(db=db, labels=True, skipAggs=skip_aggs)]
     df = pd.json_normalize(l, sep="_")
 
-    cols= {
-        'id': Fields.entity_code,
-        'value': Fields.entity_name,
-        'aggregate': "is_aggregate",
-        'longitude': 'longitude',
-        'latitude': 'latitude',
-        'capitalCity': "capital_city",
-        'region_id': Fields.region_code,
-        'region_value': Fields.region_name,
-        'adminregion_id': "admin_region_code",
-        'adminregion_value': "admin_region_name",
-        'lendingType_id': "lending_type_code",
-        'lendingType_value': "lending_type_name",
-        'incomeLevel_id': Fields.income_level_code,
-        'incomeLevel_value': Fields.income_level_name
+    cols = {
+        "id": Fields.entity_code,
+        "value": Fields.entity_name,
+        "aggregate": "is_aggregate",
+        "longitude": "longitude",
+        "latitude": "latitude",
+        "capitalCity": "capital_city",
+        "region_id": Fields.region_code,
+        "region_value": Fields.region_name,
+        "adminregion_id": "admin_region_code",
+        "adminregion_value": "admin_region_name",
+        "lendingType_id": "lending_type_code",
+        "lendingType_value": "lending_type_name",
+        "incomeLevel_id": Fields.income_level_code,
+        "incomeLevel_value": Fields.income_level_name,
     }
 
     df = df.rename(columns=cols).loc[:, cols.values()]
@@ -155,8 +160,8 @@ def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFr
     # find any empty strings and replace with NaN
     df = df.replace("", pd.NA)
 
-
     return convert_dtypes(df)
+
 
 @lru_cache(maxsize=10)
 def get_wb_indicators(db: int | None = None) -> pd.DataFrame:
@@ -170,7 +175,9 @@ def get_wb_indicators(db: int | None = None) -> pd.DataFrame:
     """
 
     l = [i for i in wb.series.list(db=db)]
-    df = pd.json_normalize(l).rename(columns={"id": Fields.indicator_code, "value": Fields.indicator_name})
+    df = pd.json_normalize(l).rename(
+        columns={"id": Fields.indicator_code, "value": Fields.indicator_name}
+    )
 
     return convert_dtypes(df)
 
@@ -188,7 +195,10 @@ def _get_cached_metadata(**kwargs) -> list:
 
     return [i for i in wb.series.metadata.fetch(**kwargs)]
 
-def get_indicator_metadata(indicator_code: str | list[str], db: int | None = None) -> pd.DataFrame:
+
+def get_indicator_metadata(
+    indicator_code: str | list[str], db: int | None = None
+) -> pd.DataFrame:
     """Get indicator metadata for a given indicator code.
 
     Args:
@@ -208,27 +218,31 @@ def get_indicator_metadata(indicator_code: str | list[str], db: int | None = Non
     if not metadata:
         raise DataExtractionError(f"No metadata found for indicator code(s).")
 
-    return (pd.DataFrame([{Fields.indicator_code: indicator_code[i], **metadata[i].metadata} for i in range(len(indicator_code))])
-          .rename(columns = {"IndicatorName": Fields.indicator_name,
-                             'Aggregationmethod': "aggregation_method",
-                             'Dataset': "dataset",
-                             'Developmentrelevance': "development_relevance",
-                             'License_Type': 'license_Type',
-                              'License_URL': 'license_url',
-                              'Limitationsandexceptions': "limitations_and_exceptions" ,
-                              'Longdefinition': 'long_definition',
-                              'Othernotes': 'other_notes',
-                              'Periodicity': 'periodicity',
-                              'Referenceperiod': 'reference_period',
-                              'Shortdefinition': 'short_definition',
-                              'Source': 'source',
-                              'Statisticalconceptandmethodology': 'statistical_concept_and_methodology',
-                              'Topic': 'topic',
-                              'Unitofmeasure': Fields.unit,
-                             })
-          )
-
-
+    return pd.DataFrame(
+        [
+            {Fields.indicator_code: indicator_code[i], **metadata[i].metadata}
+            for i in range(len(indicator_code))
+        ]
+    ).rename(
+        columns={
+            "IndicatorName": Fields.indicator_name,
+            "Aggregationmethod": "aggregation_method",
+            "Dataset": "dataset",
+            "Developmentrelevance": "development_relevance",
+            "License_Type": "license_Type",
+            "License_URL": "license_url",
+            "Limitationsandexceptions": "limitations_and_exceptions",
+            "Longdefinition": "long_definition",
+            "Othernotes": "other_notes",
+            "Periodicity": "periodicity",
+            "Referenceperiod": "reference_period",
+            "Shortdefinition": "short_definition",
+            "Source": "source",
+            "Statisticalconceptandmethodology": "statistical_concept_and_methodology",
+            "Topic": "topic",
+            "Unitofmeasure": Fields.unit,
+        }
+    )
 
 
 def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -303,11 +317,13 @@ def get_data(api_params: dict) -> pd.DataFrame:
         if not l:
             return pd.DataFrame()
 
-        df= pd.json_normalize(l, sep="_")
+        df = pd.json_normalize(l, sep="_")
         return _clean_df(df)
 
     except Exception as e:
-        raise DataExtractionError(f"Failed to fetch data from World Bank API. Error: {e}")
+        raise DataExtractionError(
+            f"Failed to fetch data from World Bank API. Error: {e}"
+        )
 
 
 def _get_time_range(start: int | None, end: int | None) -> range | None:
@@ -319,10 +335,10 @@ def _get_time_range(start: int | None, end: int | None) -> range | None:
 
     # set defaults
     if start is None:
-        start = 1800 # set a very early year
+        start = 1800  # set a very early year
 
     if end is None:
-        end = 2099 # set a very late year
+        end = 2099  # set a very late year
 
     return range(start, end + 1)
 
@@ -383,7 +399,6 @@ class WorldBank:
 
     def __init__(self, db: int | None = None):
 
-
         # Set the database if provided
         if db is not None:
             _check_valid_db(db)
@@ -398,12 +413,13 @@ class WorldBank:
         """Get the current World Bank database."""
 
         if self._db is None:
-            raise AttributeError("The database has not been set yet. Use the `set_db` method to set the database"
-                                 " or use the `get_available_databases` method to see the available databases."
-                                 " By default, calling the `get_data` method without setting a database will query the"
-                                 " World Development Indicators database (id=2)")
+            raise AttributeError(
+                "The database has not been set yet. Use the `set_db` method to set the database"
+                " or use the `get_available_databases` method to see the available databases."
+                " By default, calling the `get_data` method without setting a database will query the"
+                " World Development Indicators database (id=2)"
+            )
         return self._db
-
 
     def get_available_indicators(self) -> pd.DataFrame:
         """Get available indicators in the database
@@ -413,7 +429,6 @@ class WorldBank:
         """
 
         return get_wb_indicators(db=self.db)
-
 
     def get_available_entities(self, skip_aggs: bool = False) -> pd.DataFrame:
         """Get available economies for a database
@@ -427,8 +442,6 @@ class WorldBank:
 
         return get_wb_entities(db=self.db, skip_aggs=skip_aggs)
 
-
-
     def get_indicator_metadata(self, indicator_code: str | list[str]) -> pd.DataFrame:
         """Get indicator metadata for a given indicator code.
 
@@ -441,20 +454,21 @@ class WorldBank:
 
         return get_indicator_metadata(indicator_code=indicator_code, db=self.db)
 
-
     @lru_cache(maxsize=8)
-    def _fetch_data(self,
-                    indicators: tuple,
-                    db: int | None,
-                    entity_code: str | tuple[str] | None,
-                    time: int | range,
-                    skip_blanks: bool,
-                    skip_aggs: bool,
-                    include_labels: bool,
-                    params_items: tuple | None,
-                    extra_items: tuple,
-                    batch_size: int,
-                    thread_num: int) -> pd.DataFrame:
+    def _fetch_data(
+        self,
+        indicators: tuple,
+        db: int | None,
+        entity_code: str | tuple[str] | None,
+        time: int | range,
+        skip_blanks: bool,
+        skip_aggs: bool,
+        include_labels: bool,
+        params_items: tuple | None,
+        extra_items: tuple,
+        batch_size: int,
+        thread_num: int,
+    ) -> pd.DataFrame:
         """Fetch data from the World Bank API.
 
         This method handles preparing the wbgapi parameters, fetching the data by batching indicators and
@@ -470,30 +484,31 @@ class WorldBank:
         extra = dict(extra_items)
 
         api_params = {
-                      "db": db,
-                      "labels": include_labels,
-                      "skipBlanks": skip_blanks,
-                      "skipAggs": skip_aggs,
-                      "economy": entity_code,
-                      "time": time,
-                      "numericTimeKeys": True,
-                      "params": params,
-                      **extra
-                      }
+            "db": db,
+            "labels": include_labels,
+            "skipBlanks": skip_blanks,
+            "skipAggs": skip_aggs,
+            "economy": entity_code,
+            "time": time,
+            "numericTimeKeys": True,
+            "params": params,
+            **extra,
+        }
 
-        api_params = {k: v for k, v in api_params.items() if v is not None} # remove None values
+        api_params = {
+            k: v for k, v in api_params.items() if v is not None
+        }  # remove None values
 
         # fetch data in batches using multithreading
-        batches = _batch(indicators, batch_size) # create batches of indicators
-        results = [] # results list
+        batches = _batch(indicators, batch_size)  # create batches of indicators
+        results = []  # results list
 
         with ThreadPoolExecutor(max_workers=thread_num) as executor:
             futures = []
             for batch_indicators in batches:
                 futures.append(
                     executor.submit(
-                        get_data,
-                        {**api_params, "series": batch_indicators}
+                        get_data, {**api_params, "series": batch_indicators}
                     )
                 )
 
@@ -508,26 +523,34 @@ class WorldBank:
             raise DataExtractionError("No data returned from World Bank API.")
 
         # validate dataframe
-        DataFrameValidator().validate(df, required_cols=[Fields.year, Fields.indicator_code,
-                                                         Fields.entity_code, Fields.value])
+        DataFrameValidator().validate(
+            df,
+            required_cols=[
+                Fields.year,
+                Fields.indicator_code,
+                Fields.entity_code,
+                Fields.value,
+            ],
+        )
 
         logger.info("Data fetched successfully from World Bank API.")
         return df
 
-    def get_data(self,
-                 indicator_code: str | list[str],
-                 entity_code: str | list[str] | None = None,
-                 start_year: int | None = None,
-                 end_year: int | None = None,
-                 skip_blanks: bool = False,
-                 skip_aggs: bool = False,
-                 include_labels: bool = False,
-                 *,
-                 params: dict | None = None,
-                 batch_size: int = _BATCH_SIZE,
-                 thread_num: int = _NUM_THREADS,
-                 **kwargs
-                 ) -> pd.DataFrame:
+    def get_data(
+        self,
+        indicator_code: str | list[str],
+        entity_code: str | list[str] | None = None,
+        start_year: int | None = None,
+        end_year: int | None = None,
+        skip_blanks: bool = False,
+        skip_aggs: bool = False,
+        include_labels: bool = False,
+        *,
+        params: dict | None = None,
+        batch_size: int = _BATCH_SIZE,
+        thread_num: int = _NUM_THREADS,
+        **kwargs,
+    ) -> pd.DataFrame:
         """Get World Bank data for specified indicators
 
         This function queries the World Bank database API for specified indicators and other parameters,
@@ -564,7 +587,6 @@ class WorldBank:
                 entity_code = [entity_code]
             entity_code = tuple(sorted(entity_code))
 
-
         # fetch data
         df = self._fetch_data(
             indicators=indicator_code,
@@ -576,11 +598,13 @@ class WorldBank:
             include_labels=include_labels,
             params_items=_make_hashable(params),
             extra_items=_make_hashable(kwargs),
-            batch_size = batch_size,
-            thread_num = thread_num
+            batch_size=batch_size,
+            thread_num=thread_num,
         )
 
-        return df.copy(deep=False) # return a copy of the dataframe to avoid accidental modifications to cached data
+        return df.copy(
+            deep=False
+        )  # return a copy of the dataframe to avoid accidental modifications to cached data
 
     def clear_cache(self) -> None:
         """Clear the cache"""
@@ -588,9 +612,3 @@ class WorldBank:
         self._fetch_data.cache_clear()
 
         logger.info("Cache cleared.")
-
-
-
-
-
-
