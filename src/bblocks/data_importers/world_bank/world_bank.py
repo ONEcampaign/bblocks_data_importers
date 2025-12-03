@@ -218,6 +218,10 @@ def get_indicator_metadata(
     if not metadata:
         raise DataExtractionError(f"No metadata found for indicator code(s).")
 
+    # check that all requested indicators have metadata - if lengths don't match, some indicators are missing
+    if len(metadata) != len(indicator_code):
+        raise DataExtractionError(f"Metadata not found for some indicator code(s).")
+
     return pd.DataFrame(
         [
             {Fields.indicator_code: indicator_code[i], **metadata[i].metadata}
