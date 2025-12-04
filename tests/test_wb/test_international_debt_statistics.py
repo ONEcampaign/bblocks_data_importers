@@ -1,7 +1,9 @@
 import pandas as pd
 import pytest
 
-from bblocks.data_importers.world_bank import international_debt_statistics as ids_module
+from bblocks.data_importers.world_bank import (
+    international_debt_statistics as ids_module,
+)
 from bblocks.data_importers.world_bank import world_bank
 
 
