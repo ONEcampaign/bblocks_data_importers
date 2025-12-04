@@ -86,7 +86,6 @@ class Fields:
     income_level_code = "income_level_code"
     income_level_name = "income_level_name"
 
-
     # time fields
     year = "year"
     date = "date"
