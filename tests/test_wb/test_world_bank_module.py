@@ -66,9 +66,7 @@ def test_get_time_range_handles_missing_bounds():
 
 
 def test_get_wb_databases_formats_source_data(monkeypatch):
-    sample = [
-        {"id": "2", "name": "WDI", "code": "WDI", "lastupdated": "2024-01-15"}
-    ]
+    sample = [{"id": "2", "name": "WDI", "code": "WDI", "lastupdated": "2024-01-15"}]
     monkeypatch.setattr(world_bank.wb.source, "list", lambda: sample)
 
     df = world_bank.get_wb_databases()
@@ -93,9 +91,7 @@ def test_get_wb_entities_renames_and_cleans(monkeypatch):
             "incomeLevel": {"id": "HIC", "value": "High income"},
         }
     ]
-    monkeypatch.setattr(
-        world_bank.wb.economy, "list", lambda **kwargs: sample
-    )
+    monkeypatch.setattr(world_bank.wb.economy, "list", lambda **kwargs: sample)
 
     df = world_bank.get_wb_entities(db=1, skip_aggs=True)
 
@@ -229,9 +225,7 @@ def test_fetch_data_batches_and_validates(monkeypatch):
 
 
 def test_fetch_data_raises_when_no_rows(monkeypatch):
-    monkeypatch.setattr(
-        world_bank, "get_data", lambda api_params: pd.DataFrame()
-    )
+    monkeypatch.setattr(world_bank, "get_data", lambda api_params: pd.DataFrame())
     monkeypatch.setattr(world_bank.wb, "db", 2)
 
     wb_instance = world_bank.WorldBank()
