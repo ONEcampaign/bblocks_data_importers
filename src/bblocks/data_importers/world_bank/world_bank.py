@@ -82,6 +82,7 @@ from bblocks.data_importers.data_validators import DataFrameValidator
 
 _BATCH_SIZE: int = 1  # number of indicators to fetch per batch
 _NUM_THREADS: int = 4  # number of threads to use for fetching data
+_PER_PAGE: int = 50_000_000  # number of records per page to request from World Bank API
 
 
 def _batch(iterable: tuple[str] | list[str], n: int) -> Generator:
@@ -590,6 +591,12 @@ class WorldBank:
             if isinstance(entity_code, str):
                 entity_code = [entity_code]
             entity_code = tuple(sorted(entity_code))
+
+
+        # add per page to params
+        if params is None:
+            params = {}
+        params["per_page"] = _PER_PAGE
 
         # fetch data
         df = self._fetch_data(
