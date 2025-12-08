@@ -21,7 +21,21 @@ settings and additional functionality, consider using the
 
 ## Basic Usage
 
-To access World Bank data, first instantiate a `WorldBank` importer
+Before getting data you should know which database you want to access (there are several). Luckily 
+you can easily get the available databases
+
+```python
+from bblocks.data_importers import get_wb_databases
+
+print(get_wb_databases())
+```
+
+### WorldBank importer
+This will return a dataframe with the available World Bank databases and their IDs. The ID is
+necessary to specify which database you want to access.
+
+
+To start accessing World Bank data, first instantiate a `WorldBank` importer.
 
 ```python
 from bblocks.data_importers import WorldBank
@@ -29,74 +43,177 @@ from bblocks.data_importers import WorldBank
 wb = WorldBank()
 ```
 
-By default, the importer will connect to the World Development Indicators (WDI) database 
-(WDI database id = `2`). This database contains the largest collection of development
-indicators. 
-
-To get data for an indicator, use the `get_data` method. For example, to get 
-GDP data (indicator code `NY.GDP.MKTP.CD`):
+The most commonly accessed database for development indicators is the World Development Indicators (WDI)
+database with ID `2`. By default, the `WorldBank` importer connects to this database. You can specify 
+a different database by passing the database ID when instantiating the importer.
 
 ```python
-df = wb.get_data(series="NY.GDP.MKTP.CD")
-
-print(df.head())
-# Output:
-#       year    entity_code entity_name indicator_code  value
-# 0     2023    ZWE         Zimbabwe    NY.GDP.MKTP.CD  35231367885.8554
-# 1     2022    ZWE         Zimbabwe    NY.GDP.MKTP.CD  32789751736.332298
-# 2     2021    ZWE         Zimbabwe    NY.GDP.MKTP.CD  27240515108.804901
-# ...
+wb = WorldBank(database=1)  # Doing Business database
 ```
 
-## Access different databases
+### Get available indicators and entities
 
-The `WorldBank` importer gives you access to any database available through the 
-World Bank API.
-
-To see all available databases, call the `get_available_databases` method.
+To see which indicators are available in the selected database, use the `get_available_indicators` method.
 
 ```python
-wb.get_available_databases()
-
-# Output:
-# {'1': 'Doing Business',
-# '2': 'World Development Indicators',
-# '3': 'Worldwide Governance Indicators',
-# '5': 'Subnational Malnutrition Database',
-# '6': 'International Debt Statistics',
-# ...}
+indicators = wb.get_available_indicators()
 ```
 
-By default, the importer will query the WDI database (id=`2`), but you can query any
-other database by setting the database class attribute to the desired database ID.
+This will return a dataframe with the available indicators in the selected database, including 
+their codes and names. The indicator codes are necessary to request specific data series.
 
-For example, to access International Debt Statistics (IDS) data set the database to `6`.
+Similarly, to see which entities (such as countries) are available in the selected database,
+use the `get_available_entities` method.
 
 ```python
-wb.set_database(6)
+entities = wb.get_available_entities()
 ```
 
-Now you can use `get_data` to access any series in the IDS database.
 
+### Get indicator metadata
 
-## Indicator metadata
-
-To get the metadata including indicator name, description
-notes, aggregations, etc., for an indicator use the `get_indicator_metadata` method.
+To get metadata for a specific indicator, use the `get_indicator_metadata` method.
 
 ```python
-wb.get_indicator_metadata("NY.GDP.MKTP.CD")
-
-# Output:
-# {'Aggregationmethod': 'Gap-filled total',
-# 'IndicatorName': 'GDP (current US$)',
-# 'License_Type': 'CC BY-4.0',
-# ...}
+metadata = wb.get_indicator_metadata("NY.GDP.MKTP.CD")  # GDP indicator
 ```
 
-## Specialized World Bank importers
+This will return a dataframe with metadata for the specified indicator. Multiple 
+indicators can be specified by passing a list of indicator codes.
 
-In addition to the `WorldBank` importer, specialized importers exist 
-for specific databases with additional database specific functionality.
 
-- [`InternationalDebtStatistics`](./ids.md) - Access International Debt Statistics (IDS) data on long-term debt
+### Access data
+To access data use the `get_data` method. For example, to get GDP data (indicator code `NY.GDP.MKTP.CD`):
+
+```python
+
+df = wb.get_data(indicator_code="NY.GDP.MKTP.CD")
+
+```
+
+This will return a dataframe with GDP data for all available countries and years.
+
+You can specify additional parameters such as entities (such as countries), years, whether to skip missing values and
+aggregates, and whether to include labels for entities and indicators.
+
+```python
+df = wb.get_data(indicator_code="NY.GDP.MKTP.CD",
+                 entity_code=["ZWE", "NGA"], # Zimbabwe and Nigeria
+                 start_year=2000,
+                 end_year=2020,
+                 skip_aggs=True, # skip aggregates like "World"
+                 skip_blanks=True, # skip missing values
+                 labels=True # include labels
+                 )
+```
+
+Multiple indicators can be specified by passing a list of indicator codes.
+
+```python
+df = wb.get_data(indicator_code=["NY.GDP.MKTP.CD", "SP.POP.TOTL"])  # GDP and population indicators
+```
+
+Since World Bank data can be large and the API requests can be slow, this importer batches
+indicators and uses multi-threading to speed up data retrieval. By default, batches of 1 
+indicator are used with 4 threads. You can adjust these settings by passing the `batch_size` and
+`thread_num` parameters when instantiating the importer.
+
+```python
+df = wb.get_data(indicator_code=["NY.GDP.MKTP.CD", "SP.POP.TOTL"],
+                    batch_size=5, # use batches of 5 indicators
+                    thread_num=10 # use 10 threads
+                 )
+```
+
+Other API parameters can be set in the params argument of the `get_data` method. For example,
+to get the most recent value:
+
+```python
+df = wb.get_data(indicator_code=["NY.GDP.MKTP.CD", "SP.POP.TOTL"], params={"mrv": 1})
+```
+
+See the wbgapi documentation for more details on available parameters. NOTE that some of these
+additional parameters may not work as expected with certain databases.
+
+Pagination is handled automatically by the importer. By default, the importer will retrieve
+50,000 records per request. You can adjust this by setting the `per_page` attribute.
+
+```python
+
+df = wb.get_data(indicator_code=["NY.GDP.MKTP.CD", "SP.POP.TOTL"], params={"per_page": 100000})
+
+```
+
+### Caching data
+
+Data is cached for efficiency. Data is cached in disk up to 3 hours by default. The cache can be cleared
+by calling the `clear_cache` method.
+
+```python
+wb.clear_cache()
+```
+
+Note that the cache is not bound to a specific World Bank object, and clearing the
+cache will clear it for all World Bank importers.
+
+
+## Convenience methods
+
+If you want to quickly access available indicators, entities, and metadata without
+instantiating a WorldBank object, you can use the following convenience functions:
+
+```python
+from bblocks.data_importers import (
+    get_wb_entities,
+    get_indicator_metadata,
+    get_wb_indicators,
+)
+
+
+inds = get_wb_indicators(db=2)  # Get indicators from WDI database
+ents = get_wb_entities(db=2)     # Get entities from WDI database
+meta = get_indicator_metadata(indicator_code = "NY.GDP.MKTP.CD", db=2)  # Get metadata
+```
+To get all the entities or indicators in all databases, set `db=None`.
+
+## Specialised World Bank Importers
+
+For commonly accessed World Bank databases, specialised importers exist with additional
+functionality. These include:
+- InternationalDebtStatistics - Access International Debt Statistics (IDS) data on long-term debt
+
+
+### International Debt Statistics Importer
+
+To access data from the International Debt Statistics (IDS) database, use the
+`InternationalDebtStatistics` importer.
+
+```python
+from bblocks.data_importers import InternationalDebtStatistics
+
+ids = InternationalDebtStatistics()
+```
+
+The importer contains all the methods of the base `WorldBank` importer, plus
+additional methods specific to the IDS database.
+
+To see PPG debt stock indicators use the `debt_stock_indicators` property.
+
+```python
+ids.debt_stock_indicators
+```
+
+This will return a dataframe with all PPG debt stock indicators available in the IDS database and 
+their metadata
+
+Similarly to see all PPG debt service indicators use the `debt_service_indicators` property.
+
+```python
+ids.debt_service_indicators
+```
+
+To see the date the database was last updated, use the `last_updated` property.
+
+```python
+ids.last_updated
+```
