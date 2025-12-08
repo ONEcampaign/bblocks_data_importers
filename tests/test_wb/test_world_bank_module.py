@@ -26,10 +26,33 @@ def test_batch_splits_iterable_into_chunks():
     assert chunks == [["a", "b"], ["c", "d"], ["e"]]
 
 
-def test_make_hashable_handles_common_containers():
-    assert world_bank._make_hashable([1, 2]) == (1, 2)
-    assert world_bank._make_hashable({"b": 2, "a": 1}) == (("a", 1), ("b", 2))
-    assert world_bank._make_hashable("value") == "value"
+def test_make_cache_key_handles_common_inputs():
+    params_items = (("per_page", 1000), ("foo", "bar"))
+    extra_items = (("version", "MRV"),)
+    key = world_bank._make_cache_key(
+        indicators=["A", "B"],
+        db=2,
+        entity_code=["KEN", "USA"],
+        time=range(2000, 2003),
+        skip_blanks=True,
+        skip_aggs=False,
+        include_labels=True,
+        params_items=params_items,
+        extra_items=extra_items,
+    )
+
+    assert key == (
+        2,
+        ("A", "B"),
+        ("KEN", "USA"),
+        (2000, 2003),
+        True,
+        False,
+        True,
+        params_items,
+        extra_items,
+    )
+    hash(key)  # hashable
 
 
 def test_clean_df_standardizes_column_names():
@@ -314,29 +337,86 @@ def test_world_bank_get_data_prepares_parameters(monkeypatch):
     assert captured["extra_items"] == (("version", "MRV"),)
 
 
-def test_world_bank_clear_cache_invokes_underlying_cache(monkeypatch):
+def test_world_bank_get_data_deduplicates_indicator_codes(monkeypatch):
     monkeypatch.setattr(world_bank.wb, "db", 2)
+    captured = {}
 
-    cache_clear = Mock()
-
-    def fake_fetch(self, *args, **kwargs):
-        data = pd.DataFrame(
-            {
-                Fields.year: [2020],
-                Fields.indicator_code: ["A"],
-                Fields.entity_code: ["KEN"],
-                Fields.value: [1],
-            }
+    def fake_fetch(
+        self,
+        indicators,
+        db,
+        entity_code,
+        time,
+        skip_blanks,
+        skip_aggs,
+        include_labels,
+        params_items,
+        extra_items,
+        batch_size,
+        thread_num,
+    ):
+        captured["indicators"] = indicators
+        return convert_dtypes(
+            pd.DataFrame(
+                {
+                    Fields.year: [2020],
+                    Fields.indicator_code: ["A"],
+                    Fields.entity_code: ["KEN"],
+                    Fields.value: [1],
+                }
+            )
         )
-        return convert_dtypes(data)
 
-    fake_fetch.cache_clear = cache_clear
+    fake_fetch.cache_clear = lambda: None
     monkeypatch.setattr(world_bank.WorldBank, "_fetch_data", fake_fetch)
 
     wb_instance = world_bank.WorldBank()
+    wb_instance.get_data(
+        indicator_code=["B", "A", "A", "B"],
+        entity_code=["KEN"],
+        start_year=2020,
+        end_year=2020,
+    )
+
+    assert captured["indicators"] == ("A", "B")
+
+
+def test_world_bank_clear_cache_resets_cache(monkeypatch):
+    monkeypatch.setattr(world_bank.wb, "db", 2)
+
+    def fake_get_data(api_params):
+        return convert_dtypes(
+            pd.DataFrame(
+                {
+                    Fields.year: [2020],
+                    Fields.indicator_code: ["A"],
+                    Fields.entity_code: ["KEN"],
+                    Fields.value: [1],
+                }
+            )
+        )
+
+    monkeypatch.setattr(world_bank, "get_data", fake_get_data)
+
+    wb_instance = world_bank.WorldBank()
+    wb_instance._fetch_data(
+        indicators=("A",),
+        db=wb_instance.db,
+        entity_code=None,
+        time=None,
+        skip_blanks=False,
+        skip_aggs=False,
+        include_labels=False,
+        params_items=None,
+        extra_items=(),
+        batch_size=1,
+        thread_num=1,
+    )
+    assert wb_instance._data_cache  # cache populated
+
     wb_instance.clear_cache()
 
-    cache_clear.assert_called_once_with()
+    assert wb_instance._data_cache == {}
 
 
 def test_world_bank_implements_data_importer_protocol(monkeypatch):
@@ -346,3 +426,65 @@ def test_world_bank_implements_data_importer_protocol(monkeypatch):
     assert isinstance(importer, DataImporter)
     assert callable(getattr(importer, "get_data"))
     assert callable(getattr(importer, "clear_cache"))
+
+
+def test_cached_dataframe_is_immutable_to_callers(monkeypatch):
+    monkeypatch.setattr(world_bank.wb, "db", 2)
+    fetch_calls = 0
+
+    def fake_get_data(api_params):
+        nonlocal fetch_calls
+        fetch_calls += 1
+        return convert_dtypes(
+            pd.DataFrame(
+                {
+                    Fields.year: [2020],
+                    Fields.indicator_code: ["SP.POP.TOTL"],
+                    Fields.entity_code: ["KEN"],
+                    Fields.value: [1],
+                }
+            )
+        )
+
+    monkeypatch.setattr(world_bank, "get_data", fake_get_data)
+
+    wb_instance = world_bank.WorldBank()
+    df_first = wb_instance.get_data(
+        indicator_code="SP.POP.TOTL",
+        entity_code="KEN",
+        start_year=2020,
+        end_year=2020,
+        batch_size=1,
+        thread_num=1,
+    )
+    df_first.loc[0, Fields.value] = 999
+
+    df_second = wb_instance.get_data(
+        indicator_code="SP.POP.TOTL",
+        entity_code="KEN",
+        start_year=2020,
+        end_year=2020,
+        batch_size=1,
+        thread_num=1,
+    )
+
+    assert fetch_calls == 1  # second call should hit cache
+    assert df_second.loc[0, Fields.value] == 1  # cached data is unaffected by mutation
+
+
+def test_get_indicator_metadata_deduplicates(monkeypatch):
+    captured = {}
+
+    def fake_metadata(**kwargs):
+        captured.update(kwargs)
+        return [
+            _DummyMetadata({"IndicatorName": "Ind A", "Unitofmeasure": "u1"}),
+            _DummyMetadata({"IndicatorName": "Ind B", "Unitofmeasure": "u2"}),
+        ]
+
+    monkeypatch.setattr(world_bank, "_get_cached_metadata", fake_metadata)
+
+    df = world_bank.get_indicator_metadata(["B", "A", "A"], db=2)
+
+    assert captured["id"] == ("A", "B")
+    assert set(df[Fields.indicator_code]) == {"A", "B"}
