@@ -25,7 +25,7 @@ This will return a DataFrame with the available indicator (their codes and names
 will need the indicator codes to query data.
 
 To get data for specific indicators:
->>> data_df = wb_importer._request_data(indicator_code='SP.POP.TOTL') # total population indicator code
+>>> data_df = wb_importer.get_data(indicator_code='SP.POP.TOTL') # total population indicator code
 This will return a DataFrame with the data for the specified indicator across all entities and years
 available in the database.
 
@@ -37,7 +37,7 @@ Other parameters can be used to filter the data, such as specifying entity codes
 observations, whether to include labels, etc. and any other parameter supported by the World Bank API (read the wbgapi
 documentation for more details)[https://github.com/tgherzog/wbgapi]
 
->>> data_df = wb_importer._request_data(
+>>> data_df = wb_importer.get_data(
 ...     indicator_code=['SP.POP.TOTL', 'NY.GDP.MKTP.CD'], # total population and gdp indicator codes
 ...     entity_code=['ZWE', 'KEN'], # Zimbabwe and Kenya
 ...     start_year=2000,
@@ -70,7 +70,6 @@ This will return a DataFrame with the available non-aggregate entities and their
 """
 
 from functools import lru_cache
-from collections.abc import Hashable
 from typing import Generator
 import pandas as pd
 import wbgapi as wb
@@ -376,7 +375,7 @@ def _make_cache_key(
 
 
 def _fetch_data(
-        *,
+    *,
     indicators: tuple[str, ...],
     db: int | None,
     entity_code: tuple[str] | None,
@@ -496,7 +495,7 @@ class WorldBank:
     >>> indicators_df = wb_importer.get_available_indicators()
 
     To get data for specific indicators:
-    >>> data_df = wb_importer._request_data(indicator_code='SP.POP.TOTL') # total population indicator code
+    >>> data_df = wb_importer.get_data(indicator_code='SP.POP.TOTL') # total population indicator code
 
     Multiple indicators can be queried. Batching and multithreading are used to speed up data retrieval for
     multiple indicators. Indicators are batched into groups of 1 by default, and 4 threads are used for fetching data.
@@ -505,7 +504,7 @@ class WorldBank:
     observations, whether to include labels, etc. and any other parameter supported by the World Bank API (read the wbgapi
     documentation for more details)[https://github.com/tgherzog/wbgapi]
 
-    >>> data_df = wb_importer._request_data(
+    >>> data_df = wb_importer.get_data(
     ...     indicator_code=['SP.POP.TOTL', 'NY.GDP.MKTP.CD'], # total population and gdp indicator codes
     ...     entity_code=['ZWE', 'KEN'], # Zimbabwe and Kenya
     ...     start_year=2000,
@@ -522,7 +521,10 @@ class WorldBank:
     use the `get_available_entities` method:
     >>> entities_df = wb_importer.get_available_entities()
 
-    Data is cached by default to avoid redundant API calls for the same queries. To clear the cache, use the `clear_cache` method:
+    Data is cached by default to avoid redundant API calls for the same queries.
+    Data is cached to disk and persists up to 3 hours. To clear the cache, use the `clear_cache` method.
+    NOTE: clearing the cache will remove all cached data for all World Bank database instances.
+
     >>> wb_importer.clear_cache()
 
     """
@@ -665,8 +667,12 @@ class WorldBank:
         # return a defensive copy so callers cannot mutate the cached DataFrame
         return df.copy(deep=True)
 
-    def clear_cache(self) -> None:
-        """Clear the cached data"""
+    @staticmethod
+    def clear_cache() -> None:
+        """Clear the cached data
+
+        NOTE: This will clear the cache for all World Bank database instances.
+        """
 
         _DATA_CACHE.clear()
 
