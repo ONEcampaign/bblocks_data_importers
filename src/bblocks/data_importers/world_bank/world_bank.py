@@ -1,72 +1,18 @@
 """Importer for the World Bank
 
 The World Bank offers data through its API for various databases, such as the World Development Indicators (WDI).
+This module contains functionality to get data and metadata from the world bank.
 
-This importer provides functionality to get data for different World Bank databases, access metadata on indicators
-and entities, and see the available databases.
+Functions:
+- get_wb_databases: Get the available World Bank databases.
+- get_wb_entities: Get entities available in World Bank databases or a specific database, including
+    metadata.
+- get_wb_indicators: Get indicators available in World Bank databases or a specific database.
+- get_indicator_metadata: Get indicator metadata for a given indicator code.
 
-Usage example:
+Classes:
+- WorldBank: Importer for World Bank data.
 
-To see the available databases:
->>> print(get_wb_databases())
-This will return a DataFrame with the available World Bank databases, their IDs, names, codes, and last updated dates.
-You will need the IDs to specify which database to query.
-
-To start querying data, fisrt create an instance of the WorldBank class, specifying the database ID you want to use:
->>> wb_importer = WorldBank(db=2)  # 2 is the ID for
-
-By default, if no database is specified, the World Development Indicators database (id=2) is used.
->>> wb_importer = WorldBank()  # uses WDI by default
-
-
-To get available indicators in the database:
->>> indicators_df = wb_importer.get_available_indicators()
-This will return a DataFrame with the available indicator (their codes and names) for the specified database. You
-will need the indicator codes to query data.
-
-To get data for specific indicators:
->>> data_df = wb_importer.get_data(indicator_code='SP.POP.TOTL') # total population indicator code
-This will return a DataFrame with the data for the specified indicator across all entities and years
-available in the database.
-
-Multiple indicators can be queried. Batching and multithreading are used to speed up data retrieval for
-multiple indicators. Indicators are batched into groups of 1 by default, and 4 threads are used for fetching data.
-Different batch sizes and thread numbers can be specified using the `batch_size` and `thread_num` parameters.
-
-Other parameters can be used to filter the data, such as specifying entity codes, year ranges, whether to skip blank
-observations, whether to include labels, etc. and any other parameter supported by the World Bank API (read the wbgapi
-documentation for more details)[https://github.com/tgherzog/wbgapi]
-
->>> data_df = wb_importer.get_data(
-...     indicator_code=['SP.POP.TOTL', 'NY.GDP.MKTP.CD'], # total population and gdp indicator codes
-...     entity_code=['ZWE', 'KEN'], # Zimbabwe and Kenya
-...     start_year=2000,
-...     end_year=2020,
-...     skip_blanks=True,
-...     include_labels=False,
-...     batch_size=2,
-...     thread_num=2)
-
-Data is cached by default to avoid redundant API calls for the same queries. To clear the cache, use the `clear_cache` method:
->>> wb_importer.clear_cache()
-Returned DataFrames are defensive copies, so mutating them will not affect the cached data.
-
-To get metadata for specific indicators:
->>> metadata_df = wb_importer.get_indicator_metadata(indicator_code='SP.POP.TOTL')
-This will return a DataFrame with the metadata for the specified indicator.
-
-To specify entities to query, their codes need to be used. To get the available entities and their codes, as well
-as other entity metadata such as region and income level, use the `get_available_entities` method:
->>> entities_df = wb_importer.get_available_entities()
-This will return a DataFrame with the available entities and their metadata for the specified database.
-
-To get all the available entities maintained by the World Bank across all databases, use the `get_wb_entities` function:
->>> all_entities_df = get_wb_entities()
-This will return a DataFrame with all the available entities and their metadata.
-
-Optionally aggregate entities can be skipped using the `skip_aggs` parameter:
->>> entities_df = wb_importer.get_available_entities(skip_aggs=True)
-This will return a DataFrame with the available non-aggregate entities and their metadata for the specified
 """
 
 from functools import lru_cache
@@ -89,6 +35,23 @@ _PER_PAGE: int = 50_000_000  # number of records per page to request from World 
 # cache expiry after 3 hours
 _CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60
 _DATA_CACHE = Cache(Paths.data)
+
+_ENTITY_COLS = {
+        "id": Fields.entity_code,
+        "value": Fields.entity_name,
+        "aggregate": "is_aggregate",
+        "longitude": "longitude",
+        "latitude": "latitude",
+        "capitalCity": "capital_city",
+        "region_id": Fields.region_code,
+        "region_value": Fields.region_name,
+        "adminregion_id": "admin_region_code",
+        "adminregion_value": "admin_region_name",
+        "lendingType_id": "lending_type_code",
+        "lendingType_value": "lending_type_name",
+        "incomeLevel_id": Fields.income_level_code,
+        "incomeLevel_value": Fields.income_level_name,
+    }
 
 
 def _batch(iterable: tuple[str, ...], n: int) -> Generator:
@@ -136,24 +99,8 @@ def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFr
     l = [i for i in wb.economy.list(db=db, labels=True, skipAggs=skip_aggs)]
     df = pd.json_normalize(l, sep="_")
 
-    cols = {
-        "id": Fields.entity_code,
-        "value": Fields.entity_name,
-        "aggregate": "is_aggregate",
-        "longitude": "longitude",
-        "latitude": "latitude",
-        "capitalCity": "capital_city",
-        "region_id": Fields.region_code,
-        "region_value": Fields.region_name,
-        "adminregion_id": "admin_region_code",
-        "adminregion_value": "admin_region_name",
-        "lendingType_id": "lending_type_code",
-        "lendingType_value": "lending_type_name",
-        "incomeLevel_id": Fields.income_level_code,
-        "incomeLevel_value": Fields.income_level_name,
-    }
-
-    df = df.rename(columns=cols).loc[:, cols.values()]
+    # rename and reorder columns
+    df = df.rename(columns=_ENTITY_COLS).loc[:, _ENTITY_COLS.values()]
 
     # find any empty strings and replace with NaN
     df = df.replace("", pd.NA)
@@ -263,44 +210,36 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
     # cleaning steps
     if "time_id" in df.columns:
         df = df.drop(columns=["time_id"])
-    if "time_value" in df.columns:
-        df = df.rename(columns={"time_value": Fields.year})
-    if "time" in df.columns:
-        df = df.rename(columns={"time": Fields.year})
 
-    # replace "economy" columns
-    if "economy" in df.columns:
-        df = df.rename(columns={"economy": Fields.entity_code})
-    if "economy_id" in df.columns:
-        df = df.rename(columns={"economy_id": Fields.entity_code})
-    if "economy_value" in df.columns:
-        df = df.rename(columns={"economy_value": Fields.entity_name})
+    col_mapping = {
+        "time_value": Fields.year,
+        "time": Fields.year,
+        "economy": Fields.entity_code,
+        "economy_id": Fields.entity_code,
+        "economy_value": Fields.entity_name,
 
-    # replace "aggregate" columns
-    if "economy_aggregate" in df.columns:
-        df = df.rename(columns={"economy_aggregate": "is_aggregate"})
-    if "aggregate" in df.columns:
-        df = df.rename(columns={"aggregate": "is_aggregate"})
+        "economy_aggregate": "is_aggregate",
+        "aggregate": "is_aggregate",
 
-    # replace series columns
-    if "series" in df.columns:
-        df = df.rename(columns={"series": Fields.indicator_code})
-    if "series_id" in df.columns:
-        df = df.rename(columns={"series_id": Fields.indicator_code})
-    if "series_value" in df.columns:
-        df = df.rename(columns={"series_value": Fields.indicator_name})
+        "series": Fields.indicator_code,
+        "series_id": Fields.indicator_code,
+        "series_value": Fields.indicator_name,
 
-    # replace counterpart area columns
-    if "counterpart_area" in df.columns:
-        df = df.rename(columns={"counterpart_area": Fields.counterpart_code})
-    if "counterpart_area_id" in df.columns:
-        df = df.rename(columns={"counterpart_area_id": Fields.counterpart_code})
-    if "counterpart_area_value" in df.columns:
-        df = df.rename(columns={"counterpart_area_value": Fields.counterpart_name})
+        "counterpart_area": Fields.counterpart_code,
+        "counterpart_area_id": Fields.counterpart_code,
+        "counterpart_area_value": Fields.counterpart_name,
 
-    # replace value column
-    if "value" in df.columns:
-        df = df.rename(columns={"value": Fields.value})
+        "value": Fields.value,
+
+
+    }
+
+    # rename columns that exist
+    df = df.rename(columns={k: v for k, v in col_mapping.items() if k in df.columns})
+
+    # ensure year column is integer
+    if Fields.year in df.columns:
+        df[Fields.year] = df[Fields.year].astype(int)
 
     # convert dtypes
     df = convert_dtypes(df)
