@@ -49,6 +49,7 @@ documentation for more details)[https://github.com/tgherzog/wbgapi]
 
 Data is cached by default to avoid redundant API calls for the same queries. To clear the cache, use the `clear_cache` method:
 >>> wb_importer.clear_cache()
+Returned DataFrames are defensive copies, so mutating them will not affect the cached data.
 
 To get metadata for specific indicators:
 >>> metadata_df = wb_importer.get_indicator_metadata(indicator_code='SP.POP.TOTL')
@@ -86,7 +87,7 @@ _NUM_THREADS: int = 4  # number of threads to use for fetching data
 _PER_PAGE: int = 50_000_000  # number of records per page to request from World Bank API
 
 
-def _batch(iterable: list[str], n: int) -> Generator:
+def _batch(iterable: tuple[str], n: int) -> Generator:
     """Yield successive n-sized chunks from iterable."""
     for i in range(0, len(iterable), n):
         yield iterable[i : i + n]
@@ -345,15 +346,15 @@ def _get_time_range(start: int | None, end: int | None) -> range | None:
 
 def _make_cache_key(
         *,
-        indicators: list[str],
+        indicators: tuple[str],
         db: int | None,
-        entity_code: list[str] | None,
+        entity_code: tuple[str] | None,
         time: range | None,
         skip_blanks: bool,
         skip_aggs: bool,
         include_labels: bool,
-        params: dict | None,
-        extra: dict,
+        params_items: tuple[tuple[str, object], ...] | None,
+        extra_items: tuple[tuple[str, object], ...],
 ) -> tuple:
     """Build a hashable, canonical cache key for a data request."""
     return (
@@ -364,8 +365,8 @@ def _make_cache_key(
         skip_blanks,
         skip_aggs,
         include_labels,
-        frozenset(params.items()) if params else None,
-        frozenset(extra.items()) if extra else None,
+        params_items,
+        extra_items,
     )
 
 
@@ -485,30 +486,24 @@ class WorldBank:
     def _fetch_data(
             self,
             *,
-            indicators: list[str],
+            indicators: tuple[str, ...],
             db: int | None,
-            entity_code: list[str],
+            entity_code: tuple[str] | None,
             time: range | None,
             skip_blanks: bool,
             skip_aggs: bool,
             include_labels: bool,
-            params: dict | None,
-            extra: dict,
+            params_items: tuple[tuple[str, object], ...] | None,
+            extra_items: tuple[tuple[str, object], ...],
             batch_size: int,
             thread_num: int,
     ) -> pd.DataFrame:
         """Fetch data from the World Bank API.
 
         This method handles preparing the wbgapi parameters, fetching the data by batching indicators and
-        multithreading for faster retrieval. Data is cached using last recently used (LRU) caching to avoid
-        redundant API calls for the same queries. Cache size is limited to 8 unique queries (due to the potential
-        size of World Bank API responses).
+        multithreading for faster retrieval. Results are cached in-memory to avoid redundant API calls for the
+        same queries.
         """
-
-        # get the hash key
-        # check if hash key exists in cache
-        # if exists, return cached dataframe
-        # else fetch the data and store in cache and return the dataframe
 
         cache_key = _make_cache_key(
             indicators=indicators,
@@ -518,8 +513,8 @@ class WorldBank:
             skip_blanks=skip_blanks,
             skip_aggs=skip_aggs,
             include_labels=include_labels,
-            params=params,
-            extra=extra,
+            params_items=params_items,
+            extra_items=extra_items,
         )
 
         # if key exists in cache return cached dataframe
@@ -527,8 +522,10 @@ class WorldBank:
         if cached is not None:
             return cached
 
-
         logger.info("Fetching data from World Bank API...")
+
+        params = dict(params_items) if params_items else None
+        extra = dict(extra_items)
 
         api_params = {
             "db": db,
@@ -629,13 +626,13 @@ class WorldBank:
         # normalise indicators
         if isinstance(indicator_code, str):
             indicator_code = [indicator_code]
-        indicators = sorted(set(indicator_code))
+        indicators = tuple(sorted(set(indicator_code)))
 
         # normalise entity codes
         if entity_code is not None:
             if isinstance(entity_code, str):
                 entity_code = [entity_code]
-            entities = sorted(set(entity_code))
+            entities = tuple(sorted(set(entity_code)))
         else:
             entities = None
 
@@ -645,6 +642,9 @@ class WorldBank:
 
         time_range = _get_time_range(start_year, end_year)
 
+        params_items = tuple(sorted(params.items())) if params else None
+        extra_items = tuple(sorted(kwargs.items()))
+
         df = self._fetch_data(
             indicators=indicators,
             db=self._db,
@@ -653,18 +653,18 @@ class WorldBank:
             skip_blanks=skip_blanks,
             skip_aggs=skip_aggs,
             include_labels=include_labels,
-            params=params,
-            extra=kwargs,
+            params_items=params_items,
+            extra_items=extra_items,
             batch_size=batch_size,
             thread_num=thread_num,
         )
 
-        # shallow copy to avoid accidental mutation of cached df
-        return df.copy(deep=False)
+        # return a defensive copy so callers cannot mutate the cached DataFrame
+        return df.copy(deep=True)
 
     def clear_cache(self) -> None:
         """Clear the cache"""
 
-        self._data_cache = {} # reset the cache dictionary
+        self._data_cache = {}  # reset the cache dictionary
 
         logger.info("Cache cleared.")
