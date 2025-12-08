@@ -37,21 +37,21 @@ _CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60
 _DATA_CACHE = Cache(Paths.data)
 
 _ENTITY_COLS = {
-        "id": Fields.entity_code,
-        "value": Fields.entity_name,
-        "aggregate": "is_aggregate",
-        "longitude": "longitude",
-        "latitude": "latitude",
-        "capitalCity": "capital_city",
-        "region_id": Fields.region_code,
-        "region_value": Fields.region_name,
-        "adminregion_id": "admin_region_code",
-        "adminregion_value": "admin_region_name",
-        "lendingType_id": "lending_type_code",
-        "lendingType_value": "lending_type_name",
-        "incomeLevel_id": Fields.income_level_code,
-        "incomeLevel_value": Fields.income_level_name,
-    }
+    "id": Fields.entity_code,
+    "value": Fields.entity_name,
+    "aggregate": "is_aggregate",
+    "longitude": "longitude",
+    "latitude": "latitude",
+    "capitalCity": "capital_city",
+    "region_id": Fields.region_code,
+    "region_value": Fields.region_name,
+    "adminregion_id": "admin_region_code",
+    "adminregion_value": "admin_region_name",
+    "lendingType_id": "lending_type_code",
+    "lendingType_value": "lending_type_name",
+    "incomeLevel_id": Fields.income_level_code,
+    "incomeLevel_value": Fields.income_level_name,
+}
 
 
 def _batch(iterable: tuple[str, ...], n: int) -> Generator:
@@ -217,21 +217,15 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
         "economy": Fields.entity_code,
         "economy_id": Fields.entity_code,
         "economy_value": Fields.entity_name,
-
         "economy_aggregate": "is_aggregate",
         "aggregate": "is_aggregate",
-
         "series": Fields.indicator_code,
         "series_id": Fields.indicator_code,
         "series_value": Fields.indicator_name,
-
         "counterpart_area": Fields.counterpart_code,
         "counterpart_area_id": Fields.counterpart_code,
         "counterpart_area_value": Fields.counterpart_name,
-
         "value": Fields.value,
-
-
     }
 
     # rename columns that exist
