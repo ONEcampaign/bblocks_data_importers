@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-from unittest.mock import Mock
 
 from bblocks.data_importers.config import DataExtractionError, Fields
 from bblocks.data_importers.protocols import DataImporter
@@ -14,11 +13,16 @@ class _DummyMetadata:
 
 
 @pytest.fixture(autouse=True)
-def _clear_world_bank_caches():
+def _reset_world_bank_caches(monkeypatch, tmp_path):
     world_bank.get_wb_databases.cache_clear()
     world_bank.get_wb_entities.cache_clear()
     world_bank.get_wb_indicators.cache_clear()
     world_bank._get_cached_metadata.cache_clear()
+
+    cache = world_bank.Cache(tmp_path / "wb-cache")
+    monkeypatch.setattr(world_bank, "_DATA_CACHE", cache)
+    yield
+    cache.close()
 
 
 def test_batch_splits_iterable_into_chunks():
@@ -30,9 +34,9 @@ def test_make_cache_key_handles_common_inputs():
     params_items = (("per_page", 1000), ("foo", "bar"))
     extra_items = (("version", "MRV"),)
     key = world_bank._make_cache_key(
-        indicators=["A", "B"],
+        indicators=("A", "B"),
         db=2,
-        entity_code=["KEN", "USA"],
+        entity_code=("KEN", "USA"),
         time=range(2000, 2003),
         skip_blanks=True,
         skip_aggs=False,
@@ -172,7 +176,7 @@ def test_get_indicator_metadata_raises_when_missing(monkeypatch):
         world_bank.get_indicator_metadata("SP.POP.TOTL")
 
 
-def test_get_data_returns_clean_dataframe(monkeypatch):
+def test_request_data_returns_clean_dataframe(monkeypatch):
     response = [
         {
             "economy": "USA",
@@ -183,28 +187,28 @@ def test_get_data_returns_clean_dataframe(monkeypatch):
     ]
     monkeypatch.setattr(world_bank.wb.data, "fetch", lambda **kwargs: response)
 
-    df = world_bank.get_data({"series": ("SP.POP.TOTL",)})
+    df = world_bank._request_data({"series": ("SP.POP.TOTL",)})
 
     assert df.loc[0, Fields.entity_code] == "USA"
     assert df.loc[0, Fields.year] == 2020
 
 
-def test_get_data_returns_empty_dataframe_when_no_results(monkeypatch):
+def test_request_data_returns_empty_dataframe_when_no_results(monkeypatch):
     monkeypatch.setattr(world_bank.wb.data, "fetch", lambda **kwargs: [])
 
-    df = world_bank.get_data({"series": ("SP.POP.TOTL",)})
+    df = world_bank._request_data({"series": ("SP.POP.TOTL",)})
 
     assert df.empty
 
 
-def test_get_data_raises_data_extraction_error_on_failure(monkeypatch):
+def test_request_data_raises_data_extraction_error_on_failure(monkeypatch):
     def _boom(**kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(world_bank.wb.data, "fetch", _boom)
 
     with pytest.raises(DataExtractionError):
-        world_bank.get_data({"series": ("SP.POP.TOTL",)})
+        world_bank._request_data({"series": ("SP.POP.TOTL",)})
 
 
 def test_fetch_data_batches_and_validates(monkeypatch):
@@ -223,14 +227,11 @@ def test_fetch_data_batches_and_validates(monkeypatch):
         ]
         return convert_dtypes(pd.DataFrame(data))
 
-    monkeypatch.setattr(world_bank, "get_data", fake_get_data)
-    monkeypatch.setattr(world_bank.wb, "db", 2)
+    monkeypatch.setattr(world_bank, "_request_data", fake_get_data)
 
-    wb_instance = world_bank.WorldBank()
-
-    df = wb_instance._fetch_data(
+    df = world_bank._fetch_data(
         indicators=("B", "A", "C"),
-        db=wb_instance.db,
+        db=2,
         entity_code=("KEN",),
         time=range(2000, 2003),
         skip_blanks=True,
@@ -248,15 +249,12 @@ def test_fetch_data_batches_and_validates(monkeypatch):
 
 
 def test_fetch_data_raises_when_no_rows(monkeypatch):
-    monkeypatch.setattr(world_bank, "get_data", lambda api_params: pd.DataFrame())
-    monkeypatch.setattr(world_bank.wb, "db", 2)
-
-    wb_instance = world_bank.WorldBank()
+    monkeypatch.setattr(world_bank, "_request_data", lambda api_params: pd.DataFrame())
 
     with pytest.raises(DataExtractionError):
-        wb_instance._fetch_data(
+        world_bank._fetch_data(
             indicators=("A",),
-            db=wb_instance.db,
+            db=2,
             entity_code=None,
             time=None,
             skip_blanks=False,
@@ -269,12 +267,62 @@ def test_fetch_data_raises_when_no_rows(monkeypatch):
         )
 
 
+def test_fetch_data_uses_disk_cache(monkeypatch):
+    calls = 0
+
+    def fake_get_data(api_params):
+        nonlocal calls
+        calls += 1
+        return convert_dtypes(
+            pd.DataFrame(
+                {
+                    Fields.year: [2020],
+                    Fields.indicator_code: api_params["series"][0],
+                    Fields.entity_code: ["KEN"],
+                    Fields.value: [1],
+                }
+            )
+        )
+
+    monkeypatch.setattr(world_bank, "_request_data", fake_get_data)
+
+    first = world_bank._fetch_data(
+        indicators=("SP.POP.TOTL",),
+        db=2,
+        entity_code=("KEN",),
+        time=range(2020, 2021),
+        skip_blanks=False,
+        skip_aggs=False,
+        include_labels=False,
+        params_items=(("per_page", 1000),),
+        extra_items=(),
+        batch_size=1,
+        thread_num=1,
+    )
+    second = world_bank._fetch_data(
+        indicators=("SP.POP.TOTL",),
+        db=2,
+        entity_code=("KEN",),
+        time=range(2020, 2021),
+        skip_blanks=False,
+        skip_aggs=False,
+        include_labels=False,
+        params_items=(("per_page", 1000),),
+        extra_items=(),
+        batch_size=1,
+        thread_num=1,
+    )
+
+    assert calls == 1
+    assert second.equals(first)
+
+
 def test_world_bank_get_data_prepares_parameters(monkeypatch):
     monkeypatch.setattr(world_bank.wb, "db", 2)
     captured = {}
 
     def fake_fetch(
-        self,
+        *,
         indicators,
         db,
         entity_code,
@@ -302,18 +350,18 @@ def test_world_bank_get_data_prepares_parameters(monkeypatch):
                 "thread_num": thread_num,
             }
         )
-        data = pd.DataFrame(
-            {
-                Fields.year: [2010],
-                Fields.indicator_code: ["A"],
-                Fields.entity_code: ["KEN"],
-                Fields.value: [1],
-            }
+        return convert_dtypes(
+            pd.DataFrame(
+                {
+                    Fields.year: [2010],
+                    Fields.indicator_code: ["A"],
+                    Fields.entity_code: ["KEN"],
+                    Fields.value: [1],
+                }
+            )
         )
-        return convert_dtypes(data)
 
-    fake_fetch.cache_clear = lambda: None
-    monkeypatch.setattr(world_bank.WorldBank, "_fetch_data", fake_fetch)
+    monkeypatch.setattr(world_bank, "_fetch_data", fake_fetch)
 
     wb_instance = world_bank.WorldBank()
     wb_instance.get_data(
@@ -342,7 +390,7 @@ def test_world_bank_get_data_deduplicates_indicator_codes(monkeypatch):
     captured = {}
 
     def fake_fetch(
-        self,
+        *,
         indicators,
         db,
         entity_code,
@@ -367,8 +415,7 @@ def test_world_bank_get_data_deduplicates_indicator_codes(monkeypatch):
             )
         )
 
-    fake_fetch.cache_clear = lambda: None
-    monkeypatch.setattr(world_bank.WorldBank, "_fetch_data", fake_fetch)
+    monkeypatch.setattr(world_bank, "_fetch_data", fake_fetch)
 
     wb_instance = world_bank.WorldBank()
     wb_instance.get_data(
@@ -396,27 +443,22 @@ def test_world_bank_clear_cache_resets_cache(monkeypatch):
             )
         )
 
-    monkeypatch.setattr(world_bank, "get_data", fake_get_data)
+    monkeypatch.setattr(world_bank, "_request_data", fake_get_data)
 
     wb_instance = world_bank.WorldBank()
-    wb_instance._fetch_data(
-        indicators=("A",),
-        db=wb_instance.db,
-        entity_code=None,
-        time=None,
-        skip_blanks=False,
-        skip_aggs=False,
-        include_labels=False,
-        params_items=None,
-        extra_items=(),
+    wb_instance.get_data(
+        indicator_code="A",
+        entity_code="KEN",
+        start_year=2020,
+        end_year=2020,
         batch_size=1,
         thread_num=1,
     )
-    assert wb_instance._data_cache  # cache populated
+    assert len(world_bank._DATA_CACHE) == 1  # cache populated
 
     wb_instance.clear_cache()
 
-    assert wb_instance._data_cache == {}
+    assert len(world_bank._DATA_CACHE) == 0
 
 
 def test_world_bank_implements_data_importer_protocol(monkeypatch):
@@ -446,7 +488,7 @@ def test_cached_dataframe_is_immutable_to_callers(monkeypatch):
             )
         )
 
-    monkeypatch.setattr(world_bank, "get_data", fake_get_data)
+    monkeypatch.setattr(world_bank, "_request_data", fake_get_data)
 
     wb_instance = world_bank.WorldBank()
     df_first = wb_instance.get_data(
