@@ -570,6 +570,7 @@ class WorldBank:
             skip_aggs: whether to skip aggregate entities
             include_labels: whether to include labels instead of codes. Defaults to False.
             params: extra query parameters to pass to the API
+                per_page sets the number of records to return per page. Defaults to 50,000,000.
             batch_size: number of indicators to fetch per batch. Defaults to 1.
             thread_num: number of threads to use for fetching data. Defaults to 4.
             **kwargs: extra dimensions, database specific (e.g., version)
@@ -592,11 +593,12 @@ class WorldBank:
                 entity_code = [entity_code]
             entity_code = tuple(sorted(entity_code))
 
-
         # add per page to params
         if params is None:
             params = {}
-        params["per_page"] = _PER_PAGE
+
+        if "per_page" not in params:
+            params["per_page"] = _PER_PAGE
 
         # fetch data
         df = self._fetch_data(
