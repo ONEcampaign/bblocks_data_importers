@@ -345,16 +345,16 @@ def _get_time_range(start: int | None, end: int | None) -> range | None:
 
 
 def _make_cache_key(
-        *,
-        indicators: tuple[str],
-        db: int | None,
-        entity_code: tuple[str] | None,
-        time: range | None,
-        skip_blanks: bool,
-        skip_aggs: bool,
-        include_labels: bool,
-        params_items: tuple[tuple[str, object], ...] | None,
-        extra_items: tuple[tuple[str, object], ...],
+    *,
+    indicators: tuple[str],
+    db: int | None,
+    entity_code: tuple[str] | None,
+    time: range | None,
+    skip_blanks: bool,
+    skip_aggs: bool,
+    include_labels: bool,
+    params_items: tuple[tuple[str, object], ...] | None,
+    extra_items: tuple[tuple[str, object], ...],
 ) -> tuple:
     """Build a hashable, canonical cache key for a data request."""
     return (
@@ -484,19 +484,19 @@ class WorldBank:
         return get_indicator_metadata(indicator_code=indicator_code, db=self.db)
 
     def _fetch_data(
-            self,
-            *,
-            indicators: tuple[str, ...],
-            db: int | None,
-            entity_code: tuple[str] | None,
-            time: range | None,
-            skip_blanks: bool,
-            skip_aggs: bool,
-            include_labels: bool,
-            params_items: tuple[tuple[str, object], ...] | None,
-            extra_items: tuple[tuple[str, object], ...],
-            batch_size: int,
-            thread_num: int,
+        self,
+        *,
+        indicators: tuple[str, ...],
+        db: int | None,
+        entity_code: tuple[str] | None,
+        time: range | None,
+        skip_blanks: bool,
+        skip_aggs: bool,
+        include_labels: bool,
+        params_items: tuple[tuple[str, object], ...] | None,
+        extra_items: tuple[tuple[str, object], ...],
+        batch_size: int,
+        thread_num: int,
     ) -> pd.DataFrame:
         """Fetch data from the World Bank API.
 
