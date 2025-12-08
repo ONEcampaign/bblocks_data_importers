@@ -69,6 +69,7 @@ This will return a DataFrame with the available non-aggregate entities and their
 """
 
 from functools import lru_cache
+from collections.abc import Hashable
 from typing import Generator
 import pandas as pd
 import wbgapi as wb
@@ -85,19 +86,10 @@ _NUM_THREADS: int = 4  # number of threads to use for fetching data
 _PER_PAGE: int = 50_000_000  # number of records per page to request from World Bank API
 
 
-def _batch(iterable: tuple[str] | list[str], n: int) -> Generator:
+def _batch(iterable: list[str], n: int) -> Generator:
     """Yield successive n-sized chunks from iterable."""
     for i in range(0, len(iterable), n):
         yield iterable[i : i + n]
-
-
-def _make_hashable(value) -> tuple:
-    """Convert unhashable types to hashable types for caching purposes."""
-    if isinstance(value, list):
-        return tuple(value)
-    if isinstance(value, dict):
-        return tuple(sorted(value.items()))
-    return value
 
 
 @lru_cache
@@ -124,7 +116,7 @@ def get_wb_databases() -> pd.DataFrame:
     return convert_dtypes(df)
 
 
-@lru_cache(maxsize=10)
+@lru_cache(maxsize=None)
 def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFrame:
     """Get entities available in World Bank databases or a specific database, including metadata.
 
@@ -164,7 +156,7 @@ def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFr
     return convert_dtypes(df)
 
 
-@lru_cache(maxsize=10)
+@lru_cache(maxsize=None)
 def get_wb_indicators(db: int | None = None) -> pd.DataFrame:
     """Get indicators available in World Bank databases or a specific database
 
@@ -190,7 +182,7 @@ def _check_valid_db(db: int) -> None:
         raise ValueError(f"Database ID {db} is not valid.")
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=None)
 def _get_cached_metadata(**kwargs) -> list:
     """Helper function to get cached metadata from World Bank API."""
 
@@ -212,6 +204,9 @@ def get_indicator_metadata(
 
     if isinstance(indicator_code, str):
         indicator_code = [indicator_code]
+
+    # remove duplicates and sort
+    indicator_code = sorted(set(indicator_code))
 
     metadata = _get_cached_metadata(db=db, id=tuple(indicator_code))
 
@@ -348,6 +343,32 @@ def _get_time_range(start: int | None, end: int | None) -> range | None:
     return range(start, end + 1)
 
 
+def _make_cache_key(
+        *,
+        indicators: list[str],
+        db: int | None,
+        entity_code: list[str] | None,
+        time: range | None,
+        skip_blanks: bool,
+        skip_aggs: bool,
+        include_labels: bool,
+        params: dict | None,
+        extra: dict,
+) -> tuple:
+    """Build a hashable, canonical cache key for a data request."""
+    return (
+        db,
+        tuple(indicators),
+        tuple(entity_code) if entity_code is not None else None,
+        None if time is None else (time.start, time.stop),
+        skip_blanks,
+        skip_aggs,
+        include_labels,
+        frozenset(params.items()) if params else None,
+        frozenset(extra.items()) if extra else None,
+    )
+
+
 class WorldBank:
     """Importer for World Bank data.
 
@@ -411,6 +432,8 @@ class WorldBank:
         else:
             self._db = wb.db
 
+        self._data_cache: dict[Hashable, pd.DataFrame] = {}
+
         logger.info(f"World Bank database set to {self._db}.")
 
     @property
@@ -459,20 +482,20 @@ class WorldBank:
 
         return get_indicator_metadata(indicator_code=indicator_code, db=self.db)
 
-    @lru_cache(maxsize=8)
     def _fetch_data(
-        self,
-        indicators: tuple,
-        db: int | None,
-        entity_code: str | tuple[str] | None,
-        time: int | range,
-        skip_blanks: bool,
-        skip_aggs: bool,
-        include_labels: bool,
-        params_items: tuple | None,
-        extra_items: tuple,
-        batch_size: int,
-        thread_num: int,
+            self,
+            *,
+            indicators: list[str],
+            db: int | None,
+            entity_code: list[str],
+            time: range | None,
+            skip_blanks: bool,
+            skip_aggs: bool,
+            include_labels: bool,
+            params: dict | None,
+            extra: dict,
+            batch_size: int,
+            thread_num: int,
     ) -> pd.DataFrame:
         """Fetch data from the World Bank API.
 
@@ -482,11 +505,30 @@ class WorldBank:
         size of World Bank API responses).
         """
 
-        logger.info("Fetching data from World Bank API...")
+        # get the hash key
+        # check if hash key exists in cache
+        # if exists, return cached dataframe
+        # else fetch the data and store in cache and return the dataframe
 
-        # prepare parameters
-        params = dict(params_items) if params_items is not None else None
-        extra = dict(extra_items)
+        cache_key = _make_cache_key(
+            indicators=indicators,
+            db=db,
+            entity_code=entity_code,
+            time=time,
+            skip_blanks=skip_blanks,
+            skip_aggs=skip_aggs,
+            include_labels=include_labels,
+            params=params,
+            extra=extra,
+        )
+
+        # if key exists in cache return cached dataframe
+        cached = self._data_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+
+        logger.info("Fetching data from World Bank API...")
 
         api_params = {
             "db": db,
@@ -499,10 +541,8 @@ class WorldBank:
             "params": params,
             **extra,
         }
-
-        api_params = {
-            k: v for k, v in api_params.items() if v is not None
-        }  # remove None values
+        # remove None values
+        api_params = {k: v for k, v in api_params.items() if v is not None}
 
         # fetch data in batches using multithreading
         batches = _batch(indicators, batch_size)  # create batches of indicators
@@ -539,6 +579,9 @@ class WorldBank:
         )
 
         logger.info("Data fetched successfully from World Bank API.")
+
+        # store in cache
+        self._data_cache[cache_key] = df
         return df
 
     def get_data(
@@ -583,45 +626,45 @@ class WorldBank:
 
         """
 
-        # prepare indicator and entity codes
+        # normalise indicators
         if isinstance(indicator_code, str):
             indicator_code = [indicator_code]
-        indicator_code = tuple(sorted(indicator_code))
+        indicators = sorted(set(indicator_code))
 
+        # normalise entity codes
         if entity_code is not None:
             if isinstance(entity_code, str):
                 entity_code = [entity_code]
-            entity_code = tuple(sorted(entity_code))
+            entities = sorted(set(entity_code))
+        else:
+            entities = None
 
-        # add per page to params
-        if params is None:
-            params = {}
+        # ensure params exists and set per_page
+        params = {} if params is None else dict(params)
+        params.setdefault("per_page", _PER_PAGE)
 
-        if "per_page" not in params:
-            params["per_page"] = _PER_PAGE
+        time_range = _get_time_range(start_year, end_year)
 
-        # fetch data
         df = self._fetch_data(
-            indicators=indicator_code,
+            indicators=indicators,
             db=self._db,
-            entity_code=entity_code,
-            time=_get_time_range(start_year, end_year),
+            entity_code=entities,
+            time=time_range,
             skip_blanks=skip_blanks,
             skip_aggs=skip_aggs,
             include_labels=include_labels,
-            params_items=_make_hashable(params),
-            extra_items=_make_hashable(kwargs),
+            params=params,
+            extra=kwargs,
             batch_size=batch_size,
             thread_num=thread_num,
         )
 
-        return df.copy(
-            deep=False
-        )  # return a copy of the dataframe to avoid accidental modifications to cached data
+        # shallow copy to avoid accidental mutation of cached df
+        return df.copy(deep=False)
 
     def clear_cache(self) -> None:
         """Clear the cache"""
 
-        self._fetch_data.cache_clear()
+        self._data_cache = {} # reset the cache dictionary
 
         logger.info("Cache cleared.")
