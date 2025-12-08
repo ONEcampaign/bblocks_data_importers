@@ -593,7 +593,6 @@ class WorldBank:
                 entity_code = [entity_code]
             entity_code = tuple(sorted(entity_code))
 
-
         # add per page to params
         if params is None:
             params = {}
