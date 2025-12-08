@@ -25,7 +25,7 @@ This will return a DataFrame with the available indicator (their codes and names
 will need the indicator codes to query data.
 
 To get data for specific indicators:
->>> data_df = wb_importer.get_data(indicator_code='SP.POP.TOTL') # total population indicator code
+>>> data_df = wb_importer._request_data(indicator_code='SP.POP.TOTL') # total population indicator code
 This will return a DataFrame with the data for the specified indicator across all entities and years
 available in the database.
 
@@ -37,7 +37,7 @@ Other parameters can be used to filter the data, such as specifying entity codes
 observations, whether to include labels, etc. and any other parameter supported by the World Bank API (read the wbgapi
 documentation for more details)[https://github.com/tgherzog/wbgapi]
 
->>> data_df = wb_importer.get_data(
+>>> data_df = wb_importer._request_data(
 ...     indicator_code=['SP.POP.TOTL', 'NY.GDP.MKTP.CD'], # total population and gdp indicator codes
 ...     entity_code=['ZWE', 'KEN'], # Zimbabwe and Kenya
 ...     start_year=2000,
@@ -75,9 +75,10 @@ from typing import Generator
 import pandas as pd
 import wbgapi as wb
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from diskcache import Cache
 
 
-from bblocks.data_importers.config import logger, Fields, DataExtractionError
+from bblocks.data_importers.config import logger, Fields, DataExtractionError, Paths
 from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.data_validators import DataFrameValidator
 
@@ -86,8 +87,12 @@ _BATCH_SIZE: int = 1  # number of indicators to fetch per batch
 _NUM_THREADS: int = 4  # number of threads to use for fetching data
 _PER_PAGE: int = 50_000_000  # number of records per page to request from World Bank API
 
+# cache expiry after 3 hours
+_CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60
+_DATA_CACHE = Cache(Paths.data)
 
-def _batch(iterable: tuple[str], n: int) -> Generator:
+
+def _batch(iterable: tuple[str, ...], n: int) -> Generator:
     """Yield successive n-sized chunks from iterable."""
     for i in range(0, len(iterable), n):
         yield iterable[i : i + n]
@@ -304,8 +309,8 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def get_data(api_params: dict) -> pd.DataFrame:
-    """Fetch data from the World Bank API using wbgapi with the provided parameters. And parse the
+def _request_data(api_params: dict) -> pd.DataFrame:
+    """Request data from the World Bank API using wbgapi with the provided parameters. And parse the
     response into a cleaned dataframe.
 
     If no data is returned from the api, an empty dataframe is returned.
@@ -346,7 +351,7 @@ def _get_time_range(start: int | None, end: int | None) -> range | None:
 
 def _make_cache_key(
     *,
-    indicators: tuple[str],
+    indicators: tuple[str, ...],
     db: int | None,
     entity_code: tuple[str] | None,
     time: range | None,
@@ -368,6 +373,104 @@ def _make_cache_key(
         params_items,
         extra_items,
     )
+
+
+def _fetch_data(
+        *,
+    indicators: tuple[str, ...],
+    db: int | None,
+    entity_code: tuple[str] | None,
+    time: range | None,
+    skip_blanks: bool,
+    skip_aggs: bool,
+    include_labels: bool,
+    params_items: tuple[tuple[str, object], ...] | None,
+    extra_items: tuple[tuple[str, object], ...],
+    batch_size: int,
+    thread_num: int,
+) -> pd.DataFrame:
+    """Fetch data from the World Bank API.
+
+    This method handles preparing the wbgapi parameters, fetching the data by batching indicators and
+    multithreading for faster retrieval. Results are cached in-memory to avoid redundant API calls for the
+    same queries.
+    """
+
+    cache_key = _make_cache_key(
+        indicators=indicators,
+        db=db,
+        entity_code=entity_code,
+        time=time,
+        skip_blanks=skip_blanks,
+        skip_aggs=skip_aggs,
+        include_labels=include_labels,
+        params_items=params_items,
+        extra_items=extra_items,
+    )
+
+    # if key exists in cache return cached dataframe
+    cached = _DATA_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    logger.info("Fetching data from World Bank API...")
+
+    params = dict(params_items) if params_items else None
+    extra = dict(extra_items)
+
+    api_params = {
+        "db": db,
+        "labels": include_labels,
+        "skipBlanks": skip_blanks,
+        "skipAggs": skip_aggs,
+        "economy": entity_code,
+        "time": time,
+        "numericTimeKeys": True,
+        "params": params,
+        **extra,
+    }
+    # remove None values
+    api_params = {k: v for k, v in api_params.items() if v is not None}
+
+    # fetch data in batches using multithreading
+    batches = _batch(indicators, batch_size)  # create batches of indicators
+    results = []  # results list
+
+    with ThreadPoolExecutor(max_workers=thread_num) as executor:
+        futures = []
+        for batch_indicators in batches:
+            futures.append(
+                executor.submit(
+                    _request_data, {**api_params, "series": batch_indicators}
+                )
+            )
+
+        for future in as_completed(futures):
+            results.append(future.result())
+
+    # concatenate results
+    df = pd.concat(results, ignore_index=True)
+
+    # if the dataframe is empty raise an error
+    if df.empty:
+        raise DataExtractionError("No data returned from World Bank API.")
+
+    # validate dataframe
+    DataFrameValidator().validate(
+        df,
+        required_cols=[
+            Fields.year,
+            Fields.indicator_code,
+            Fields.entity_code,
+            Fields.value,
+        ],
+    )
+
+    logger.info("Data fetched successfully from World Bank API.")
+
+    # store in cache
+    _DATA_CACHE.set(cache_key, df)
+    return df
 
 
 class WorldBank:
@@ -393,7 +496,7 @@ class WorldBank:
     >>> indicators_df = wb_importer.get_available_indicators()
 
     To get data for specific indicators:
-    >>> data_df = wb_importer.get_data(indicator_code='SP.POP.TOTL') # total population indicator code
+    >>> data_df = wb_importer._request_data(indicator_code='SP.POP.TOTL') # total population indicator code
 
     Multiple indicators can be queried. Batching and multithreading are used to speed up data retrieval for
     multiple indicators. Indicators are batched into groups of 1 by default, and 4 threads are used for fetching data.
@@ -402,7 +505,7 @@ class WorldBank:
     observations, whether to include labels, etc. and any other parameter supported by the World Bank API (read the wbgapi
     documentation for more details)[https://github.com/tgherzog/wbgapi]
 
-    >>> data_df = wb_importer.get_data(
+    >>> data_df = wb_importer._request_data(
     ...     indicator_code=['SP.POP.TOTL', 'NY.GDP.MKTP.CD'], # total population and gdp indicator codes
     ...     entity_code=['ZWE', 'KEN'], # Zimbabwe and Kenya
     ...     start_year=2000,
@@ -432,8 +535,6 @@ class WorldBank:
             self._db = db
         else:
             self._db = wb.db
-
-        self._data_cache: dict[Hashable, pd.DataFrame] = {}
 
         logger.info(f"World Bank database set to {self._db}.")
 
@@ -482,104 +583,6 @@ class WorldBank:
         """
 
         return get_indicator_metadata(indicator_code=indicator_code, db=self.db)
-
-    def _fetch_data(
-        self,
-        *,
-        indicators: tuple[str, ...],
-        db: int | None,
-        entity_code: tuple[str] | None,
-        time: range | None,
-        skip_blanks: bool,
-        skip_aggs: bool,
-        include_labels: bool,
-        params_items: tuple[tuple[str, object], ...] | None,
-        extra_items: tuple[tuple[str, object], ...],
-        batch_size: int,
-        thread_num: int,
-    ) -> pd.DataFrame:
-        """Fetch data from the World Bank API.
-
-        This method handles preparing the wbgapi parameters, fetching the data by batching indicators and
-        multithreading for faster retrieval. Results are cached in-memory to avoid redundant API calls for the
-        same queries.
-        """
-
-        cache_key = _make_cache_key(
-            indicators=indicators,
-            db=db,
-            entity_code=entity_code,
-            time=time,
-            skip_blanks=skip_blanks,
-            skip_aggs=skip_aggs,
-            include_labels=include_labels,
-            params_items=params_items,
-            extra_items=extra_items,
-        )
-
-        # if key exists in cache return cached dataframe
-        cached = self._data_cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        logger.info("Fetching data from World Bank API...")
-
-        params = dict(params_items) if params_items else None
-        extra = dict(extra_items)
-
-        api_params = {
-            "db": db,
-            "labels": include_labels,
-            "skipBlanks": skip_blanks,
-            "skipAggs": skip_aggs,
-            "economy": entity_code,
-            "time": time,
-            "numericTimeKeys": True,
-            "params": params,
-            **extra,
-        }
-        # remove None values
-        api_params = {k: v for k, v in api_params.items() if v is not None}
-
-        # fetch data in batches using multithreading
-        batches = _batch(indicators, batch_size)  # create batches of indicators
-        results = []  # results list
-
-        with ThreadPoolExecutor(max_workers=thread_num) as executor:
-            futures = []
-            for batch_indicators in batches:
-                futures.append(
-                    executor.submit(
-                        get_data, {**api_params, "series": batch_indicators}
-                    )
-                )
-
-            for future in as_completed(futures):
-                results.append(future.result())
-
-        # concatenate results
-        df = pd.concat(results, ignore_index=True)
-
-        # if the dataframe is empty raise an error
-        if df.empty:
-            raise DataExtractionError("No data returned from World Bank API.")
-
-        # validate dataframe
-        DataFrameValidator().validate(
-            df,
-            required_cols=[
-                Fields.year,
-                Fields.indicator_code,
-                Fields.entity_code,
-                Fields.value,
-            ],
-        )
-
-        logger.info("Data fetched successfully from World Bank API.")
-
-        # store in cache
-        self._data_cache[cache_key] = df
-        return df
 
     def get_data(
         self,
@@ -645,7 +648,7 @@ class WorldBank:
         params_items = tuple(sorted(params.items())) if params else None
         extra_items = tuple(sorted(kwargs.items()))
 
-        df = self._fetch_data(
+        df = _fetch_data(
             indicators=indicators,
             db=self._db,
             entity_code=entities,
@@ -663,8 +666,8 @@ class WorldBank:
         return df.copy(deep=True)
 
     def clear_cache(self) -> None:
-        """Clear the cache"""
+        """Clear the cached data"""
 
-        self._data_cache = {}  # reset the cache dictionary
+        _DATA_CACHE.clear()
 
         logger.info("Cache cleared.")
