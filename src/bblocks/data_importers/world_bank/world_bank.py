@@ -19,7 +19,7 @@ from typing import Generator
 import pandas as pd
 import wbgapi as wb
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from diskcache import Cache
+from diskcache import FanoutCache
 from platformdirs import user_cache_dir
 
 
@@ -35,7 +35,7 @@ _PER_PAGE: int = 50_000_000  # number of records per page to request from World 
 
 _CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60  # cache expiry after 3 hours
 _CACHE_DIR = user_cache_dir("bblocks/world_bank")
-_DATA_CACHE = Cache(_CACHE_DIR)
+_DATA_CACHE = FanoutCache(_CACHE_DIR)
 
 
 def clear_wb_cache() -> None:
@@ -105,7 +105,7 @@ def _batch(iterable: tuple[str, ...], n: int) -> Generator:
         yield iterable[i : i + n]
 
 
-@disk_memoize(cache=_DATA_CACHE, expire=_CACHE_EXPIRY_SECONDS)
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
 def get_wb_databases() -> pd.DataFrame:
     """Get the available World Bank databases.
 
@@ -129,7 +129,7 @@ def get_wb_databases() -> pd.DataFrame:
     return convert_dtypes(df)
 
 
-@disk_memoize(cache=_DATA_CACHE, expire=_CACHE_EXPIRY_SECONDS)
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
 def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFrame:
     """Get entities available in World Bank databases or a specific database, including metadata.
 
@@ -153,7 +153,7 @@ def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFr
     return convert_dtypes(df)
 
 
-@disk_memoize(cache=_DATA_CACHE, expire=_CACHE_EXPIRY_SECONDS)
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
 def get_wb_indicators(db: int | None = None) -> pd.DataFrame:
     """Get indicators available in World Bank databases or a specific database
 
@@ -179,14 +179,7 @@ def _check_valid_db(db: int) -> None:
         raise ValueError(f"Database ID {db} is not valid.")
 
 
-@disk_memoize(cache=_DATA_CACHE, expire=_CACHE_EXPIRY_SECONDS)
-def _get_cached_metadata(**kwargs) -> list:
-    """Helper function to get cached metadata from World Bank API."""
-
-    return [i for i in wb.series.metadata.fetch(**kwargs)]
-
-
-@disk_memoize(cache=_DATA_CACHE, expire=_CACHE_EXPIRY_SECONDS)
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
 def get_wb_indicator_metadata(
     indicator_code: str | list[str], db: int | None = None
 ) -> pd.DataFrame:
@@ -206,7 +199,8 @@ def get_wb_indicator_metadata(
     # remove duplicates and sort
     indicator_code = sorted(set(indicator_code))
 
-    metadata = _get_cached_metadata(db=db, id=tuple(indicator_code))
+    # metadata = _get_cached_metadata(db=db, id=tuple(indicator_code))
+    metadata = [i for i in wb.series.metadata.fetch(db=db, id=indicator_code)]
 
     # check if no metadata was returned
     if not metadata:
@@ -291,7 +285,7 @@ def _get_time_range(start: int | None, end: int | None) -> range | None:
     return range(start, end + 1)
 
 
-@disk_memoize(cache=_DATA_CACHE, expire=_CACHE_EXPIRY_SECONDS)
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
 def _fetch_data(
     *,
     indicators: tuple[str, ...],
