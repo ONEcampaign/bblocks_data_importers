@@ -33,9 +33,10 @@ _NUM_THREADS: int = 4  # number of threads to use for fetching data
 _PER_PAGE: int = 50_000_000  # number of records per page to request from World Bank API
 
 
-_CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60 # cache expiry after 3 hours
+_CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60  # cache expiry after 3 hours
 _CACHE_DIR = user_cache_dir("bblocks/world_bank")
 _DATA_CACHE = Cache(_CACHE_DIR)
+
 
 def clear_wb_cache() -> None:
     """Clear the cached World Bank data."""
@@ -62,40 +63,40 @@ _ENTITY_COLS = {
 }
 
 _INDICATOR_COLS = {
-            "IndicatorName": Fields.indicator_name,
-            "Aggregationmethod": "aggregation_method",
-            "Dataset": "dataset",
-            "Developmentrelevance": "development_relevance",
-            "License_Type": "license_Type",
-            "License_URL": "license_url",
-            "Limitationsandexceptions": "limitations_and_exceptions",
-            "Longdefinition": "long_definition",
-            "Othernotes": "other_notes",
-            "Periodicity": "periodicity",
-            "Referenceperiod": "reference_period",
-            "Shortdefinition": "short_definition",
-            "Source": "source",
-            "Statisticalconceptandmethodology": "statistical_concept_and_methodology",
-            "Topic": "topic",
-            "Unitofmeasure": Fields.unit,
-        }
+    "IndicatorName": Fields.indicator_name,
+    "Aggregationmethod": "aggregation_method",
+    "Dataset": "dataset",
+    "Developmentrelevance": "development_relevance",
+    "License_Type": "license_Type",
+    "License_URL": "license_url",
+    "Limitationsandexceptions": "limitations_and_exceptions",
+    "Longdefinition": "long_definition",
+    "Othernotes": "other_notes",
+    "Periodicity": "periodicity",
+    "Referenceperiod": "reference_period",
+    "Shortdefinition": "short_definition",
+    "Source": "source",
+    "Statisticalconceptandmethodology": "statistical_concept_and_methodology",
+    "Topic": "topic",
+    "Unitofmeasure": Fields.unit,
+}
 
 _DATA_COLS = {
-        "time_value": Fields.year,
-        "time": Fields.year,
-        "economy": Fields.entity_code,
-        "economy_id": Fields.entity_code,
-        "economy_value": Fields.entity_name,
-        "economy_aggregate": "is_aggregate",
-        "aggregate": "is_aggregate",
-        "series": Fields.indicator_code,
-        "series_id": Fields.indicator_code,
-        "series_value": Fields.indicator_name,
-        "counterpart_area": Fields.counterpart_code,
-        "counterpart_area_id": Fields.counterpart_code,
-        "counterpart_area_value": Fields.counterpart_name,
-        "value": Fields.value,
-    }
+    "time_value": Fields.year,
+    "time": Fields.year,
+    "economy": Fields.entity_code,
+    "economy_id": Fields.entity_code,
+    "economy_value": Fields.entity_name,
+    "economy_aggregate": "is_aggregate",
+    "aggregate": "is_aggregate",
+    "series": Fields.indicator_code,
+    "series_id": Fields.indicator_code,
+    "series_value": Fields.indicator_name,
+    "counterpart_area": Fields.counterpart_code,
+    "counterpart_area_id": Fields.counterpart_code,
+    "counterpart_area_value": Fields.counterpart_name,
+    "value": Fields.value,
+}
 
 
 def _batch(iterable: tuple[str, ...], n: int) -> Generator:
@@ -220,9 +221,7 @@ def get_wb_indicator_metadata(
             {Fields.indicator_code: indicator_code[i], **metadata[i].metadata}
             for i in range(len(indicator_code))
         ]
-    ).rename(
-        columns=_INDICATOR_COLS
-    )
+    ).rename(columns=_INDICATOR_COLS)
 
 
 def _clean_df(df: pd.DataFrame) -> pd.DataFrame:

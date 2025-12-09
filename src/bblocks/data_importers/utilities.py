@@ -57,13 +57,14 @@ def convert_countries_to_unique_list(
     return list(converted_list)
 
 
-def disk_memoize(cache: Cache, expire: int | None =None):
+def disk_memoize(cache: Cache, expire: int | None = None):
     """Decorator to cache function results on disk using diskcache.
 
     Args:
         cache: An instance of diskcache.Cache to use for caching.
         expire: Optional expiration time for cached items in seconds.
     """
+
     def decorator(func):
         def wrapped(*args, **kwargs):
             key = (func.__name__, args, tuple(kwargs.items()))
@@ -73,7 +74,7 @@ def disk_memoize(cache: Cache, expire: int | None =None):
             result = func(*args, **kwargs)
             cache.set(key, result, expire=expire)
             return result
+
         return wrapped
+
     return decorator
-
-
