@@ -3,7 +3,11 @@ from importlib.metadata import version
 from bblocks.data_importers.who.ghed import GHED
 from bblocks.data_importers.imf.weo import WEO
 from bblocks.data_importers.wfp.wfp import WFPFoodSecurity, WFPInflation
-from bblocks.data_importers.world_bank.world_bank import WorldBank, get_wb_databases, clear_wb_cache
+from bblocks.data_importers.world_bank.world_bank import (
+    WorldBank,
+    get_wb_databases,
+    clear_wb_cache,
+)
 from bblocks.data_importers.world_bank.international_debt_statistics import (
     InternationalDebtStatistics,
 )
