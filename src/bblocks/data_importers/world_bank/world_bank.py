@@ -15,15 +15,15 @@ Classes:
 
 """
 
-from functools import lru_cache
 from typing import Generator
 import pandas as pd
 import wbgapi as wb
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from diskcache import Cache
+from diskcache import FanoutCache
+from platformdirs import user_cache_dir
 
 
-from bblocks.data_importers.config import logger, Fields, DataExtractionError, Paths
+from bblocks.data_importers.config import logger, Fields, DataExtractionError
 from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.data_validators import DataFrameValidator
 
@@ -32,9 +32,18 @@ _BATCH_SIZE: int = 1  # number of indicators to fetch per batch
 _NUM_THREADS: int = 4  # number of threads to use for fetching data
 _PER_PAGE: int = 50_000_000  # number of records per page to request from World Bank API
 
-# cache expiry after 3 hours
-_CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60
-_DATA_CACHE = Cache(Paths.data)
+
+_CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60  # cache expiry after 3 hours
+_CACHE_DIR = user_cache_dir("bblocks/world_bank")
+_DATA_CACHE = FanoutCache(_CACHE_DIR)
+
+
+def clear_wb_cache() -> None:
+    """Clear the cached World Bank data."""
+
+    _DATA_CACHE.clear()
+    logger.info("World Bank cache cleared.")
+
 
 _ENTITY_COLS = {
     "id": Fields.entity_code,
@@ -53,6 +62,42 @@ _ENTITY_COLS = {
     "incomeLevel_value": Fields.income_level_name,
 }
 
+_INDICATOR_COLS = {
+    "IndicatorName": Fields.indicator_name,
+    "Aggregationmethod": "aggregation_method",
+    "Dataset": "dataset",
+    "Developmentrelevance": "development_relevance",
+    "License_Type": "license_Type",
+    "License_URL": "license_url",
+    "Limitationsandexceptions": "limitations_and_exceptions",
+    "Longdefinition": "long_definition",
+    "Othernotes": "other_notes",
+    "Periodicity": "periodicity",
+    "Referenceperiod": "reference_period",
+    "Shortdefinition": "short_definition",
+    "Source": "source",
+    "Statisticalconceptandmethodology": "statistical_concept_and_methodology",
+    "Topic": "topic",
+    "Unitofmeasure": Fields.unit,
+}
+
+_DATA_COLS = {
+    "time_value": Fields.year,
+    "time": Fields.year,
+    "economy": Fields.entity_code,
+    "economy_id": Fields.entity_code,
+    "economy_value": Fields.entity_name,
+    "economy_aggregate": "is_aggregate",
+    "aggregate": "is_aggregate",
+    "series": Fields.indicator_code,
+    "series_id": Fields.indicator_code,
+    "series_value": Fields.indicator_name,
+    "counterpart_area": Fields.counterpart_code,
+    "counterpart_area_id": Fields.counterpart_code,
+    "counterpart_area_value": Fields.counterpart_name,
+    "value": Fields.value,
+}
+
 
 def _batch(iterable: tuple[str, ...], n: int) -> Generator:
     """Yield successive n-sized chunks from iterable."""
@@ -60,7 +105,7 @@ def _batch(iterable: tuple[str, ...], n: int) -> Generator:
         yield iterable[i : i + n]
 
 
-@lru_cache
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
 def get_wb_databases() -> pd.DataFrame:
     """Get the available World Bank databases.
 
@@ -84,7 +129,7 @@ def get_wb_databases() -> pd.DataFrame:
     return convert_dtypes(df)
 
 
-@lru_cache(maxsize=None)
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
 def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFrame:
     """Get entities available in World Bank databases or a specific database, including metadata.
 
@@ -108,7 +153,7 @@ def get_wb_entities(db: int | None = None, skip_aggs: bool = False) -> pd.DataFr
     return convert_dtypes(df)
 
 
-@lru_cache(maxsize=None)
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
 def get_wb_indicators(db: int | None = None) -> pd.DataFrame:
     """Get indicators available in World Bank databases or a specific database
 
@@ -134,14 +179,8 @@ def _check_valid_db(db: int) -> None:
         raise ValueError(f"Database ID {db} is not valid.")
 
 
-@lru_cache(maxsize=None)
-def _get_cached_metadata(**kwargs) -> list:
-    """Helper function to get cached metadata from World Bank API."""
-
-    return [i for i in wb.series.metadata.fetch(**kwargs)]
-
-
-def get_indicator_metadata(
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
+def get_wb_indicator_metadata(
     indicator_code: str | list[str], db: int | None = None
 ) -> pd.DataFrame:
     """Get indicator metadata for a given indicator code.
@@ -160,7 +199,8 @@ def get_indicator_metadata(
     # remove duplicates and sort
     indicator_code = sorted(set(indicator_code))
 
-    metadata = _get_cached_metadata(db=db, id=tuple(indicator_code))
+    # metadata = _get_cached_metadata(db=db, id=tuple(indicator_code))
+    metadata = [i for i in wb.series.metadata.fetch(db=db, id=indicator_code)]
 
     # check if no metadata was returned
     if not metadata:
@@ -175,26 +215,7 @@ def get_indicator_metadata(
             {Fields.indicator_code: indicator_code[i], **metadata[i].metadata}
             for i in range(len(indicator_code))
         ]
-    ).rename(
-        columns={
-            "IndicatorName": Fields.indicator_name,
-            "Aggregationmethod": "aggregation_method",
-            "Dataset": "dataset",
-            "Developmentrelevance": "development_relevance",
-            "License_Type": "license_Type",
-            "License_URL": "license_url",
-            "Limitationsandexceptions": "limitations_and_exceptions",
-            "Longdefinition": "long_definition",
-            "Othernotes": "other_notes",
-            "Periodicity": "periodicity",
-            "Referenceperiod": "reference_period",
-            "Shortdefinition": "short_definition",
-            "Source": "source",
-            "Statisticalconceptandmethodology": "statistical_concept_and_methodology",
-            "Topic": "topic",
-            "Unitofmeasure": Fields.unit,
-        }
-    )
+    ).rename(columns=_INDICATOR_COLS)
 
 
 def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -211,25 +232,8 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
     if "time_id" in df.columns:
         df = df.drop(columns=["time_id"])
 
-    col_mapping = {
-        "time_value": Fields.year,
-        "time": Fields.year,
-        "economy": Fields.entity_code,
-        "economy_id": Fields.entity_code,
-        "economy_value": Fields.entity_name,
-        "economy_aggregate": "is_aggregate",
-        "aggregate": "is_aggregate",
-        "series": Fields.indicator_code,
-        "series_id": Fields.indicator_code,
-        "series_value": Fields.indicator_name,
-        "counterpart_area": Fields.counterpart_code,
-        "counterpart_area_id": Fields.counterpart_code,
-        "counterpart_area_value": Fields.counterpart_name,
-        "value": Fields.value,
-    }
-
     # rename columns that exist
-    df = df.rename(columns={k: v for k, v in col_mapping.items() if k in df.columns})
+    df = df.rename(columns={k: v for k, v in _DATA_COLS.items() if k in df.columns})
 
     # ensure year column is integer
     if Fields.year in df.columns:
@@ -281,37 +285,12 @@ def _get_time_range(start: int | None, end: int | None) -> range | None:
     return range(start, end + 1)
 
 
-def _make_cache_key(
-    *,
-    indicators: tuple[str, ...],
-    db: int | None,
-    entity_code: tuple[str] | None,
-    time: range | None,
-    skip_blanks: bool,
-    skip_aggs: bool,
-    include_labels: bool,
-    params_items: tuple[tuple[str, object], ...] | None,
-    extra_items: tuple[tuple[str, object], ...],
-) -> tuple:
-    """Build a hashable, canonical cache key for a data request."""
-    return (
-        db,
-        tuple(indicators),
-        tuple(entity_code) if entity_code is not None else None,
-        None if time is None else (time.start, time.stop),
-        skip_blanks,
-        skip_aggs,
-        include_labels,
-        params_items,
-        extra_items,
-    )
-
-
+@_DATA_CACHE.memoize(expire=_CACHE_EXPIRY_SECONDS)
 def _fetch_data(
     *,
     indicators: tuple[str, ...],
     db: int | None,
-    entity_code: tuple[str] | None,
+    entity_code: tuple[str, ...] | None,
     time: range | None,
     skip_blanks: bool,
     skip_aggs: bool,
@@ -321,29 +300,6 @@ def _fetch_data(
     batch_size: int,
     thread_num: int,
 ) -> pd.DataFrame:
-    """Fetch data from the World Bank API.
-
-    This method handles preparing the wbgapi parameters, fetching the data by batching indicators and
-    multithreading for faster retrieval. Results are cached in-memory to avoid redundant API calls for the
-    same queries.
-    """
-
-    cache_key = _make_cache_key(
-        indicators=indicators,
-        db=db,
-        entity_code=entity_code,
-        time=time,
-        skip_blanks=skip_blanks,
-        skip_aggs=skip_aggs,
-        include_labels=include_labels,
-        params_items=params_items,
-        extra_items=extra_items,
-    )
-
-    # if key exists in cache return cached dataframe
-    cached = _DATA_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
 
     logger.info("Fetching data from World Bank API...")
 
@@ -361,33 +317,29 @@ def _fetch_data(
         "params": params,
         **extra,
     }
-    # remove None values
     api_params = {k: v for k, v in api_params.items() if v is not None}
 
     # fetch data in batches using multithreading
-    batches = _batch(indicators, batch_size)  # create batches of indicators
-    results = []  # results list
+    batches = _batch(indicators, batch_size)
+    results: list[pd.DataFrame] = []
 
     with ThreadPoolExecutor(max_workers=thread_num) as executor:
-        futures = []
-        for batch_indicators in batches:
-            futures.append(
-                executor.submit(
-                    _request_data, {**api_params, "series": batch_indicators}
-                )
-            )
+        futures = [
+            executor.submit(_request_data, {**api_params, "series": batch_indicators})
+            for batch_indicators in batches
+        ]
 
         for future in as_completed(futures):
             results.append(future.result())
 
-    # concatenate results
+    if not results:
+        raise DataExtractionError("No data returned from World Bank API.")
+
     df = pd.concat(results, ignore_index=True)
 
-    # if the dataframe is empty raise an error
     if df.empty:
         raise DataExtractionError("No data returned from World Bank API.")
 
-    # validate dataframe
     DataFrameValidator().validate(
         df,
         required_cols=[
@@ -399,9 +351,6 @@ def _fetch_data(
     )
 
     logger.info("Data fetched successfully from World Bank API.")
-
-    # store in cache
-    _DATA_CACHE.set(cache_key, df)
     return df
 
 
@@ -448,7 +397,7 @@ class WorldBank:
     ...     thread_num=2)
 
     To get metadata for specific indicators:
-    >>> metadata_df = wb_importer.get_indicator_metadata(indicator_code='SP.POP.TOTL')
+    >>> metadata_df = wb_importer.get_wb_indicator_metadata(indicator_code='SP.POP.TOTL')
 
     To get the available entities and their codes, as well as other entity metadata such as region and income level,
     use the `get_available_entities` method:
@@ -517,7 +466,7 @@ class WorldBank:
             A dictionary with the indicator metadata.
         """
 
-        return get_indicator_metadata(indicator_code=indicator_code, db=self.db)
+        return get_wb_indicator_metadata(indicator_code=indicator_code, db=self.db)
 
     def get_data(
         self,
@@ -607,6 +556,4 @@ class WorldBank:
         NOTE: This will clear the cache for all World Bank database instances.
         """
 
-        _DATA_CACHE.clear()
-
-        logger.info("Cache cleared.")
+        clear_wb_cache()

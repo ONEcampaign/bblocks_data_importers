@@ -1,21 +1,36 @@
+import importlib
+import sys
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 
-from bblocks.data_importers.world_bank import (
-    international_debt_statistics as ids_module,
-)
-from bblocks.data_importers.world_bank import world_bank
+
+@pytest.fixture
+def ids_modules(tmp_path):
+    """Reload the world_bank modules with a writable cache directory."""
+
+    module_names = [
+        "bblocks.data_importers.world_bank.world_bank",
+        "bblocks.data_importers.world_bank.international_debt_statistics",
+    ]
+    for module in module_names:
+        sys.modules.pop(module, None)
+
+    cache_dir = tmp_path / "cache"
+    with patch("platformdirs.user_cache_dir", lambda *_, **__: str(cache_dir)):
+        world_bank = importlib.import_module(module_names[0])
+        ids_module = importlib.import_module(module_names[1])
+
+    world_bank.clear_wb_cache()
+
+    yield world_bank, ids_module
+
+    world_bank.clear_wb_cache()
 
 
-@pytest.fixture(autouse=True)
-def _clear_world_bank_caches():
-    world_bank.get_wb_databases.cache_clear()
-    world_bank.get_wb_entities.cache_clear()
-    world_bank.get_wb_indicators.cache_clear()
-    world_bank._get_cached_metadata.cache_clear()
-
-
-def test_initializes_with_ids_database(monkeypatch):
+def test_initializes_with_ids_database(ids_modules, monkeypatch):
+    world_bank, ids_module = ids_modules
     captured = []
     monkeypatch.setattr(world_bank, "_check_valid_db", lambda db: captured.append(db))
 
@@ -25,7 +40,8 @@ def test_initializes_with_ids_database(monkeypatch):
     assert captured == [6]
 
 
-def test_repr_includes_database(monkeypatch):
+def test_repr_includes_database(ids_modules, monkeypatch):
+    world_bank, ids_module = ids_modules
     monkeypatch.setattr(world_bank, "_check_valid_db", lambda db: None)
 
     importer = ids_module.InternationalDebtStatistics()
@@ -33,7 +49,8 @@ def test_repr_includes_database(monkeypatch):
     assert repr(importer) == "InternationalDebtStatistics(db=6)"
 
 
-def test_last_updated_reads_from_database_table(monkeypatch):
+def test_last_updated_reads_from_database_table(ids_modules, monkeypatch):
+    world_bank, ids_module = ids_modules
     monkeypatch.setattr(world_bank, "_check_valid_db", lambda db: None)
     sample = pd.DataFrame(
         {
@@ -51,7 +68,8 @@ def test_last_updated_reads_from_database_table(monkeypatch):
     assert importer.last_updated == pd.Timestamp("2024-04-01")
 
 
-def test_debt_stock_indicators_fetch_metadata(monkeypatch):
+def test_debt_stock_indicators_fetch_metadata(ids_modules, monkeypatch):
+    world_bank, ids_module = ids_modules
     monkeypatch.setattr(world_bank, "_check_valid_db", lambda db: None)
     captured = {}
 
@@ -78,7 +96,8 @@ def test_debt_stock_indicators_fetch_metadata(monkeypatch):
     assert df["indicator_code"].tolist() == expected
 
 
-def test_debt_service_indicators_fetch_metadata(monkeypatch):
+def test_debt_service_indicators_fetch_metadata(ids_modules, monkeypatch):
+    world_bank, ids_module = ids_modules
     monkeypatch.setattr(world_bank, "_check_valid_db", lambda db: None)
     captured = {}
 
