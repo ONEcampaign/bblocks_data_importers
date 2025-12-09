@@ -1,10 +1,13 @@
+import importlib
+import sys
+
 import pandas as pd
+import platformdirs
 import pytest
 
 from bblocks.data_importers.config import DataExtractionError, Fields
 from bblocks.data_importers.protocols import DataImporter
 from bblocks.data_importers.utilities import convert_dtypes
-from bblocks.data_importers.world_bank import world_bank
 
 
 class _DummyMetadata:
@@ -12,54 +15,30 @@ class _DummyMetadata:
         self.metadata = metadata
 
 
+@pytest.fixture
+def world_bank(monkeypatch, tmp_path_factory):
+    cache_dir = tmp_path_factory.mktemp("wb-cache")
+    monkeypatch.setattr(platformdirs, "user_cache_dir", lambda *_, **__: cache_dir)
+
+    sys.modules.pop("bblocks.data_importers.world_bank.world_bank", None)
+    wb_module = importlib.import_module("bblocks.data_importers.world_bank.world_bank")
+    yield wb_module
+    wb_module._DATA_CACHE.close()
+
+
 @pytest.fixture(autouse=True)
-def _reset_world_bank_caches(monkeypatch, tmp_path):
-    world_bank.get_wb_databases.cache_clear()
-    world_bank.get_wb_entities.cache_clear()
-    world_bank.get_wb_indicators.cache_clear()
-    world_bank._get_cached_metadata.cache_clear()
-
-    cache = world_bank.Cache(tmp_path / "wb-cache")
-    monkeypatch.setattr(world_bank, "_DATA_CACHE", cache)
+def _reset_world_bank_caches(world_bank):
+    world_bank._DATA_CACHE.clear()
     yield
-    cache.close()
+    world_bank._DATA_CACHE.clear()
 
 
-def test_batch_splits_iterable_into_chunks():
+def test_batch_splits_iterable_into_chunks(world_bank):
     chunks = list(world_bank._batch(["a", "b", "c", "d", "e"], 2))
     assert chunks == [["a", "b"], ["c", "d"], ["e"]]
 
 
-def test_make_cache_key_handles_common_inputs():
-    params_items = (("per_page", 1000), ("foo", "bar"))
-    extra_items = (("version", "MRV"),)
-    key = world_bank._make_cache_key(
-        indicators=("A", "B"),
-        db=2,
-        entity_code=("KEN", "USA"),
-        time=range(2000, 2003),
-        skip_blanks=True,
-        skip_aggs=False,
-        include_labels=True,
-        params_items=params_items,
-        extra_items=extra_items,
-    )
-
-    assert key == (
-        2,
-        ("A", "B"),
-        ("KEN", "USA"),
-        (2000, 2003),
-        True,
-        False,
-        True,
-        params_items,
-        extra_items,
-    )
-    hash(key)  # hashable
-
-
-def test_clean_df_standardizes_column_names():
+def test_clean_df_standardizes_column_names(world_bank):
     raw = pd.DataFrame(
         {
             "time_id": [1],
@@ -85,14 +64,14 @@ def test_clean_df_standardizes_column_names():
     assert cleaned.loc[0, Fields.counterpart_name] == "World"
 
 
-def test_get_time_range_handles_missing_bounds():
+def test_get_time_range_handles_missing_bounds(world_bank):
     assert world_bank._get_time_range(None, None) is None
     assert world_bank._get_time_range(2000, 2005) == range(2000, 2006)
     assert world_bank._get_time_range(None, 1900).start == 1800
     assert world_bank._get_time_range(2010, None).stop == 2100
 
 
-def test_get_wb_databases_formats_source_data(monkeypatch):
+def test_get_wb_databases_formats_source_data(world_bank, monkeypatch):
     sample = [{"id": "2", "name": "WDI", "code": "WDI", "lastupdated": "2024-01-15"}]
     monkeypatch.setattr(world_bank.wb.source, "list", lambda: sample)
 
@@ -103,7 +82,7 @@ def test_get_wb_databases_formats_source_data(monkeypatch):
     assert pd.Timestamp("2024-01-15") == df.loc[0, "last_updated"]
 
 
-def test_get_wb_entities_renames_and_cleans(monkeypatch):
+def test_get_wb_entities_renames_and_cleans(world_bank, monkeypatch):
     sample = [
         {
             "id": "USA",
@@ -128,7 +107,7 @@ def test_get_wb_entities_renames_and_cleans(monkeypatch):
     assert pd.isna(df.loc[0, "longitude"])
 
 
-def test_get_wb_indicators_returns_expected_columns(monkeypatch):
+def test_get_wb_indicators_returns_expected_columns(world_bank, monkeypatch):
     sample = [{"id": "SP.POP.TOTL", "value": "Population"}]
     monkeypatch.setattr(world_bank.wb.series, "list", lambda **kwargs: sample)
 
@@ -138,7 +117,7 @@ def test_get_wb_indicators_returns_expected_columns(monkeypatch):
     assert df.loc[0, Fields.indicator_name] == "Population"
 
 
-def test_check_valid_db_raises_for_unknown_database(monkeypatch):
+def test_check_valid_db_raises_for_unknown_database(world_bank, monkeypatch):
     monkeypatch.setattr(
         world_bank,
         "get_wb_databases",
@@ -150,7 +129,7 @@ def test_check_valid_db_raises_for_unknown_database(monkeypatch):
         world_bank._check_valid_db(99)
 
 
-def test_get_indicator_metadata_builds_dataframe(monkeypatch):
+def test_get_wb_indicator_metadata_builds_dataframe(world_bank, monkeypatch):
     captured = {}
 
     def fake_metadata(**kwargs):
@@ -161,7 +140,7 @@ def test_get_indicator_metadata_builds_dataframe(monkeypatch):
 
     monkeypatch.setattr(world_bank, "_get_cached_metadata", fake_metadata)
 
-    df = world_bank.get_indicator_metadata(["SP.POP.TOTL"], db=2)
+    df = world_bank.get_wb_indicator_metadata(["SP.POP.TOTL"], db=2)
 
     assert captured["id"] == ("SP.POP.TOTL",)
     assert df.loc[0, Fields.indicator_code] == "SP.POP.TOTL"
@@ -169,14 +148,14 @@ def test_get_indicator_metadata_builds_dataframe(monkeypatch):
     assert df.loc[0, Fields.unit] == "people"
 
 
-def test_get_indicator_metadata_raises_when_missing(monkeypatch):
+def test_get_wb_indicator_metadata_raises_when_missing(world_bank, monkeypatch):
     monkeypatch.setattr(world_bank, "_get_cached_metadata", lambda **kwargs: [])
 
     with pytest.raises(DataExtractionError):
-        world_bank.get_indicator_metadata("SP.POP.TOTL")
+        world_bank.get_wb_indicator_metadata("SP.POP.TOTL")
 
 
-def test_request_data_returns_clean_dataframe(monkeypatch):
+def test_request_data_returns_clean_dataframe(world_bank, monkeypatch):
     response = [
         {
             "economy": "USA",
@@ -193,7 +172,7 @@ def test_request_data_returns_clean_dataframe(monkeypatch):
     assert df.loc[0, Fields.year] == 2020
 
 
-def test_request_data_returns_empty_dataframe_when_no_results(monkeypatch):
+def test_request_data_returns_empty_dataframe_when_no_results(world_bank, monkeypatch):
     monkeypatch.setattr(world_bank.wb.data, "fetch", lambda **kwargs: [])
 
     df = world_bank._request_data({"series": ("SP.POP.TOTL",)})
@@ -201,7 +180,7 @@ def test_request_data_returns_empty_dataframe_when_no_results(monkeypatch):
     assert df.empty
 
 
-def test_request_data_raises_data_extraction_error_on_failure(monkeypatch):
+def test_request_data_raises_data_extraction_error_on_failure(world_bank, monkeypatch):
     def _boom(**kwargs):
         raise RuntimeError("boom")
 
@@ -211,7 +190,7 @@ def test_request_data_raises_data_extraction_error_on_failure(monkeypatch):
         world_bank._request_data({"series": ("SP.POP.TOTL",)})
 
 
-def test_fetch_data_batches_and_validates(monkeypatch):
+def test_fetch_data_batches_and_validates(world_bank, monkeypatch):
     calls = []
 
     def fake_get_data(api_params):
@@ -248,7 +227,7 @@ def test_fetch_data_batches_and_validates(monkeypatch):
     assert all(call["version"] == "MRV" for call in calls)
 
 
-def test_fetch_data_raises_when_no_rows(monkeypatch):
+def test_fetch_data_raises_when_no_rows(world_bank, monkeypatch):
     monkeypatch.setattr(world_bank, "_request_data", lambda api_params: pd.DataFrame())
 
     with pytest.raises(DataExtractionError):
@@ -267,7 +246,7 @@ def test_fetch_data_raises_when_no_rows(monkeypatch):
         )
 
 
-def test_fetch_data_uses_disk_cache(monkeypatch):
+def test_fetch_data_uses_disk_cache(world_bank, monkeypatch):
     calls = 0
 
     def fake_get_data(api_params):
@@ -317,7 +296,7 @@ def test_fetch_data_uses_disk_cache(monkeypatch):
     assert second.equals(first)
 
 
-def test_world_bank_get_data_prepares_parameters(monkeypatch):
+def test_world_bank_get_data_prepares_parameters(world_bank, monkeypatch):
     monkeypatch.setattr(world_bank.wb, "db", 2)
     captured = {}
 
@@ -385,7 +364,7 @@ def test_world_bank_get_data_prepares_parameters(monkeypatch):
     assert captured["extra_items"] == (("version", "MRV"),)
 
 
-def test_world_bank_get_data_deduplicates_indicator_codes(monkeypatch):
+def test_world_bank_get_data_deduplicates_indicator_codes(world_bank, monkeypatch):
     monkeypatch.setattr(world_bank.wb, "db", 2)
     captured = {}
 
@@ -428,7 +407,7 @@ def test_world_bank_get_data_deduplicates_indicator_codes(monkeypatch):
     assert captured["indicators"] == ("A", "B")
 
 
-def test_world_bank_clear_cache_resets_cache(monkeypatch):
+def test_world_bank_clear_cache_resets_cache(world_bank, monkeypatch):
     monkeypatch.setattr(world_bank.wb, "db", 2)
 
     def fake_get_data(api_params):
@@ -461,7 +440,7 @@ def test_world_bank_clear_cache_resets_cache(monkeypatch):
     assert len(world_bank._DATA_CACHE) == 0
 
 
-def test_world_bank_implements_data_importer_protocol(monkeypatch):
+def test_world_bank_implements_data_importer_protocol(world_bank, monkeypatch):
     monkeypatch.setattr(world_bank.wb, "db", 2)
     importer = world_bank.WorldBank()
 
@@ -470,7 +449,7 @@ def test_world_bank_implements_data_importer_protocol(monkeypatch):
     assert callable(getattr(importer, "clear_cache"))
 
 
-def test_cached_dataframe_is_immutable_to_callers(monkeypatch):
+def test_cached_dataframe_is_immutable_to_callers(world_bank, monkeypatch):
     monkeypatch.setattr(world_bank.wb, "db", 2)
     fetch_calls = 0
 
@@ -514,7 +493,7 @@ def test_cached_dataframe_is_immutable_to_callers(monkeypatch):
     assert df_second.loc[0, Fields.value] == 1  # cached data is unaffected by mutation
 
 
-def test_get_indicator_metadata_deduplicates(monkeypatch):
+def test_get_wb_indicator_metadata_deduplicates(world_bank, monkeypatch):
     captured = {}
 
     def fake_metadata(**kwargs):
@@ -526,7 +505,7 @@ def test_get_indicator_metadata_deduplicates(monkeypatch):
 
     monkeypatch.setattr(world_bank, "_get_cached_metadata", fake_metadata)
 
-    df = world_bank.get_indicator_metadata(["B", "A", "A"], db=2)
+    df = world_bank.get_wb_indicator_metadata(["B", "A", "A"], db=2)
 
     assert captured["id"] == ("A", "B")
     assert set(df[Fields.indicator_code]) == {"A", "B"}
