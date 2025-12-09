@@ -20,6 +20,11 @@ def world_bank(monkeypatch, tmp_path_factory):
     cache_dir = tmp_path_factory.mktemp("wb-cache")
     monkeypatch.setattr(platformdirs, "user_cache_dir", lambda *_, **__: cache_dir)
 
+    from bblocks.data_importers import utilities as utils
+
+    if not hasattr(utils, "disk_memoize"):
+        utils.disk_memoize = lambda *_, **__: (lambda fn: fn)
+
     sys.modules.pop("bblocks.data_importers.world_bank.world_bank", None)
     wb_module = importlib.import_module("bblocks.data_importers.world_bank.world_bank")
     yield wb_module
@@ -138,18 +143,18 @@ def test_get_wb_indicator_metadata_builds_dataframe(world_bank, monkeypatch):
             _DummyMetadata({"IndicatorName": "Population", "Unitofmeasure": "people"})
         ]
 
-    monkeypatch.setattr(world_bank, "_get_cached_metadata", fake_metadata)
+    monkeypatch.setattr(world_bank.wb.series.metadata, "fetch", fake_metadata)
 
     df = world_bank.get_wb_indicator_metadata(["SP.POP.TOTL"], db=2)
 
-    assert captured["id"] == ("SP.POP.TOTL",)
+    assert captured["id"] == ["SP.POP.TOTL"]
     assert df.loc[0, Fields.indicator_code] == "SP.POP.TOTL"
     assert df.loc[0, Fields.indicator_name] == "Population"
     assert df.loc[0, Fields.unit] == "people"
 
 
 def test_get_wb_indicator_metadata_raises_when_missing(world_bank, monkeypatch):
-    monkeypatch.setattr(world_bank, "_get_cached_metadata", lambda **kwargs: [])
+    monkeypatch.setattr(world_bank.wb.series.metadata, "fetch", lambda **kwargs: [])
 
     with pytest.raises(DataExtractionError):
         world_bank.get_wb_indicator_metadata("SP.POP.TOTL")
@@ -503,9 +508,9 @@ def test_get_wb_indicator_metadata_deduplicates(world_bank, monkeypatch):
             _DummyMetadata({"IndicatorName": "Ind B", "Unitofmeasure": "u2"}),
         ]
 
-    monkeypatch.setattr(world_bank, "_get_cached_metadata", fake_metadata)
+    monkeypatch.setattr(world_bank.wb.series.metadata, "fetch", fake_metadata)
 
     df = world_bank.get_wb_indicator_metadata(["B", "A", "A"], db=2)
 
-    assert captured["id"] == ("A", "B")
+    assert captured["id"] == ["A", "B"]
     assert set(df[Fields.indicator_code]) == {"A", "B"}
