@@ -34,7 +34,6 @@ print(get_wb_databases())
 This will return a dataframe with the available World Bank databases and their IDs. The ID is
 necessary to specify which database you want to access.
 
-
 To start accessing World Bank data, first instantiate a `WorldBank` importer.
 
 ```python
@@ -146,15 +145,26 @@ df = wb.get_data(indicator_code=["NY.GDP.MKTP.CD", "SP.POP.TOTL"], params={"per_
 
 ### Caching data
 
-Data is cached for efficiency. Data is cached in disk up to 3 hours by default. The cache can be cleared
-by calling the `clear_cache` method.
+Data is cached for efficiency. Data is cached in disk up to 3 hours by default. 
+The cache can be cleared in different ways but **NOTE** that clearing the cache will 
+remove all cached World Bank data
+
+If have instantiated a World Bank importer, you can clear the cache using
+the `clear_cache` method.
 
 ```python
 wb.clear_cache()
 ```
 
-Note that the cache is not bound to a specific World Bank object, and clearing the
-cache will clear it for all World Bank importers.
+Alternatively, you can use the `clear_wb_cache` function.
+
+```python
+from bblocks.data_importers import clear_wb_cache
+
+clear_wb_cache()
+```
+
+Either of these methods will clear all cached World Bank data.
 
 
 ## Convenience methods
@@ -165,14 +175,14 @@ instantiating a WorldBank object, you can use the following convenience function
 ```python
 from bblocks.data_importers import (
     get_wb_entities,
-    get_indicator_metadata,
+    get_wb_indicator_metadata,
     get_wb_indicators,
 )
 
 
 inds = get_wb_indicators(db=2)  # Get indicators from WDI database
 ents = get_wb_entities(db=2)     # Get entities from WDI database
-meta = get_indicator_metadata(indicator_code = "NY.GDP.MKTP.CD", db=2)  # Get metadata
+meta = get_wb_indicator_metadata(indicator_code = "NY.GDP.MKTP.CD", db=2)  # Get metadata
 ```
 To get all the entities or indicators in all databases, set `db=None`.
 
@@ -217,3 +227,12 @@ To see the date the database was last updated, use the `last_updated` property.
 ```python
 ids.last_updated
 ```
+
+Caching works the same way as in the base `WorldBank` importer. To clear the cache,
+use the `clear_cache` method.
+
+```python
+ids.clear_cache()
+```
+
+**NOTE** this will clear all cached World Bank data for any other `WorldBank` importers as well.
