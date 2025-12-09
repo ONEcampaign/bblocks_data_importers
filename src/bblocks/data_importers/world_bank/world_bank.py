@@ -24,7 +24,7 @@ from platformdirs import user_cache_dir
 
 
 from bblocks.data_importers.config import logger, Fields, DataExtractionError
-from bblocks.data_importers.utilities import convert_dtypes, disk_memoize
+from bblocks.data_importers.utilities import convert_dtypes
 from bblocks.data_importers.data_validators import DataFrameValidator
 
 
