@@ -1,3 +1,11 @@
+"""Module to import IMF LIC Debt Sustainability Assessments (DSA) data
+
+
+Main function: get_dsa()
+
+"""
+
+
 import re
 from io import BytesIO
 from typing import Final
@@ -7,9 +15,10 @@ import camelot
 import httpx
 import pandas as pd
 
-from bblocks.data_importers.config import Fields, DataFormattingError
+from bblocks.data_importers.config import Fields, DataFormattingError, DataExtractionError
 from bblocks.data_importers.data_validators import DataFrameValidator
 from bblocks.data_importers.utilities import logger, convert_dtypes
+
 
 URL: Final[str] = "https://www.imf.org/external/Pubs/ft/dsa/DSAlist.pdf"
 _FOOTNOTE_TRAILER = re.compile(r"\s*\d+/\s*$")
@@ -51,10 +60,18 @@ def _download_pdf(url: str) -> bytes:
         "User-Agent": "bblocks data importers @ https://data.one.org",
         "Accept": "application/pdf",
     }
-    with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(30.0)) as client:
-        r = client.get(url, headers=headers)
-        r.raise_for_status()
-        return r.content
+
+    try:
+        with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(30.0)) as client:
+            r = client.get(url, headers=headers)
+            r.raise_for_status()
+            return r.content
+
+    except httpx.RequestError as e:
+        raise DataExtractionError(...) from e
+
+    except httpx.HTTPStatusError as e:
+        raise DataExtractionError(...) from e
 
 
 def _pdf_to_df(src: bytes) -> pd.DataFrame:
@@ -154,9 +171,6 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
         raise DataFormattingError(f"Error cleaning DSA data: {str(e)}")
 
 
-
-
-
 @lru_cache
 def get_dsa() -> pd.DataFrame:
     """Get IMF LIC DSA list
@@ -168,8 +182,6 @@ def get_dsa() -> pd.DataFrame:
 
     This function used LRU caching to avoid multiple downloads of the same data. To clear the
     cache restart the Python session.
-
-
 
     Returns:
         A DataFrame containing the DSA list with the following columns
