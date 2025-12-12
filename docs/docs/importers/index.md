@@ -9,6 +9,7 @@ interface while adapting to the quirks of each source.
 | Source                                                  | Description                                                                   |
 |---------------------------------------------------------|-------------------------------------------------------------------------------|
 | __IMF [World Economic Outlook](./weo)__                 | Macroeconomic indicators and forecasts from the IMF                           |
+| __IMF [Debt Sustainability Analysis](./dsa)__           | Latest IMF LIC debt sustainability assessments in tidy tabular form           |
 | __[World Bank](./world-bank)__                          | Comprehensive development data across sectors                                 |
 | __World Bank - [International Debt Statistics](./ids)__ | Comprehensive external debt data from the World Bank                          |
 | __WHO - [Global Health Expenditure Database](./ghed)__  | Comprehensive country health expenditure data                                 |
