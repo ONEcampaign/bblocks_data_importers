@@ -8,6 +8,7 @@ import pandas as pd
 
 from bblocks.data_importers.config import Fields, DataFormattingError
 from bblocks.data_importers.data_validators import DataFrameValidator
+from bblocks.data_importers.utilities import logger
 
 URL: Final[str] = "https://www.imf.org/external/Pubs/ft/dsa/DSAlist.pdf"
 _FOOTNOTE_TRAILER = re.compile(r"\s*\d+/\s*$")
@@ -44,6 +45,7 @@ def __normalise_country_names(df: pd.DataFrame) -> pd.DataFrame:
 
 def _download_pdf(url: str) -> bytes:
     """Download PDF"""
+
     headers = {
         "User-Agent": "bblocks data importers @ https://data.one.org",
         "Accept": "application/pdf",
@@ -168,6 +170,8 @@ def get_dsa() -> pd.DataFrame:
 
     """
 
+    logger.info("Fetching DSA")
+
     content = _download_pdf(url=URL)
     df = _pdf_to_df(content)
     df = _clean_df(df)
@@ -175,6 +179,7 @@ def get_dsa() -> pd.DataFrame:
     # Validation
     DataFrameValidator().validate(df, list(COLS.values()))
 
+    logger.info("Successfully fetched DSA data")
 
     return df
 
