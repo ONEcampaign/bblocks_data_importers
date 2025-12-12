@@ -5,7 +5,6 @@ Main function: get_dsa()
 
 """
 
-
 import re
 from io import BytesIO
 from typing import Final
@@ -15,7 +14,11 @@ import camelot
 import httpx
 import pandas as pd
 
-from bblocks.data_importers.config import Fields, DataFormattingError, DataExtractionError
+from bblocks.data_importers.config import (
+    Fields,
+    DataFormattingError,
+    DataExtractionError,
+)
 from bblocks.data_importers.data_validators import DataFrameValidator
 from bblocks.data_importers.utilities import logger, convert_dtypes
 
@@ -25,13 +28,13 @@ _FOOTNOTE_TRAILER = re.compile(r"\s*\d+/\s*$")
 
 # Columns
 COLS = {
-        1: Fields.country_name,
-        2: "latest_publication",
-        3: "risk_of_debt_distress",
-        5: "debt_sustainability_assessment",
-        6: "joint_with_world_bank",
-        7: "latest_dsa_discussed"
-    }
+    1: Fields.country_name,
+    2: "latest_publication",
+    3: "risk_of_debt_distress",
+    5: "debt_sustainability_assessment",
+    6: "joint_with_world_bank",
+    7: "latest_dsa_discussed",
+}
 
 
 def __strip_footnote_trailer(x: str | None) -> str | None:
@@ -41,11 +44,14 @@ def __strip_footnote_trailer(x: str | None) -> str | None:
         return x
     return _FOOTNOTE_TRAILER.sub("", x).strip()
 
+
 def __normalise_country_names(df: pd.DataFrame) -> pd.DataFrame:
     """Normalize country names"""
 
     if Fields.country_name in df.columns:
-        df[Fields.country_name] = df[Fields.country_name].apply(__strip_footnote_trailer)
+        df[Fields.country_name] = df[Fields.country_name].apply(
+            __strip_footnote_trailer
+        )
 
     if df[Fields.country_name].isnull().any():
         raise DataFormattingError("Null values found in country names after cleaning")
@@ -93,7 +99,6 @@ def _pdf_to_df(src: bytes) -> pd.DataFrame:
 def __clean_headers(df: pd.DataFrame) -> pd.DataFrame:
     """Clean and standardize the DSA table headers."""
 
-
     return df.filter(COLS.keys()).rename(columns=COLS)
 
 
@@ -135,7 +140,9 @@ def __normalise_debt_sustainability(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # replace "" with NaN
-    df["debt_sustainability_assessment"] = df["debt_sustainability_assessment"].replace("", pd.NA)
+    df["debt_sustainability_assessment"] = df["debt_sustainability_assessment"].replace(
+        "", pd.NA
+    )
 
     return df
 
@@ -153,19 +160,20 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
 
     try:
 
-        return (df.loc[lambda d: d[d.columns[0]].notna() & (d[d.columns[0]] != "") ]
-                .reset_index(drop=True)
-                .loc[1:, :] # drop header row
-                .pipe(__clean_headers)
-                 .pipe(__normalise_booleans, "joint_with_world_bank")
-                 .pipe(__normalise_country_names)
-                 .pipe(__normalise_date, "latest_publication")
-                 .pipe(__normalise_date, "latest_dsa_discussed")
-                 .pipe(__normalise_debt_distress)
-                 .pipe(__normalise_debt_sustainability)
-                .reset_index(drop=True)
-                .pipe(convert_dtypes)
-                )
+        return (
+            df.loc[lambda d: d[d.columns[0]].notna() & (d[d.columns[0]] != "")]
+            .reset_index(drop=True)
+            .loc[1:, :]  # drop header row
+            .pipe(__clean_headers)
+            .pipe(__normalise_booleans, "joint_with_world_bank")
+            .pipe(__normalise_country_names)
+            .pipe(__normalise_date, "latest_publication")
+            .pipe(__normalise_date, "latest_dsa_discussed")
+            .pipe(__normalise_debt_distress)
+            .pipe(__normalise_debt_sustainability)
+            .reset_index(drop=True)
+            .pipe(convert_dtypes)
+        )
 
     except Exception as e:
         raise DataFormattingError(f"Error cleaning DSA data: {str(e)}")
@@ -205,5 +213,3 @@ def get_dsa() -> pd.DataFrame:
     logger.info("Successfully fetched DSA data")
 
     return df
-
-
