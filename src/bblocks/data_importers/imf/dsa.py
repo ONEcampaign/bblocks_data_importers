@@ -1,6 +1,7 @@
 import re
 from io import BytesIO
 from typing import Final
+from functools import lru_cache
 
 import camelot
 import httpx
@@ -8,7 +9,7 @@ import pandas as pd
 
 from bblocks.data_importers.config import Fields, DataFormattingError
 from bblocks.data_importers.data_validators import DataFrameValidator
-from bblocks.data_importers.utilities import logger
+from bblocks.data_importers.utilities import logger, convert_dtypes
 
 URL: Final[str] = "https://www.imf.org/external/Pubs/ft/dsa/DSAlist.pdf"
 _FOOTNOTE_TRAILER = re.compile(r"\s*\d+/\s*$")
@@ -146,6 +147,7 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
                  .pipe(__normalise_debt_distress)
                  .pipe(__normalise_debt_sustainability)
                 .reset_index(drop=True)
+                .pipe(convert_dtypes)
                 )
 
     except Exception as e:
@@ -155,19 +157,28 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
 
 
 
-
+@lru_cache
 def get_dsa() -> pd.DataFrame:
-    """Get the latest IMF LIC DSA list as a tidy DataFrame.
+    """Get IMF LIC DSA list
+
+    Get the list of LIC Debt Sustainability Assessments for PRGT-Eligible Countries
+    as a pandas DataFrame, from:
+
+    https://www.imf.org/external/Pubs/ft/dsa/DSAlist.pdf
+
+    This function used LRU caching to avoid multiple downloads of the same data. To clear the
+    cache restart the Python session.
+
+
 
     Returns:
-        pd.DataFrame: A DataFrame containing the latest LIC DSA list with the following columns
-            - country: Country name
-            - iso3_code: ISO3 country code
+        A DataFrame containing the DSA list with the following columns
+            - country_name: Country name
             - latest_publication: Date of the latest DSA publication
             - risk_of_debt_distress: Risk of debt distress classification
-            - debt_sustainability: Debt sustainability classification
-            - joint_with_wb: Boolean indicating if the DSA was done jointly with the World Bank
-
+            - debt_sustainability_assessment: Debt sustainability classification
+            - joint_with_world_bank: Boolean indicating if the DSA was done jointly with the World Bank
+            - latest_dsa_discussed: Date of latest DSA discussed by the Executive Board but not yet published
     """
 
     logger.info("Fetching DSA")
