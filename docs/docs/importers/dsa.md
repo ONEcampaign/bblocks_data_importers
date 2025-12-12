@@ -14,27 +14,30 @@ The source document can be accessed on the IMF website: [Latest LIC DSA list](ht
 
 ## Basic usage
 
-Call `get_dsa()` to receive the cleaned table. No additional parameters are required.
+Call `get_dsa()` to receive the cleaned pandas data frame. No additional parameters are required.
 
 ```python
-from bblocks.data_importers.imf.dsa import get_dsa
+from bblocks.data_importers import get_dsa
 
 df = get_dsa()
 ```
 
-The importer normalises the raw PDF output so you can start analysing immediately.
 
-## Column reference
+**Column reference**:
 
-- `iso3_code` – ISO-3 country code derived via `bblocks.places.resolve_places`.
-- `country` – Short country name with IMF footnote markers removed and names harmonised through `resolve_places`.
-- `latest_publication` – Parsed as `datetime64[ns]` (local time). Values that cannot be parsed are set to `NaT`.
-- `risk_of_debt_distress` – Title-case labels with leading/trailing whitespace collapsed (e.g. `Low`, `High`, `In debt distress`).
-- `debt_sustainability` – Cleaned text (footnote markers removed) with consistent labels (`Sustainable`, `Unsustainable`).
-- `joint_with_wb` – Boolean flag indicating whether the assessment was prepared jointly with the World Bank.
-
-Rows without a recognised country are dropped to ensure the final DataFrame contains only country rows.
+- `country_name` – Country name with IMF footnote markers removed.
+- `latest_publication` – The date of the latest publication
+- `risk_of_debt_distress` – The risk of debt distress ('High', 'Moderate', 'Low', 'In debt distress').
+- `debt_sustainability_assessment` – The debt sustainability assessment category ('Sustainable', 'Unsustainable')
+- `joint_with_world_bank` – Boolean flag indicating whether the assessment was prepared jointly with the World Bank.
+- `latest_dsa_discussed` - Date of the latest DSA discussed by the Executive Board but not yet published 
 
 
 If you encounter format changes in the source PDF, please [open an issue](https://github.com/ONEcampaign/bblocks_data_importers/issues)
 so we can update the parser accordingly.
+
+
+## Caching
+
+The data is cached using LRU cache to avoid unnecessary repeated downloads. To
+clear the cache restart the Python session.
