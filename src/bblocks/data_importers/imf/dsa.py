@@ -7,6 +7,7 @@ import httpx
 import pandas as pd
 
 from bblocks.data_importers.config import Fields, DataFormattingError
+from bblocks.data_importers.data_validators import DataFrameValidator
 
 URL: Final[str] = "https://www.imf.org/external/Pubs/ft/dsa/DSAlist.pdf"
 _FOOTNOTE_TRAILER = re.compile(r"\s*\d+/\s*$")
@@ -170,6 +171,10 @@ def get_dsa() -> pd.DataFrame:
     content = _download_pdf(url=URL)
     df = _pdf_to_df(content)
     df = _clean_df(df)
+
+    # Validation
+    DataFrameValidator().validate(df, list(COLS.values()))
+
 
     return df
 
