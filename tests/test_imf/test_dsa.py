@@ -4,12 +4,12 @@ from io import BytesIO
 from types import SimpleNamespace
 from unittest import mock
 
+import httpx
 import pandas as pd
 import pandas.testing as pdt
 import pytest
-import httpx
 
-
+from bblocks.data_importers.config import DataFormattingError, Fields
 from bblocks.data_importers.imf import dsa
 
 
@@ -19,24 +19,47 @@ def sample_raw_table():
 
     return pd.DataFrame(
         {
-            0: ["unused", "unused"],
-            1: ["Country One 1/ ", "Country Two"],
-            2: ["2024-01-15", "2024-04-01"],
-            3: [" in debt distress ", "low"],
-            4: ["ignored", "ignored"],
-            5: ["SUSTAINABLE", "unsustainable 2/"],
-            6: ["Yes", "No"],
+            0: ["#", "1", "2"],
+            1: ["Country", "Country One 1/ ", "Country Two"],
+            2: ["Latest publication", "2024-01-15", "2024-04-01"],
+            3: ["Risk of debt distress", " in debt distress ", "low"],
+            4: ["ignored", "ignored", "ignored"],
+            5: ["Debt sustainability", "SUSTAINABLE", "unsustainable 2/"],
+            6: ["Joint", "Yes", "No"],
+            7: ["Latest DSA discussed", "2024-02-01", ""],
         }
     )
 
 
+@pytest.fixture
+def raw_table_without_header(sample_raw_table):
+    """Sample table without the header row."""
+
+    return sample_raw_table.iloc[1:].reset_index(drop=True)
+
+
+@pytest.fixture
+def expected_clean_df():
+    df = pd.DataFrame(
+        {
+            Fields.country_name: ["Country One", "Country Two"],
+            "latest_publication": pd.to_datetime(["2024-01-15", "2024-04-01"]),
+            "risk_of_debt_distress": ["In debt distress", "Low"],
+            "debt_sustainability_assessment": ["Sustainable", "Unsustainable"],
+            "joint_with_world_bank": [True, False],
+            "latest_dsa_discussed": pd.to_datetime(["2024-02-01", None]),
+        }
+    )
+    return df.convert_dtypes(dtype_backend="pyarrow")
+
+
 def test_strip_footnote_trailer_removes_trailing_marker():
-    assert dsa._strip_footnote_trailer("Example 3/  ") == "Example"
+    assert dsa.__strip_footnote_trailer("Example 3/  ") == "Example"
 
 
 def test_strip_footnote_trailer_passthrough_for_non_strings():
-    assert dsa._strip_footnote_trailer(None) is None
-    assert dsa._strip_footnote_trailer(123) == 123
+    assert dsa.__strip_footnote_trailer(None) is None
+    assert dsa.__strip_footnote_trailer(123) == 123
 
 
 def test_download_pdf_uses_httpx_client():
@@ -84,107 +107,76 @@ def test_pdf_to_df_raises_when_pdf_invalid():
             dsa._pdf_to_df(b"broken")
 
 
-def test_clean_headers_selects_expected_columns(sample_raw_table):
-    cleaned = dsa.__clean_headers(sample_raw_table)
+def test_clean_headers_selects_expected_columns(raw_table_without_header):
+    cleaned = dsa.__clean_headers(raw_table_without_header)
 
     assert list(cleaned.columns) == [
-        "country",
+        Fields.country_name,
         "latest_publication",
         "risk_of_debt_distress",
-        "debt_sustainability",
-        "joint_with_wb",
+        "debt_sustainability_assessment",
+        "joint_with_world_bank",
+        "latest_dsa_discussed",
     ]
 
 
-def test_normalise_booleans(sample_raw_table):
-    df = dsa.__clean_headers(sample_raw_table)
-    result = dsa.__normalise_booleans(df, "joint_with_wb")
-    assert result["joint_with_wb"].tolist() == [True, False]
+def test_normalise_country_names_strips_footnotes(raw_table_without_header):
+    df = dsa.__clean_headers(raw_table_without_header)
+    result = dsa.__normalise_country_names(df)
+    assert result[Fields.country_name].tolist() == ["Country One", "Country Two"]
 
 
-def test_normalise_debt_distress_standardises_labels(sample_raw_table):
-    df = dsa.__clean_headers(sample_raw_table)
+def test_normalise_country_names_raises_on_nulls():
+    df = pd.DataFrame({Fields.country_name: ["Valid Country", None]})
+    with pytest.raises(DataFormattingError, match="Null values"):
+        dsa.__normalise_country_names(df)
+
+
+def test_normalise_booleans(raw_table_without_header):
+    df = dsa.__clean_headers(raw_table_without_header)
+    result = dsa.__normalise_booleans(df, "joint_with_world_bank")
+    assert result["joint_with_world_bank"].tolist() == [True, False]
+
+
+def test_normalise_debt_distress_standardises_labels(raw_table_without_header):
+    df = dsa.__clean_headers(raw_table_without_header)
     result = dsa.__normalise_debt_distress(df)
-    assert result["risk_of_debt_distress"].tolist() == [
-        "In debt distress",
-        "Low",
-    ]
+    assert result["risk_of_debt_distress"].tolist() == ["In debt distress", "Low"]
 
 
-def test_normalise_debt_sustainability_standardises_labels(sample_raw_table):
-    df = dsa.__clean_headers(sample_raw_table)
+def test_normalise_debt_sustainability_standardises_labels(raw_table_without_header):
+    df = dsa.__clean_headers(raw_table_without_header)
     result = dsa.__normalise_debt_sustainability(df)
-    assert result["debt_sustainability"].tolist() == [
+    assert result["debt_sustainability_assessment"].tolist() == [
         "Sustainable",
         "Unsustainable",
     ]
 
 
-def test_normalise_date_parses_column(sample_raw_table):
-    df = dsa.__clean_headers(sample_raw_table)
+def test_normalise_date_parses_columns(raw_table_without_header):
+    df = dsa.__clean_headers(raw_table_without_header)
     result = dsa.__normalise_date(df, "latest_publication")
     assert pd.api.types.is_datetime64_any_dtype(result["latest_publication"])
     assert result.loc[0, "latest_publication"].date().isoformat() == "2024-01-15"
 
-
-def test_normalise_country_names_resolves(sample_raw_table):
-    df = dsa.__clean_headers(sample_raw_table)
-
-    with mock.patch("bblocks.data_importers.imf.dsa.resolve_places") as resolver:
-        resolver.return_value = pd.Series(["Country One", "Country Two"])
-        result = dsa.__normalise_country_names(df, "country")
-
-    assert result["country"].tolist() == ["Country One", "Country Two"]
-    resolver.assert_called_once_with(mock.ANY, to_type="name_short", not_found="ignore")
+    result = dsa.__normalise_date(result, "latest_dsa_discussed")
+    assert pd.api.types.is_datetime64_any_dtype(result["latest_dsa_discussed"])
+    assert result.loc[0, "latest_dsa_discussed"].date().isoformat() == "2024-02-01"
+    assert pd.isna(result.loc[1, "latest_dsa_discussed"])
 
 
-def test_insert_iso3_codes_adds_column(sample_raw_table):
-    with mock.patch("bblocks.data_importers.imf.dsa.resolve_places") as resolver:
-        resolver.side_effect = [
-            pd.Series(["Country One", "Country Two"]),
-            pd.Series(["C1", "C2"]),
-        ]
-        df = dsa.__clean_headers(sample_raw_table)
-        df = dsa.__normalise_country_names(df, "country")
-        result = dsa.__insert_iso3_codes(df)
-
-    assert list(result.columns)[0] == "iso3_code"
-    assert result["iso3_code"].tolist() == ["C1", "C2"]
-    iso_call = resolver.mock_calls[1]
-    _, args, kwargs = iso_call
-    assert args[0].equals(result["country"])
-    assert kwargs == {"to_type": "iso3_code", "not_found": "ignore"}
+def test_clean_df_applies_full_pipeline(sample_raw_table, expected_clean_df):
+    result = dsa._clean_df(sample_raw_table)
+    pdt.assert_frame_equal(result, expected_clean_df)
 
 
-def test_get_dsa_returns_expected_dataframe(sample_raw_table):
-    expected = pd.DataFrame(
-        {
-            "iso3_code": ["C1", "C2"],
-            "country": ["Country One", "Country Two"],
-            "latest_publication": pd.to_datetime(["2024-01-15", "2024-04-01"]),
-            "risk_of_debt_distress": ["In debt distress", "Low"],
-            "debt_sustainability": ["Sustainable", "Unsustainable"],
-            "joint_with_wb": [True, False],
-        }
-    )
-
-    def fake_resolve_places(values, to_type, not_found):
-        if to_type == "name_short":
-            return pd.Series(["Country One", "Country Two"], index=values.index)
-        if to_type == "iso3_code":
-            return pd.Series(["C1", "C2"], index=values.index)
-        raise AssertionError("Unexpected to_type")
-
+def test_get_dsa_returns_expected_dataframe(sample_raw_table, expected_clean_df):
     with (
         mock.patch("bblocks.data_importers.imf.dsa._download_pdf", return_value=b"pdf"),
         mock.patch(
             "bblocks.data_importers.imf.dsa._pdf_to_df", return_value=sample_raw_table
         ),
-        mock.patch(
-            "bblocks.data_importers.imf.dsa.resolve_places",
-            side_effect=fake_resolve_places,
-        ),
     ):
         result = dsa.get_dsa()
 
-    pdt.assert_frame_equal(result, expected)
+    pdt.assert_frame_equal(result, expected_clean_df)
