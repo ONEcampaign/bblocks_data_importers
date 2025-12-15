@@ -74,10 +74,10 @@ def _download_pdf(url: str) -> bytes:
             return r.content
 
     except httpx.RequestError as e:
-        raise DataExtractionError(...) from e
+        raise DataExtractionError(f"Error downloading DSA PDF: {str(e)}") from e
 
     except httpx.HTTPStatusError as e:
-        raise DataExtractionError(...) from e
+        raise DataExtractionError(f"Error downloading DSA PDF: {str(e)}") from e
 
 
 def _pdf_to_df(src: bytes) -> pd.DataFrame:
