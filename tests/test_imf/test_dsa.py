@@ -9,7 +9,7 @@ import pandas as pd
 import pandas.testing as pdt
 import pytest
 
-from bblocks.data_importers.config import DataFormattingError, Fields
+from bblocks.data_importers.config import DataExtractionError, DataFormattingError, Fields
 from bblocks.data_importers.imf import dsa
 
 
@@ -103,7 +103,7 @@ def test_pdf_to_df_returns_single_table():
 
 def test_pdf_to_df_raises_when_pdf_invalid():
     with mock.patch("camelot.read_pdf", return_value=[]):
-        with pytest.raises(ValueError, match="Could not read PDF to a dataframe"):
+        with pytest.raises(DataExtractionError, match="Invalid PDF format"):
             dsa._pdf_to_df(b"broken")
 
 
