@@ -9,7 +9,11 @@ import pandas as pd
 import pandas.testing as pdt
 import pytest
 
-from bblocks.data_importers.config import DataExtractionError, DataFormattingError, Fields
+from bblocks.data_importers.config import (
+    DataExtractionError,
+    DataFormattingError,
+    Fields,
+)
 from bblocks.data_importers.imf import dsa
 
 
