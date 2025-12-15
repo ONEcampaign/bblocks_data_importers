@@ -115,12 +115,9 @@ def __normalise_debt_distress(df: pd.DataFrame) -> pd.DataFrame:
 
     df["risk_of_debt_distress"] = (
         df["risk_of_debt_distress"]
-        .str.replace(r"\s+", " ", regex=True)
+        .pipe(__strip_footnote_trailer)
         .str.strip()
-        .str.replace("^in debt distress$", "In debt distress", case=False, regex=True)
-        .str.replace("^low$", "Low", case=False, regex=True)
-        .str.replace("^moderate$", "Moderate", case=False, regex=True)
-        .str.replace("^high$", "High", case=False, regex=True)
+        .str.capitalize()
     )
 
     # replace "" with NaN
@@ -136,8 +133,7 @@ def __normalise_debt_sustainability(df: pd.DataFrame) -> pd.DataFrame:
         df["debt_sustainability_assessment"]
         .apply(__strip_footnote_trailer)
         .str.strip()
-        .str.replace("^sustainable$", "Sustainable", case=False, regex=True)
-        .str.replace("^unsustainable$", "Unsustainable", case=False, regex=True)
+        .str.capitalize()
     )
 
     # replace "" with NaN
