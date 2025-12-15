@@ -87,13 +87,14 @@ def _pdf_to_df(src: bytes) -> pd.DataFrame:
 
     try:
         tables = camelot.read_pdf(file, flavor="stream")
-        if len(tables) != 1:
-            raise ValueError("Invalid PDF format. Check PDF")
 
-        return tables[0].df
+    except Exception as e:
+        raise DataExtractionError(f"Could not read PDF to a dataframe: {str(e)}") from e
 
-    except ValueError:
-        raise ValueError("Could not read PDF to a dataframe")
+    if len(tables) != 1:
+        raise DataExtractionError("Invalid PDF format. Check PDF")
+
+    return tables[0].df
 
 
 def __clean_headers(df: pd.DataFrame) -> pd.DataFrame:
