@@ -12,6 +12,10 @@
 - Introduce an importer for the IMF Debt Sustainability Assessments. This importer
 downloads and parses the DSA pdf from the IMF website into a Pandas DataFrame
 
+## v0.4.2 (2025-12-19)
+- Fix World Bank cache not persisting across sessions (WAL not checkpointed on exit)
+- Add cache hit logging for World Bank data requests
+
 ## v0.4.1 (2025-07-16)
 - Bug fix in utilities for dependency logging settings
 
