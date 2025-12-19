@@ -15,6 +15,7 @@ Classes:
 
 """
 
+import atexit
 from typing import Generator
 import pandas as pd
 import wbgapi as wb
@@ -36,6 +37,10 @@ _PER_PAGE: int = 50_000_000  # number of records per page to request from World 
 _CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60  # cache expiry after 3 hours
 _CACHE_DIR = user_cache_dir("bblocks/world_bank")
 _DATA_CACHE = FanoutCache(_CACHE_DIR)
+_DATA_CACHE.stats(enable=True)  # Enable hit/miss tracking
+
+# Ensure cache is properly closed on exit to persist WAL data to disk
+atexit.register(_DATA_CACHE.close)
 
 
 def clear_wb_cache() -> None:
@@ -532,6 +537,7 @@ class WorldBank:
         params_items = tuple(sorted(params.items())) if params else None
         extra_items = tuple(sorted(kwargs.items()))
 
+        _, misses_before = _DATA_CACHE.stats()
         df = _fetch_data(
             indicators=indicators,
             db=self._db,
@@ -545,6 +551,10 @@ class WorldBank:
             batch_size=batch_size,
             thread_num=thread_num,
         )
+        _, misses_after = _DATA_CACHE.stats()
+
+        if misses_after == misses_before:
+            logger.info("Data loaded from cache.")
 
         # return a defensive copy so callers cannot mutate the cached DataFrame
         return df.copy(deep=True)
