@@ -20,7 +20,7 @@ from typing import Generator
 import pandas as pd
 import wbgapi as wb
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from diskcache import FanoutCache
+from diskcache import Cache
 from platformdirs import user_cache_dir
 
 
@@ -36,7 +36,7 @@ _PER_PAGE: int = 50_000_000  # number of records per page to request from World 
 
 _CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60  # cache expiry after 3 hours
 _CACHE_DIR = user_cache_dir("bblocks/world_bank")
-_DATA_CACHE = FanoutCache(_CACHE_DIR)
+_DATA_CACHE = Cache(_CACHE_DIR)
 _DATA_CACHE.stats(enable=True)  # Enable hit/miss tracking
 
 # Ensure cache is properly closed on exit to persist WAL data to disk

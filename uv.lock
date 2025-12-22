@@ -34,7 +34,7 @@ wheels = [
 
 [[package]]
 name = "bblocks-data-importers"
-version = "0.4.1"
+version = "0.4.2"
 source = { editable = "." }
 dependencies = [
     { name = "bblocks-places" },
