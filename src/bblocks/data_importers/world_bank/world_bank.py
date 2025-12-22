@@ -34,7 +34,7 @@ _NUM_THREADS: int = 4  # number of threads to use for fetching data
 _PER_PAGE: int = 50_000_000  # number of records per page to request from World Bank API
 
 
-_CACHE_EXPIRY_SECONDS: int = 3 * 60 * 60  # cache expiry after 3 hours
+_CACHE_EXPIRY_SECONDS: int = 48 * 60 * 60  # cache expiry after 48 hours
 _CACHE_DIR = user_cache_dir("bblocks/world_bank")
 _DATA_CACHE = Cache(_CACHE_DIR)
 _DATA_CACHE.stats(enable=True)  # Enable hit/miss tracking
@@ -409,7 +409,7 @@ class WorldBank:
     >>> entities_df = wb_importer.get_available_entities()
 
     Data is cached by default to avoid redundant API calls for the same queries.
-    Data is cached to disk and persists up to 3 hours. To clear the cache, use the `clear_cache` method.
+    Data is cached to disk and persists up to 48 hours. To clear the cache, use the `clear_cache` method.
     NOTE: clearing the cache will remove all cached data for all World Bank database instances.
 
     >>> wb_importer.clear_cache()
